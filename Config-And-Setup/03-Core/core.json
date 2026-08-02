@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "createConfiguredDirectories": true,
+  "registerMachine": true,
+  "importAllProjects": true
+}

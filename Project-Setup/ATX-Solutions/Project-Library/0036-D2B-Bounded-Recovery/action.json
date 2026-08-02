@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.bounded-recovery",
+  "displayName": "Run exactly bounded Statement extraction recovery",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Run D2B Bounded Recovery",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 480,
+  "outputs": [
+    {
+      "name": "d2bBoundedRecoveryVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bRecoveryHistoryTotal",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bRecoveryAttemptsExecuted",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bRecoveryAttemptsNotRun",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bRecoveryAcceptedResults",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bRecoveryExtractionRunsTotal",
+      "type": "Number",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

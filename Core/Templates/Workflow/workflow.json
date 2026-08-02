@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "project.workflow.name",
+  "displayName": "Workflow display name",
+  "projectKey": "replace-me",
+  "environment": "test",
+  "timeoutSeconds": 300,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "project.area.action",
+      "cleanup": false
+    }
+  ]
+}

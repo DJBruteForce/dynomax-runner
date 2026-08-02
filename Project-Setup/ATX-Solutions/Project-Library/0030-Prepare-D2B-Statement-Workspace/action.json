@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.prepare-statement-workspace",
+  "displayName": "Prepare exact disposable Statement Draft for D2-B processing",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Prepare D2B Statement Workspace",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 120,
+  "outputs": [
+    {
+      "name": "d2bWorkspacePrepared",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bSourceTruthVersion",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2bNoImportExecuted",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

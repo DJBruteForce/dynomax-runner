@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "dynomax-core-109-exact-version-acceptance-r1",
+  "displayName": "Dynomax Core 1.0.9 Exact-Version Acceptance R1 (TEST)",
+  "projectType": "FrameworkAcceptance",
+  "defaultEngine": "PowerShell",
+  "evidenceBoundary": "LocalFixtureOnly",
+  "browser": "chromium",
+  "headless": true,
+  "defaultTimeoutSeconds": 60,
+  "secretReferences": {},
+  "environments": [
+    {
+      "key": "local",
+      "displayName": "Local fixture",
+      "baseUrl": "http://127.0.0.1",
+      "browser": "chromium",
+      "headless": true,
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "allowedHosts": [
+        "127.0.0.1"
+      ]
+    }
+  ]
+}

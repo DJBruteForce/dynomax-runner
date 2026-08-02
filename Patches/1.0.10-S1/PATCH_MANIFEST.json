@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "patchName": "Dynomax Core secret-safe context bridge",
+  "patchVersion": "1.0.10-S1",
+  "minimumInstalledVersion": "1.0.10",
+  "maximumInstalledVersion": "1.0.10",
+  "databaseChange": "None",
+  "files": [
+    {
+      "path": "Core/Catalogue/Dynomax.Catalogue.ps1",
+      "sha256": "dcc8d34ecee41900d105ea0537d0830fbc2bfaa4b7497fccefad2b6f3318750c",
+      "length": 20157
+    },
+    {
+      "path": "Core/Execution/Dynomax.Workflow.ps1",
+      "sha256": "2c1676f379f145f1c6184f5f384c9404a7d136dae699e569785fe525f3024f72",
+      "length": 33810
+    },
+    {
+      "path": "Core/Execution/Persist-DynomaxRobotAction.ps1",
+      "sha256": "71f89373cbb150c2838e6fe67c21478f09990b386a53505600374408fbb26976",
+      "length": 2257
+    },
+    {
+      "path": "Core/Invoke-DynomaxWorkflow.ps1",
+      "sha256": "f1bc51b3169fd44f3262258f8916cf886c0fad6d271155c226987c29e4cc5f7a",
+      "length": 24239
+    },
+    {
+      "path": "Core/Results/Dynomax.Results.ps1",
+      "sha256": "a5d053174a93ea023b733aea612141eb967bcde8a6cee2174cc23a6d6a26e748",
+      "length": 31360
+    },
+    {
+      "path": "Core/Robot/Dynomax.resource",
+      "sha256": "148781ae689b34a6a8db0c34c01b1b7afacc71071803a11558b813ea18098038",
+      "length": 4238
+    },
+    {
+      "path": "README.md",
+      "sha256": "652d34055859fddbc0eefcc9d660e71b22f64f4b5b97d36b79efa5e8f199861a",
+      "length": 3986
+    },
+    {
+      "path": "VERSION.txt",
+      "sha256": "439810c5d60b1654e41bb2e9a341a12fbf4725eeb3c1c356ec7ee2b899a3e5cb",
+      "length": 8
+    },
+    {
+      "path": "dynomax.json",
+      "sha256": "de92f14d5eadc17a736ab93bf04f0affa8b3e8bfa5cf246423ebed8faf7f9287",
+      "length": 1032
+    }
+  ]
+}

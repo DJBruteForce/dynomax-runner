@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.ocr-processing",
+  "displayName": "Run image OCR processing through the Statement Test Lab",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Run D2B Image OCR Processing",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 360,
+  "outputs": [
+    {
+      "name": "d2bOcrVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bOcrUnits",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bOcrExtractionRuns",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bOcrRemapRuns",
+      "type": "Number",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

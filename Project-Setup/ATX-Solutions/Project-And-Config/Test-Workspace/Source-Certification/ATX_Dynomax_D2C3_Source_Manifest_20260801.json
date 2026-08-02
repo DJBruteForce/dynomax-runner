@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-08-01T14:20:00Z",
+  "projectKey": "atx-solutions",
+  "scope": "Phase 25H-D2-C3 website acceptance with exact-version lifecycle acknowledgement for the approved reusable Published Structured test profile",
+  "files": [
+    {
+      "path": "AtxSolutions/Pages/Banking/PaymentEvidence/Index.cshtml",
+      "sha256": "9fae2a99580347d4c488bf82f9740f381ac904dd9496bdbaf10d3eeff733d74f",
+      "size": 107652
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/PaymentEvidence/Index.cshtml.cs",
+      "sha256": "32de94d7b6804410793b5cc438cdcefeb05392d133ac03b5791078bb78ab22cc",
+      "size": 58774
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Imports.cshtml",
+      "sha256": "85d9435c7ffa43c916328ebb766533a07fd9882f7898177aa7c1a6419b805a44",
+      "size": 179566
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Imports.cshtml.cs",
+      "sha256": "0edb119273b05193efd6b9e29c0b7f95c250d67398c1db4ac11ba8e523c87a97",
+      "size": 218146
+    },
+    {
+      "path": "AtxSolutions/Pages/Manager/DataManagement/Import.cshtml",
+      "sha256": "4c332cc02d28404ab74fee26741a3ce5a4d7ba4108ea3fa8f37fcdb150b0e073",
+      "size": 24698
+    },
+    {
+      "path": "AtxSolutions/Pages/Manager/DataManagement/Import.cshtml.cs",
+      "sha256": "350d7afd1de5bb1d0afae658c3cfd1c383f2a160f5ec2e3af8df7cb7857e0f14",
+      "size": 29667
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Index.cshtml",
+      "sha256": "22a4192c31e281e20504172cff4f57238bb8ef7d204b30cfc41062406b9e52b2",
+      "size": 46941
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Structured.cshtml",
+      "sha256": "f27cf21ec792ce6ae1477d66b558ed920a655c560ec2fe0f469080b3783e698a",
+      "size": 23741
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/Usage/BankingPreviewUsageRecorder.cs",
+      "sha256": "d9b9450a7fe14e4b37a6075830a2a7b0043242491f1a9a6358fcd2cf829b06b4",
+      "size": 8312
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/Usage/BankingFinalImportUsageRecorder.cs",
+      "sha256": "eea4417b926d51f5c0a3dd9e9f376dc71c0a0b041242ef1d0a46da33bc9850f1",
+      "size": 10347
+    },
+    {
+      "path": "AtxSolutions/Features/DataManagement/Services/ManagerDataManagementBankImportContextService.cs",
+      "sha256": "e00fcb22c96c73b38200c7a441df92d882a4cefc213713a2ffadd7a65c0356b6",
+      "size": 8717
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Structured.cshtml.cs",
+      "sha256": "15d141150b23ae597e48d7b3927118a7dfcfc9cb4581105a4d83e5cb8d2835c2",
+      "size": 24790
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Lifecycle.cshtml",
+      "sha256": "f9f3ae839b1a657ccb7702dac0a2f06b222a3147c67d8d2d3310a4989925195c",
+      "size": 15360
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Lifecycle.cshtml.cs",
+      "sha256": "25430424d061fde57ad232efbceaa122caf309fc265c260697635f275deabd90",
+      "size": 5428
+    }
+  ],
+  "observedMarkupContracts": [
+    {
+      "path": "AtxSolutions/Pages/Banking/PaymentEvidence/Index.cshtml",
+      "observation": "After preview, PreviewProfileId is rendered on both the UploadPreview select and ExecuteImport hidden input.",
+      "requiredSelector": "form[action*=\"handler=UploadPreview\"] select[name=\"PreviewProfileId\"]:visible",
+      "broadSelectorProhibited": "#PreviewProfileId"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Structured.cshtml",
+      "observation": "The structured profile page exposes Save Draft & Record Test through handler SaveAndTest and redirects successful tested versions to Lifecycle.",
+      "requiredSelector": "#structuredProfileForm button[formaction*=\"handler=SaveAndTest\"]:visible"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Lifecycle.cshtml",
+      "observation": "A Tested exact version with review-required outcomes exposes one exact-version Acknowledge form and a disabled Publish form; acknowledgement enables publication for that same version.",
+      "requiredAcknowledgementSelector": "form[action*=\"handler=Acknowledge\"]:visible",
+      "requiredAcknowledgementTextSelector": "textarea[name=\"AcknowledgementText\"]",
+      "requiredPublishSelector": "form[action*=\"handler=Publish\"]:visible"
+    }
+  ]
+}

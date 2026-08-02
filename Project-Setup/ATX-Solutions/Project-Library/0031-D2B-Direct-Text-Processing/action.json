@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.direct-text-processing",
+  "displayName": "Run direct selectable-PDF processing without OCR",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Run D2B Direct Text Processing",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 240,
+  "outputs": [
+    {
+      "name": "d2bDirectTextVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bDirectTextPages",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bDirectTextExtractionRuns",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bDirectTextRemapRuns",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bDirectTextOcrNotUsed",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bTestLabLayoutVerified",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

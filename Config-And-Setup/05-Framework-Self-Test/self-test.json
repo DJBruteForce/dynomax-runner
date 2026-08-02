@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "validationType": "FrameworkSelfTest",
+  "browser": "chromium",
+  "headless": true,
+  "timeoutSeconds": 180,
+  "storeArtifactsInSql": true,
+  "maximumSqlArtifactBytes": 52428800,
+  "deleteTemporaryRunAfterSuccessfulIngestion": true
+}

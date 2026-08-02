@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "frameworkVersion": "1.0.7",
+  "frameworkName": "Dynomax",
+  "paths": {
+    "core": "Core",
+    "projects": "Project-Setup",
+    "tempRuns": "Temp\\Runs",
+    "exports": "Exports",
+    "databaseConfig": "Config-And-Setup\\02-Database\\database.json",
+    "prerequisiteConfig": "Config-And-Setup\\01-Prerequisites\\prerequisites.json",
+    "schemaContract": "Config-And-Setup\\02-Database\\schema-contract.json",
+    "patches": "Patches",
+    "frameworkSelfTestConfig": "Config-And-Setup\\05-Framework-Self-Test\\self-test.json"
+  },
+  "execution": {
+    "defaultTimeoutSeconds": 30,
+    "deleteTemporaryRunAfterSuccessfulIngestion": true,
+    "createResultZip": true,
+    "copyResultZipToClipboard": true,
+    "maximumSqlArtifactBytes": 52428800,
+    "artifactCompression": "GZip"
+  },
+  "logging": {
+    "consoleLevel": "Information",
+    "writeBootstrapLog": true,
+    "streamProcessOutput": true,
+    "showProcessCommands": false,
+    "processHeartbeatSeconds": 15
+  }
+}

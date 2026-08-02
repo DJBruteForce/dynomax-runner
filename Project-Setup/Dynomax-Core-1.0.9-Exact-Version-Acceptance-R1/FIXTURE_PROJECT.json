@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "dynomax-core-1.0.9-exact-version-runtime-r1",
+  "projectKey": "dynomax-core-109-exact-version-acceptance-r1",
+  "purpose": "Isolated repeatable runtime acceptance for Dynomax Core 1.0.9 exact action-version pinning."
+}

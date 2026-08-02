@@ -1,0 +1,55 @@
+﻿{
+    "schemaVersion":  1,
+    "patchVersion":  "1.0.9",
+    "installedAtUtc":  "2026-08-01T15:39:01.7313882Z",
+    "dynomaxRoot":  "C:\\Dynomax",
+    "databaseChange":  "None",
+    "manifestSha256":  "5c6c6d09c5747f456934041d783906e4acd430453fd63a9a0f9a6dac671df5b0",
+    "files":  [
+                  {
+                      "path":  "Core/Catalogue/Dynomax.Catalogue.ps1",
+                      "sha256":  "dcc8d34ecee41900d105ea0537d0830fbc2bfaa4b7497fccefad2b6f3318750c",
+                      "length":  20157
+                  },
+                  {
+                      "path":  "Core/Execution/Dynomax.Workflow.ps1",
+                      "sha256":  "ee24b1de46ada8cabb3cf1216dcd9f8dfaf438d801dcbd5a32fe5138f2e0b84a",
+                      "length":  33807
+                  },
+                  {
+                      "path":  "Core/Execution/Persist-DynomaxRobotAction.ps1",
+                      "sha256":  "71f89373cbb150c2838e6fe67c21478f09990b386a53505600374408fbb26976",
+                      "length":  2257
+                  },
+                  {
+                      "path":  "Core/Invoke-DynomaxWorkflow.ps1",
+                      "sha256":  "4a3152040a3877155449e0f62ce66d5b0771f078dab19cbb99bc73bc9035e31a",
+                      "length":  21222
+                  },
+                  {
+                      "path":  "Core/Results/Dynomax.Results.ps1",
+                      "sha256":  "5547d846e09778ed44c0ad1e278fd137ad13391d4db132fcf56bbe77b8b2a5db",
+                      "length":  30925
+                  },
+                  {
+                      "path":  "Core/Robot/Dynomax.resource",
+                      "sha256":  "4ecb59f8036f8910e68fc33aa54a79691f81f419f30054bbe0a16244be9b71f0",
+                      "length":  3355
+                  },
+                  {
+                      "path":  "VERSION.txt",
+                      "sha256":  "862f349b375d9530f08974e0778334bad76bcb1275c96bd11fd10e0e2645dda2",
+                      "length":  7
+                  },
+                  {
+                      "path":  "dynomax.json",
+                      "sha256":  "0169977d5a824b4dc55c2729197a558266ad84cc3fd0472c2f42a0dfa9bd0dd0",
+                      "length":  1031
+                  },
+                  {
+                      "path":  "README.md",
+                      "sha256":  "db4ac03d65672a11f21993cbef877fdcfd177738f8ed2de49974a6aac13773a2",
+                      "length":  4510
+                  }
+              ]
+}

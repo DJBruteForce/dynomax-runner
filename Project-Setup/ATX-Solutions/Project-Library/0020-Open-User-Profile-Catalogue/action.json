@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.profiles.open-user-catalogue",
+  "displayName": "Open ATX Banking User Profiles catalogue",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Open User Profiles Catalogue",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "profilesCatalogueOpen",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "profilesCatalogueUrl",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

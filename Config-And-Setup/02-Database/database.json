@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "sql": {
+    "host": "localhost\\SQLEXPRESS",
+    "database": "Dynomax",
+    "authenticationMode": "Windows",
+    "usernameEnvironmentVariable": null,
+    "passwordEnvironmentVariable": null,
+    "encrypt": true,
+    "trustServerCertificate": true,
+    "connectionTimeoutSeconds": 30,
+    "commandTimeoutSeconds": 120
+  },
+  "migrationFolder": "Migrations",
+  "createDatabaseWhenMissing": true,
+  "applyPendingMigrations": true,
+  "validateAfterMigration": true
+}

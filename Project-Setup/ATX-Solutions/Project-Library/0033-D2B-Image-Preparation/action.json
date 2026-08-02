@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.image-preparation",
+  "displayName": "Prepare an image preview without extraction or Remap",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Prepare D2B Image Without Extraction",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 240,
+  "outputs": [
+    {
+      "name": "d2bImagePreparationVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bPreparedImageDimensions",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2bPreparationExtractionRuns",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bPreparationRemapRuns",
+      "type": "Number",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

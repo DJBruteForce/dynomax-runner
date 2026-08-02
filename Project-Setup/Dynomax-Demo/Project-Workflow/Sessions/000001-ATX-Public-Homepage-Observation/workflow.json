@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "demo.atx.public-homepage-observation",
+  "displayName": "ATX Public Homepage Observation",
+  "projectKey": "dynomax-demo",
+  "environment": "atx-public-homepage",
+  "timeoutSeconds": 180,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "demo.website.open",
+      "cleanup": false
+    },
+    {
+      "order": 20,
+      "actionId": "demo.website.inspect",
+      "cleanup": false
+    },
+    {
+      "order": 30,
+      "actionId": "demo.website.capture",
+      "cleanup": false
+    },
+    {
+      "order": 40,
+      "actionId": "demo.context.verify",
+      "cleanup": false
+    },
+    {
+      "order": 50,
+      "actionId": "demo.report.create",
+      "cleanup": false
+    }
+  ],
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true
+}

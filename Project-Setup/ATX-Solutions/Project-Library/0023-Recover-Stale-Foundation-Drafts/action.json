@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.profiles.recover-stale-foundation-drafts",
+  "displayName": "Recover exact stale package-owned foundation Drafts",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Recover Stale Foundation Drafts",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 180,
+  "outputs": [
+    {
+      "name": "staleFoundationDraftsFound",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "staleFoundationDraftsDeleted",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "staleFoundationDraftIds",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "staleFoundationCleanupOutcome",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

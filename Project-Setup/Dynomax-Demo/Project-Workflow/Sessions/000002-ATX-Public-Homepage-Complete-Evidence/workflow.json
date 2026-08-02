@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "demo.atx.public-homepage-complete-evidence",
+  "displayName": "ATX Public Homepage Complete Evidence Closeout",
+  "projectKey": "dynomax-demo",
+  "environment": "atx-public-homepage",
+  "timeoutSeconds": 180,
+  "steps": [
+    { "order": 10, "actionId": "demo.website.open", "cleanup": false },
+    { "order": 20, "actionId": "demo.website.inspect", "cleanup": false },
+    { "order": 30, "actionId": "demo.website.capture", "cleanup": false },
+    { "order": 40, "actionId": "demo.context.verify", "cleanup": false },
+    { "order": 50, "actionId": "demo.report.create", "cleanup": false },
+    { "order": 90, "actionId": "demo.cleanup.marker", "cleanup": true }
+  ],
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true
+}

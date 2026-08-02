@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "patchName": "Dynomax Core protected secret and action-output redaction",
+  "patchVersion": "1.0.10-S2",
+  "minimumInstalledVersion": "1.0.10",
+  "maximumInstalledVersion": "1.0.10",
+  "databaseChange": "None",
+  "files": [
+    {
+      "path": "Core/Catalogue/Dynomax.Catalogue.ps1",
+      "sha256": "dcc8d34ecee41900d105ea0537d0830fbc2bfaa4b7497fccefad2b6f3318750c",
+      "length": 20157
+    },
+    {
+      "path": "Core/Execution/Dynomax.Workflow.ps1",
+      "sha256": "2c1676f379f145f1c6184f5f384c9404a7d136dae699e569785fe525f3024f72",
+      "length": 33810
+    },
+    {
+      "path": "Core/Execution/Persist-DynomaxRobotAction.ps1",
+      "sha256": "3960ddba5d6b11b93fb29c56fcdb867065916a5e54c8c290217630d9fcba47a7",
+      "length": 2751
+    },
+    {
+      "path": "Core/Invoke-DynomaxWorkflow.ps1",
+      "sha256": "f1bc51b3169fd44f3262258f8916cf886c0fad6d271155c226987c29e4cc5f7a",
+      "length": 24239
+    },
+    {
+      "path": "Core/Results/Dynomax.Results.ps1",
+      "sha256": "5bb97d80124d8b64bc2f4a455905a0bb29d098bbbbead3311916d6a275085cdc",
+      "length": 31992
+    },
+    {
+      "path": "Core/Robot/Dynomax.resource",
+      "sha256": "d5f20f0ff0799208f8bc282b03136ae704f5223315ec36f7f5bfc3bccea7a4fe",
+      "length": 4236
+    },
+    {
+      "path": "README.md",
+      "sha256": "a00b81d7983804a88a2c0508732e934a8904a7d954e7dc6a368aa60f0bdb19f6",
+      "length": 228
+    },
+    {
+      "path": "VERSION.txt",
+      "sha256": "00251bee1d03f658c2324926785a996dd040dff16bf993b2c520a20edbba72c8",
+      "length": 7
+    },
+    {
+      "path": "dynomax.json",
+      "sha256": "cb5833f3726680c2e9aed71d43789ebdf8847ad05481c116ecc99541cefcffeb",
+      "length": 1001
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "atx-solutions",
+  "displayName": "ATX Solutions",
+  "projectType": "WebApplication",
+  "defaultEngine": "RobotBrowser",
+  "evidenceBoundary": "WebsiteOnly",
+  "browser": "chromium",
+  "headless": false,
+  "defaultTimeoutSeconds": 60,
+  "secretReferences": {},
+  "environments": [
+    {
+      "key": "production",
+      "displayName": "Production",
+      "baseUrl": "https://atxsolutions.co.za/",
+      "browser": "chromium",
+      "headless": false,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "allowedHosts": [
+        "atxsolutions.co.za",
+        "www.atxsolutions.co.za"
+      ]
+    }
+  ]
+}

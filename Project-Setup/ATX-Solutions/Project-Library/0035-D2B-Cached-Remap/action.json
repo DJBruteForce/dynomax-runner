@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.cached-remap",
+  "displayName": "Run cached Remap and prove OCR is not rerun",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Run D2B Cached Remap Without OCR",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 240,
+  "outputs": [
+    {
+      "name": "d2bCachedRemapVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bCachedRemapExtractionBefore",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bCachedRemapExtractionAfter",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bCachedRemapRunsBefore",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bCachedRemapRunsAfter",
+      "type": "Number",
+      "required": true
+    },
+    {
+      "name": "d2bCachedRemapDidNotRerunOcr",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

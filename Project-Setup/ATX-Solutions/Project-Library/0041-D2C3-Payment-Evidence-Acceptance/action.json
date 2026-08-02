@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2c3.payment-evidence-acceptance",
+  "displayName": "Verify Payment Evidence repeated preview, import and cleanup",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Verify D2C3 Payment Evidence Acceptance",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 900,
+  "outputs": [
+    {
+      "name": "d2c3PaymentEvidenceAccepted",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3PaymentEvidenceOperationStable",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3PaymentEvidenceProfileDeleted",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3PaymentEvidenceBatchDeleted",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

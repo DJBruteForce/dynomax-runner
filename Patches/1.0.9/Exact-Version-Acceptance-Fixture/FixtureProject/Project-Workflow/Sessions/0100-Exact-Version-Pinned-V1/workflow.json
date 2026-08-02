@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "dynomax.core.109.exact-version.pinned-v1",
+  "displayName": "Dynomax Core 1.0.9 pinned v1 acceptance",
+  "projectKey": "dynomax-core-109-exact-version-acceptance-r1",
+  "environment": "local",
+  "timeoutSeconds": 120,
+  "alwaysRunCleanup": false,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "dynomax.core.exact-version.probe",
+      "actionVersion": 1,
+      "cleanup": false,
+      "continueOnFailure": false
+    }
+  ]
+}

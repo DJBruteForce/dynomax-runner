@@ -1,0 +1,229 @@
+id,kind,description,migrationStatus,dynomaxStatus,phase,dependencies
+CORE.AUTH.LOGIN,core-action,Authenticate as the approved ATX test user and resolve the Manager profile when profile selection is shown.,DefinedInLibrary,Planned,Foundation,
+CORE.AUTH.LOGOUT,core-action,End the authenticated session and prove protected pages are no longer directly accessible.,DefinedInLibrary,Planned,Foundation,
+CORE.BROWSER.OPEN,core-action,Open a clean browser context with the certified viewport and no inherited authentication state.,DefinedInLibrary,Planned,Foundation,
+CORE.CLEANUP.EXACT,core-action,Remove only disposable test data and prove the exact object disappeared.,DefinedInLibrary,Planned,Foundation,
+CORE.EVIDENCE.CAPTURE,core-action,Capture enough evidence to classify the action without exposing secrets or document contents unnecessarily.,DefinedInLibrary,Planned,Foundation,
+CORE.PACKAGE.CERTIFY,core-action,Prove the test package is internally consistent and bound to the intended source-action contract before Chromium starts.,DefinedInLibrary,Planned,Foundation,
+CORE.RESULT.CLASSIFY,core-action,Assign the correct ATX status without misclassifying package defects as application defects.,DefinedInLibrary,Planned,Foundation,
+CORE.RESULT.PACKAGE,core-action,"Create a non-zero, atomic, internally valid result ZIP.",DefinedInLibrary,Planned,Foundation,
+CORE.UI.SETTLE_OVERLAYS,core-action,"Prevent cookie banners, toasts or transient overlays from blocking certified controls without hiding application failures.",DefinedInLibrary,Planned,Foundation,
+CORE.WORKSPACE.SELECT,core-action,Select the exact workspace required by the test without relying on the previously active tenant.,DefinedInLibrary,Planned,Foundation,
+HIST.ADMIN.APP_LOGS,historical-semantic-action,Search/export exact operational errors for a known support reference without exposing secrets.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.CAPACITY_GUARD,historical-semantic-action,Verify both disabled and threshold-safe capacity-guard gates without shrinking unnecessarily.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.CLEANUP.BLOCKED_RUN_NOW,historical-semantic-action,Verify Run Now is truthfully skipped/blocked and creates no cleanup domain run or deletion.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.CLEANUP.SAFE_POSTURE,historical-semantic-action,"Verify Banking evidence cleanup remains disabled, dry-run and blocked without a configured system owner.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.JOB.CONTROL,historical-semantic-action,"Verify Pause/Stop, Disable, Enable/Resume and Run Now controls truthfully enforce worker state.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.JOB.EXECUTION_DETAIL,historical-semantic-action,Verify Execution Detail contains useful structured operational evidence without Trace logging.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.JOBS.OPEN,historical-semantic-action,Open the universal Background Jobs Monitor and verify all catalogued workers are represented.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.RATE_LIMITS,historical-semantic-action,Verify the Rate Limiting tab loads bounded telemetry and correctly separates view and mutation permissions.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.RETENTION.RUN_NOW,historical-semantic-action,Run bounded operational retention and verify independent safe executions.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.SCHEMA_EXPORT,historical-semantic-action,"Verify the startup-generated schema export is complete, self-validating and metadata-only.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.ADMIN.TRAFFIC_MAP,historical-semantic-action,"Verify historical heat, live cursor/pins, provider state, local boundary asset and viewport behavior.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.GUIDE.CAPTURE.CATALOG,historical-semantic-action,Capture annotated screenshots and publish a local section-aware guide catalog.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.GUIDE.CAPTURE.PREFLIGHT,historical-semantic-action,Preflight every required selector before capturing a long guide.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.HELP.OPEN,historical-semantic-action,Open the ATX Help Center landing page.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.HELP.OPEN_GUIDE,historical-semantic-action,Open a guide and verify the two-column article layout.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.HELP.ROUTE_LINK,historical-semantic-action,Verify stored RenderedHtml contains a real clickable route link rather than literal Markdown.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.HELP.SEARCH,historical-semantic-action,Search the left Guide Library and verify results/navigation.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.KB.ADMIN.OPEN,historical-semantic-action,Open the Knowledge Base administration workspace.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.KB.GUIDE_PUBLISH,historical-semantic-action,Publish/unpublish a guide and verify user visibility follows permissions.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.KB.IMAGE.UPLOAD_REMOVE,historical-semantic-action,"Upload, render, replace and remove a guide image.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.KB.IMPORT_MARKDOWN,historical-semantic-action,Import a Markdown guide through the admin UI.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.PUBLIC.HOMEPAGE.OBSERVE,historical-semantic-action,Observe the public ATX home page without authentication or mutation.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.PUBLIC.PRIVACY.OPEN,historical-semantic-action,Verify the Privacy page can be opened and captured as a read-only public route.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.STATEMENT.CLIPBOARD_IMAGE,historical-semantic-action,"Verify single-image selection, clear and clipboard paste behavior.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.STATEMENT.CONTEXTUAL_HELP,historical-semantic-action,"Verify contextual help controls are present, scoped and do not mutate form/navigation state.",RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.STATEMENT.PASSWORD_PDF,historical-semantic-action,Verify password-protected PDF unlock and saved-secret preserve/replace/clear semantics without leaking the password.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+HIST.SYSTEM.IMAP.CIRCUIT_RETRY,historical-semantic-action,Verify transient retries and circuit behavior for support-email polling without flooding logs.,RequiresCurrentSourceRecertification,Deferred,PostActivePhase,
+SCN-ADMIN-001,scenario,Universal Background Jobs catalog,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-002,scenario,Background job controls and execution detail,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-003,scenario,Banking cleanup safe blocked posture,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-004,scenario,Operational log retention bounded Run Now,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-005,scenario,Database capacity guard double gate,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-006,scenario,Startup schema export completeness,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-007,scenario,Rate Limiting monitoring and permissions,HistoricalDefinition,Planned,Backlog,
+SCN-ADMIN-008,scenario,World Traffic dashboard,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-CLOSEOUT-001,scenario,Protected production baseline and final Phase 25J cleanup,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-001,scenario,Clean five-step Guided Import,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-002,scenario,Guided Import blocking validations,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-003,scenario,Balance advisory acknowledgement,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-004,scenario,Cancel throughout Guided Import,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-005,scenario,"Completion totals, history link and date filters",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-006,scenario,Structured mapping correction,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-007,scenario,"OFX, QIF and QBO source family",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-008,scenario,"MT940, CAMT.053 and CAMT.054 source family",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-009,scenario,"Final import concurrent retry, idempotency and cleanup",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-010,scenario,Cross-tenant batch detail denial,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-011,scenario,"Owner, artifact, account and exact-version lineage",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-IMPORT-012,scenario,OCR problem state correction and exact-session abandon,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-MAP-001,scenario,"Broad Manager, Banking and Statement route/readiness map",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-001,scenario,"Basic Statement Profile create, test and publish",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-002,scenario,Save Draft & Exit always available,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-003,scenario,Basic/Advanced mode and unsaved state preservation,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-004,scenario,Statement contextual help,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-005,scenario,AJAX Draft persistence and exact workspace restoration,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-006,scenario,Advanced visual layout and persistence,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-007,scenario,Direct text versus OCR extraction modes,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-008,scenario,Original/prepared image preprocessing,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-009,scenario,Password-protected PDF security,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-010,scenario,"Single image selection, clear and clipboard paste",HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-011,scenario,Published OCR test profile and single-image Guided Intake,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-012,scenario,Multiple images and archive intake,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-013,scenario,Mixed PDF/image ZIP rejection,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-014,scenario,Statement interpretation and running-balance chain,HistoricalDefinition,Planned,Backlog,
+SCN-BANK-PROFILE-015,scenario,Low confidence and bounded recovery,HistoricalDefinition,Planned,Backlog,
+SCN-CORE-001,scenario,Certified package and runner smoke,HistoricalDefinition,Planned,Backlog,
+SCN-CORE-002,scenario,Manager login,HistoricalDefinition,Planned,Backlog,
+SCN-CORE-003,scenario,Workspace selection,HistoricalDefinition,Planned,Backlog,
+SCN-D2A-001,scenario,Phase 25H-D2-A website-only artifact workflow,HistoricalDefinition,Planned,Backlog,
+SCN-D2B-001,scenario,Phase 25H-D2-B processing-usage paths,ActivePhaseAcceptancePending,BlockedByFoundationPASS,Phase25H-D2B,
+SCN-HELP-001,scenario,"Help Center landing, search and guide navigation",HistoricalDefinition,Planned,Backlog,
+SCN-HELP-002,scenario,"Knowledge Base admin import, publish and image lifecycle",HistoricalDefinition,Planned,Backlog,
+SCN-HELP-003,scenario,Annotated guide capture and media catalog,HistoricalDefinition,Planned,Backlog,
+SCN-PAYROLL-001,scenario,Payroll reminders runtime smoke,HistoricalDefinition,Planned,Backlog,
+SCN-PE-001,scenario,Payment Evidence profile and preview,HistoricalDefinition,Planned,Backlog,
+SCN-PE-002,scenario,Payment Evidence end-to-end import,HistoricalDefinition,Planned,Backlog,
+SCN-PE-003,scenario,Payment Evidence retry and duplicate prevention,HistoricalDefinition,Planned,Backlog,
+SCN-PE-004,scenario,Payment Evidence ownership and cross-tenant security,HistoricalDefinition,Planned,Backlog,
+SCN-PRODUCT-001,scenario,Product stock routes and inventory UI smoke,HistoricalDefinition,Planned,Backlog,
+SCN-PUBLIC-001,scenario,Public homepage observation,HistoricalDefinition,Planned,Backlog,
+SCN-PUBLIC-002,scenario,Privacy page capture,HistoricalDefinition,Planned,Backlog,
+SCN-SUPPORT-001,scenario,Support IMAP transient retry and circuit,HistoricalDefinition,Planned,Backlog,
+imports.abandon-session,source-action,Abandon exactly one owned session.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.advance-preview-to-review,source-action,Advance the exact session from Preview to Review and generate the authoritative validation snapshot.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_3
+imports.advance-review-to-final,source-action,Advance a validation-clean exact session from Review to the final import confirmation step.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.advance-preview-to-review
+imports.batch-detail-json,source-action,Read authoritative batch and transaction counts for the exact tenant-owned batch and prove the same batch identifier is denied after switching to another tenant workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.COMPLETED_IMPORT_BATCH
+imports.cancel-visible-action,source-action,Open the cancellation path for the exact active session.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.concurrent-final-import-retry,source-action,Submit the exact final-import form twice as a bounded same-session retry and prove operation-id idempotency.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.advance-review-to-final
+imports.current-session,source-action,Classify any active session before navigating or mutating.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_1
+imports.draft-profile-guidance,source-action,Distinguish a workspace with retained Draft profiles but no Published import-ready profile from a genuinely empty profile workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.evidence-file,source-action,Select one or more evidence files.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2
+imports.final-import-form,source-action,"Resolve the exact final-import form, session transport and antiforgery token.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.advance-review-to-final
+imports.history-exact-runtime-batch,source-action,Resolve the one exact batch created by the current runtime-unique synthetic filename.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.COMPLETED_IMPORT_BATCH
+imports.next-preview-upload,source-action,"Upload and inspect evidence, then route to Preview or Extraction Review.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2;imports.evidence-file
+imports.published-version-with-current-draft,source-action,Verify that a profile with an earlier Published version remains available to Guided Import even when its current working version is Draft.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.read-feedback-banner,source-action,Read the immediate TempData feedback produced by a Guided Import POST.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.reject-mixed-evidence-archive,source-action,Reject a ZIP containing both PDF and image evidence.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2
+imports.select-bank-account,source-action,Select the exact protected test bank account.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_1
+imports.select-profile,source-action,Select the exact active Published profile from the Guided Import control.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_1
+imports.session-json-schema,source-action,Validate the exact browser-visible ImportSession serialization before reading session state.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT
+imports.start-session,source-action,Create an exact ImportSession and advance to Evidence.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_1
+imports.step1-cancel-overview,source-action,Verify the no-session Step 1 Cancel action returns to Banking Overview without creating an ImportSession.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.GUIDED_STEP_1
+imports.undo-exact-runtime-batch,source-action,Reverse the exact disposable test batch and remove its unlocked transactions.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;STATE.COMPLETED_IMPORT_BATCH
+imports.upload-image-only-archive,source-action,Upload one ZIP containing supported image evidence only.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2
+imports.upload-multiple-images,source-action,Select multiple screenshot/image files in one Guided Import upload.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2
+imports.upload-pdf-only-archive,source-action,Upload one ZIP containing PDF evidence only.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.GUIDED_IMPORT;imports.start-session;STATE.GUIDED_STEP_2
+inventory.count-page-no-debug,source-action,Verify the Count creation page loads and the removed temporary debug messages are absent from source/runtime evidence.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT
+login.password-autocomplete,source-action,Verify the active login password control advertises the browser current-password contract.,HistoricalDefinition,Planned,Backlog,CORE.BROWSER.OPEN
+payment-evidence.delete-exact-batch,source-action,Delete the exact disposable InReview Payment Evidence batch and prove the exact GUID no longer opens.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_BATCH
+payment-evidence.delete-exact-profile,source-action,Delete only the exact disposable profile created by the test.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE
+payment-evidence.execute-import,source-action,Execute the exact previewed Payment Evidence import and follow the server redirect to the exact batch review workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE;STATE.PAYMENT_EVIDENCE_PREVIEW
+payment-evidence.execute-import-double-submit,source-action,Submit the exact ExecuteImport form twice from one preview operation to verify retry safety.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE;STATE.PAYMENT_EVIDENCE_PREVIEW
+payment-evidence.find-exact-profile,source-action,Resolve the exact disposable Payment Evidence profile card and its own ID after save.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE
+payment-evidence.foreign-batch-denial,source-action,Prove direct access to the exact owner batch is denied in a different tenant workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_BATCH
+payment-evidence.foreign-profile-denial,source-action,Prove the exact disposable owner profile is not listed in a different tenant workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE
+payment-evidence.import-preview,source-action,Use the exact disposable profile to preview representative payment evidence without executing the import.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE
+payment-evidence.new-profile-modal,source-action,Open and reset the dedicated new Payment Evidence profile modal through its visible action.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE
+payment-evidence.open-exact-profile,source-action,Reopen the exact saved profile and verify persisted mapping/settings.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE
+payment-evidence.open-profiles-tab,source-action,Open the Payment Evidence Profiles workspace directly without unrelated route discovery.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE
+payment-evidence.owner-access-restored,source-action,Prove owner access to the exact batch is restored after returning from the foreign workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_BATCH
+payment-evidence.owner-batch-access,source-action,Prove the exact disposable Payment Evidence batch is accessible in its owner workspace before the tenant switch.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_BATCH
+payment-evidence.owner-lineage-source,source-action,"Certify tenant, manager, user, operation, source artifact and exact profile ownership for the disposable Payment Evidence batch.",HistoricalDefinition,Planned,Backlog,CORE.PACKAGE.CERTIFY;NAV.PAYMENT_EVIDENCE
+payment-evidence.profile-preview-map,source-action,Preview a synthetic CSV and configure the generated mapping grid through visible controls before saving.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE
+payment-evidence.read-exact-batch-review,source-action,"Verify the exact imported batch review workspace, batch status, totals and imported row classifications.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_BATCH
+payment-evidence.read-import-preview-results,source-action,Read the exact direct-child Preview Results card after UploadPreview without matching its ancestor cards.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE;STATE.PAYMENT_EVIDENCE_PROFILE;STATE.PAYMENT_EVIDENCE_PREVIEW
+payment-evidence.same-operation-idempotency-source,source-action,"Certify the pre-check, unique owner-operation fence and exact winning-batch recovery used by concurrent retry execution.",HistoricalDefinition,Planned,Backlog,CORE.PACKAGE.CERTIFY;NAV.PAYMENT_EVIDENCE
+payment-evidence.save-profile,source-action,Create the exact disposable Payment Evidence profile after visible preview/mapping.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE
+payment-evidence.verify-single-active-batch,source-action,Verify retry produced exactly one active batch entry for the exact synthetic evidence filename and captured batch GUID.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.PAYMENT_EVIDENCE
+payroll.reminders-runtime,source-action,Verify the reminder settings route loads without the historical nullable MaxAsync runtime exception.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT
+phase25h-d2a.website-cleanup-visible,source-action,Delete only the exact disposable website objects and prove their absence through the website.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2A_DEPLOYED
+phase25h-d2a.website-preview-friendly-error,source-action,"Expose a specific, safe and actionable Payment Evidence preview failure through the website.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2A_DEPLOYED
+phase25h-d2a.website-preview-outcome-classification,source-action,Classify the immediate rendered result of UploadPreview before waiting for the Preview Results success card.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2A_DEPLOYED
+phase25h-d2a.website-preview-visible,source-action,Prove the deployed website visibly accepts and previews one exact runtime-unique Payment Evidence CSV after D2-A.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2A_DEPLOYED
+phase25h-d2a.website-retry-single-batch,source-action,Prove through the website that two bounded submissions of the exact Execute Import form resolve to one visible batch.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2A_DEPLOYED
+phase25h-d2b.bounded-recovery,source-action,Exercise exactly three real bounded OCR attempts.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT;phase25h-d2b.ocr-processing
+phase25h-d2b.cached-remap,source-action,Exercise cached remapping without rerunning OCR.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT;phase25h-d2b.ocr-processing
+phase25h-d2b.direct-text-processing,source-action,Exercise a successful direct-text extraction through the website.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT
+phase25h-d2b.image-preparation,source-action,Exercise preview-only image preparation without extraction.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT
+phase25h-d2b.ocr-processing,source-action,Exercise a successful image OCR extraction through the website.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT
+phase25h-d2b.website-cleanup,source-action,Remove the exact temporary sample and disposable never-published Draft.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.D2B_DEPLOYED;STATE.DISPOSABLE_STATEMENT_DRAFT
+phase25j.closeout.no-active-guided-session,source-action,Verify final closeout starts with no active Guided Import session.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.PROTECTED_BASELINE_KNOWN
+phase25j.closeout.payment-evidence-cleanup,source-action,Verify no disposable Payment Evidence profile or test batch/file remains after the accepted Payment Evidence scopes.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.PROTECTED_BASELINE_KNOWN
+phase25j.closeout.production-baseline,source-action,Read the exact preserved 77-row production batch directly through the tenant-scoped BatchDetail handler.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.PROTECTED_BASELINE_KNOWN
+phase25j.closeout.protected-profile-state,source-action,Verify both protected Phase 25J tenant profiles remain exactly Published v1 and no disposable Statement test profile remains.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.PROTECTED_BASELINE_KNOWN
+products.legacy-stock-overview-redirect,source-action,Verify the legacy no-ID product inventory route remains backward compatible.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT
+products.optional-category-colour,source-action,Verify optional category colour values use hidden nullable transport inputs plus separate colour pickers.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT
+products.stock-overview-menu-route,source-action,Verify the Product stock levels menu points to the valid inventory overview route.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT
+profiles.breadcrumb-runtime,source-action,Verify the catalogue breadcrumb reflects Banking / Profiles rather than a generic page label.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+profiles.configure-exact-statement,source-action,Open the exact Statement Profile by ID.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+profiles.delete-never-published-draft,source-action,"Delete an exact disposable never-published, unreferenced Draft.",SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+profiles.find-exact-user-card,source-action,Locate exactly one tenant profile by exact displayed name.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+profiles.open-new-statement,source-action,Open a new tenant Statement Profile workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES
+profiles.publish-tested-version,source-action,Publish a profile already in Tested lifecycle.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+profiles.read-card-lifecycle,source-action,Read the exact profile lifecycle badge without positional guessing.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;NAV.BANKING.PROFILES;STATE.EXACT_PROFILE_CARD
+review.accept-continue,source-action,Accept reviewed extraction and continue to Guided Preview.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.accept-warnings,source-action,Acknowledge advisory warnings before acceptance.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.file-summaries,source-action,Read the per-source-file summary cards above the review table.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.form,source-action,Confirm the mandatory review page and exact session.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.problem-state-correction-persistence,source-action,"Prove an invalid posted OCR row remains visible as a blocking problem, then a valid correction is saved and persists after a fresh exact-session reload.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.rows,source-action,Read extracted transaction rows.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.save-corrections,source-action,Save non-blocking review corrections without accepting.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.source-file-field,source-action,Verify per-row source attribution.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+review.verify-image-order-dedup,source-action,"Verify screenshot archive exact-row deduplication, stable date/source ordering and source attribution.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.EXTRACTION_REVIEW_SESSION;review.form
+shell.workspace-switcher-open,source-action,Open the workspace switcher through the visible desktop workspace chip after its client listener is ready.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN
+shell.workspace-switcher-select,source-action,Select one exact workspace from the open switcher.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN
+statement.add-anchor-rule,source-action,Add start/end anchor cards through the visible editor.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.add-ignore-region,source-action,Add one visible Ignore region through the editor toolbar.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.amount-rules,source-action,Configure signed amount and number-format interpretation.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.balance-validation-settings,source-action,Configure running-balance and confidence validation.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.bank-name,source-action,Set/read source or issuer name.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.cancel,source-action,Leave the workspace without deleting a persisted profile.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.choose-image-source,source-action,Select screenshot/image evidence.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.choose-selectable-pdf-source,source-action,Select a PDF containing embedded selectable text.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.clear-sample,source-action,Detach the temporary profile sample.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED
+statement.currency,source-action,Select profile currency.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.disable-ocr-for-direct-text,source-action,Use direct embedded PDF text without OCR.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.force-ocr,source-action,Select OCR-only extraction mode.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.image-type,source-action,Set expected image type.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.import-json,source-action,Load exported settings JSON into the form for review.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.manual-column-editor,source-action,Edit generated manual column bands and verify normalized JSON.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.ocr-dpi,source-action,Set OCR/render DPI.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.ocr-language,source-action,Select installed OCR language.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.ocr-provider,source-action,Select an installed OCR provider.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.open-detailed-section,source-action,Open one exact detailed configuration section through the desktop Statement navigation.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.open-major-section,source-action,Open an exact major progress section such as Save Profile.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.ordering-duplicates-settings,source-action,Configure strict duplicate cleanup and summary-row removal.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.page-initialization-readiness,source-action,Wait until all Statement Profile client controllers and mode/section handlers are bound.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.prepare-image,source-action,Prepare or refresh the pre-OCR preview without running extraction.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED
+statement.profile-id,source-action,Read the exact persisted profile ID.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.profile-name,source-action,Set/read the visible profile name.,SourceRecertifiedForFoundation,MappedToFoundationAction,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.read-ajax-outcome,source-action,Classify the immediate result of a Statement AJAX action before waiting for a later state.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.read-extracted-rows,source-action,Read exact displayed extracted-row values after Test or Remap.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.read-recovery-history,source-action,Read the complete rendered recovery history and accepted-result summary.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.read-test-outcome,source-action,"Read the authoritative representative-test state, row count, provider and publish readiness.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.recovery-attempt-editor,source-action,Configure materially different retry attempts through generated visible cards.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.recovery-enable-limits,source-action,Enable bounded OCR recovery and set total-attempt and time limits.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.regions-editor,source-action,Configure and verify percentage-based OCR regions through the generated region cards.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.remap-validate,source-action,Remap cached geometry without rerunning OCR.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.rerun-extraction,source-action,Rerun provider extraction after extraction-affecting changes.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.reset-absa,source-action,Load default ABSA rules into the current form.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.row-reconstruction-settings,source-action,Configure wrapped-description reconstruction.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.run-bounded-recovery,source-action,Execute the primary extraction and no more than the configured total recovery attempts.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED
+statement.run-test,source-action,Run the representative extraction test.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED
+statement.sample-file,source-action,Stage representative sample evidence.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.save-draft-continue,source-action,Save a fully valid Draft and remain in the workspace.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.save-draft-exit,source-action,Permissively save an incomplete Draft and return to catalogue.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.save-draft-publish,source-action,Save and publish the exact reviewed cached test result.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.statement-type,source-action,Set/read document type.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.switch-advanced,source-action,Switch the workspace into Advanced mode.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN
+statement.table-detection-settings,source-action,Configure table detection and wrapped-row geometry settings.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.use-detected-columns,source-action,Convert detected or starter bands into manual editable columns.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.validation-minimum-ocr-confidence,source-action,Configure the source-confirmed OCR confidence rule through its generated visible rule card.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;statement.switch-advanced
+statement.verify-amount-field-precedence,source-action,Verify Signed Amount is used when present and Debit/Credit fallback produces credit minus debit when Signed Amount is blank.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.verify-best-recovery-result,source-action,Verify the accepted recovery attempt is the strict highest-scoring source result.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.verify-running-balance-order,source-action,Verify same-date source order and a continuous running-balance chain.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+statement.verify-wrapped-row-reconstruction,source-action,"Verify an undated, amountless continuation line is appended to the previous transaction description during manual visual Remap when wrapped-row and continuation settings are enabled.",HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT;STATE.STATEMENT_WORKSPACE_OPEN;STATE.STATEMENT_SAMPLE_STAGED;STATE.STATEMENT_TEST_RESULT
+support.imap-circuit-source,source-action,Certify circuit-breaker failure updates and duplicate-log removal from current source.,HistoricalDefinition,Planned,Backlog,CORE.PACKAGE.CERTIFY
+support.imap-transient-retry-source,source-action,Certify one bounded retry for transient transport failures while invalid credentials remain non-retryable.,HistoricalDefinition,Planned,Backlog,CORE.PACKAGE.CERTIFY
+workspace.desktop-wrap-collapse,source-action,Verify the workspace menu collapses instead of rendering visible navigation on more than one row.,HistoricalDefinition,Planned,Backlog,CORE.AUTH.LOGIN;CORE.WORKSPACE.SELECT

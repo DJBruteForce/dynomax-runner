@@ -1,0 +1,2781 @@
+{
+  "schemaVersion": 1,
+  "generatedAtSast": "2026-07-31T19:58:00+02:00",
+  "projectKey": "atx-solutions",
+  "frameworkVersion": "1.0.8",
+  "sourceLibrary": "ATX_End_to_End_Reusable_Test_Action_and_Scenario_Library_20260731(1).md",
+  "sourceLibrarySha256": "aef5332acd114579e980570b39ed865218cae16b95e1743fb6e63726c2fb0d2a",
+  "sourceOfTruthVersion": "V63",
+  "activePhase": "25H-D2-B active-sample continuity correction V63",
+  "counts": {
+    "core-action": 10,
+    "historical-semantic-action": 27,
+    "scenario": 54,
+    "source-action": 137,
+    "total": 228
+  },
+  "foundationDynomaxActions": [
+    {
+      "actionId": "atx.auth.login",
+      "mapsLegacyContracts": [
+        "CORE.AUTH.LOGIN"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.ui.settle-overlays",
+      "mapsLegacyContracts": [
+        "CORE.UI.SETTLE_OVERLAYS"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.workspace.select",
+      "mapsLegacyContracts": [
+        "CORE.WORKSPACE.SELECT",
+        "shell.workspace-switcher-open",
+        "shell.workspace-switcher-select"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.banking.profiles.open-user-catalogue",
+      "mapsLegacyContracts": [],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.banking.profiles.create-statement-draft",
+      "mapsLegacyContracts": [
+        "profiles.find-exact-user-card",
+        "profiles.read-card-lifecycle"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.banking.statement.verify-exact-draft",
+      "mapsLegacyContracts": [
+        "statement.profile-id",
+        "statement.profile-name"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.banking.profiles.delete-exact-draft",
+      "mapsLegacyContracts": [
+        "profiles.delete-never-published-draft"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.auth.logout",
+      "mapsLegacyContracts": [
+        "CORE.AUTH.LOGOUT"
+      ],
+      "status": "ImplementedInPackage"
+    },
+    {
+      "actionId": "atx.banking.profiles.recover-stale-foundation-drafts",
+      "mapsLegacyContracts": [
+        "CORE.CLEANUP.EXACT"
+      ],
+      "status": "ImplementedInPackage"
+    }
+  ],
+  "nextWorkflows": [
+    {
+      "expectedSession": "000002",
+      "workflowId": "atx.foundation.authenticated-workspace-draft",
+      "status": "CorrectionPreparedReuseSession000002",
+      "purpose": "Certify login, workspace selection, safe stale Draft recovery, exact Draft creation/identity, cleanup-block prerequisite re-establishment and exact cleanup."
+    },
+    {
+      "expectedSession": "000003",
+      "workflowId": "atx.phase25h.d2b.processing-usage",
+      "status": "InProgressSession000003OcrReached",
+      "purpose": "Complete OCR, cached Remap and bounded recovery after direct text and image preparation passed."
+    }
+  ],
+  "entries": [
+    {
+      "id": "CORE.AUTH.LOGIN",
+      "kind": "core-action",
+      "description": "Authenticate as the approved ATX test user and resolve the Manager profile when profile selection is shown.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.AUTH.LOGOUT",
+      "kind": "core-action",
+      "description": "End the authenticated session and prove protected pages are no longer directly accessible.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.BROWSER.OPEN",
+      "kind": "core-action",
+      "description": "Open a clean browser context with the certified viewport and no inherited authentication state.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.CLEANUP.EXACT",
+      "kind": "core-action",
+      "description": "Remove only disposable test data and prove the exact object disappeared.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.EVIDENCE.CAPTURE",
+      "kind": "core-action",
+      "description": "Capture enough evidence to classify the action without exposing secrets or document contents unnecessarily.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.PACKAGE.CERTIFY",
+      "kind": "core-action",
+      "description": "Prove the test package is internally consistent and bound to the intended source-action contract before Chromium starts.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.RESULT.CLASSIFY",
+      "kind": "core-action",
+      "description": "Assign the correct ATX status without misclassifying package defects as application defects.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.RESULT.PACKAGE",
+      "kind": "core-action",
+      "description": "Create a non-zero, atomic, internally valid result ZIP.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.UI.SETTLE_OVERLAYS",
+      "kind": "core-action",
+      "description": "Prevent cookie banners, toasts or transient overlays from blocking certified controls without hiding application failures.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "CORE.WORKSPACE.SELECT",
+      "kind": "core-action",
+      "description": "Select the exact workspace required by the test without relying on the previously active tenant.",
+      "migrationStatus": "DefinedInLibrary",
+      "dynomaxStatus": "Planned",
+      "phase": "Foundation",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.APP_LOGS",
+      "kind": "historical-semantic-action",
+      "description": "Search/export exact operational errors for a known support reference without exposing secrets.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.CAPACITY_GUARD",
+      "kind": "historical-semantic-action",
+      "description": "Verify both disabled and threshold-safe capacity-guard gates without shrinking unnecessarily.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.CLEANUP.BLOCKED_RUN_NOW",
+      "kind": "historical-semantic-action",
+      "description": "Verify Run Now is truthfully skipped/blocked and creates no cleanup domain run or deletion.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.CLEANUP.SAFE_POSTURE",
+      "kind": "historical-semantic-action",
+      "description": "Verify Banking evidence cleanup remains disabled, dry-run and blocked without a configured system owner.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.JOB.CONTROL",
+      "kind": "historical-semantic-action",
+      "description": "Verify Pause/Stop, Disable, Enable/Resume and Run Now controls truthfully enforce worker state.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.JOB.EXECUTION_DETAIL",
+      "kind": "historical-semantic-action",
+      "description": "Verify Execution Detail contains useful structured operational evidence without Trace logging.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.JOBS.OPEN",
+      "kind": "historical-semantic-action",
+      "description": "Open the universal Background Jobs Monitor and verify all catalogued workers are represented.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.RATE_LIMITS",
+      "kind": "historical-semantic-action",
+      "description": "Verify the Rate Limiting tab loads bounded telemetry and correctly separates view and mutation permissions.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.RETENTION.RUN_NOW",
+      "kind": "historical-semantic-action",
+      "description": "Run bounded operational retention and verify independent safe executions.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.SCHEMA_EXPORT",
+      "kind": "historical-semantic-action",
+      "description": "Verify the startup-generated schema export is complete, self-validating and metadata-only.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.ADMIN.TRAFFIC_MAP",
+      "kind": "historical-semantic-action",
+      "description": "Verify historical heat, live cursor/pins, provider state, local boundary asset and viewport behavior.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.GUIDE.CAPTURE.CATALOG",
+      "kind": "historical-semantic-action",
+      "description": "Capture annotated screenshots and publish a local section-aware guide catalog.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.GUIDE.CAPTURE.PREFLIGHT",
+      "kind": "historical-semantic-action",
+      "description": "Preflight every required selector before capturing a long guide.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.HELP.OPEN",
+      "kind": "historical-semantic-action",
+      "description": "Open the ATX Help Center landing page.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.HELP.OPEN_GUIDE",
+      "kind": "historical-semantic-action",
+      "description": "Open a guide and verify the two-column article layout.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.HELP.ROUTE_LINK",
+      "kind": "historical-semantic-action",
+      "description": "Verify stored RenderedHtml contains a real clickable route link rather than literal Markdown.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.HELP.SEARCH",
+      "kind": "historical-semantic-action",
+      "description": "Search the left Guide Library and verify results/navigation.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.KB.ADMIN.OPEN",
+      "kind": "historical-semantic-action",
+      "description": "Open the Knowledge Base administration workspace.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.KB.GUIDE_PUBLISH",
+      "kind": "historical-semantic-action",
+      "description": "Publish/unpublish a guide and verify user visibility follows permissions.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.KB.IMAGE.UPLOAD_REMOVE",
+      "kind": "historical-semantic-action",
+      "description": "Upload, render, replace and remove a guide image.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.KB.IMPORT_MARKDOWN",
+      "kind": "historical-semantic-action",
+      "description": "Import a Markdown guide through the admin UI.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.PUBLIC.HOMEPAGE.OBSERVE",
+      "kind": "historical-semantic-action",
+      "description": "Observe the public ATX home page without authentication or mutation.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.PUBLIC.PRIVACY.OPEN",
+      "kind": "historical-semantic-action",
+      "description": "Verify the Privacy page can be opened and captured as a read-only public route.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.STATEMENT.CLIPBOARD_IMAGE",
+      "kind": "historical-semantic-action",
+      "description": "Verify single-image selection, clear and clipboard paste behavior.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.STATEMENT.CONTEXTUAL_HELP",
+      "kind": "historical-semantic-action",
+      "description": "Verify contextual help controls are present, scoped and do not mutate form/navigation state.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.STATEMENT.PASSWORD_PDF",
+      "kind": "historical-semantic-action",
+      "description": "Verify password-protected PDF unlock and saved-secret preserve/replace/clear semantics without leaking the password.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "HIST.SYSTEM.IMAP.CIRCUIT_RETRY",
+      "kind": "historical-semantic-action",
+      "description": "Verify transient retries and circuit behavior for support-email polling without flooding logs.",
+      "migrationStatus": "RequiresCurrentSourceRecertification",
+      "dynomaxStatus": "Deferred",
+      "phase": "PostActivePhase",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-001",
+      "kind": "scenario",
+      "description": "Universal Background Jobs catalog",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-002",
+      "kind": "scenario",
+      "description": "Background job controls and execution detail",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-003",
+      "kind": "scenario",
+      "description": "Banking cleanup safe blocked posture",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-004",
+      "kind": "scenario",
+      "description": "Operational log retention bounded Run Now",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-005",
+      "kind": "scenario",
+      "description": "Database capacity guard double gate",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-006",
+      "kind": "scenario",
+      "description": "Startup schema export completeness",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-007",
+      "kind": "scenario",
+      "description": "Rate Limiting monitoring and permissions",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-ADMIN-008",
+      "kind": "scenario",
+      "description": "World Traffic dashboard",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-CLOSEOUT-001",
+      "kind": "scenario",
+      "description": "Protected production baseline and final Phase 25J cleanup",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-001",
+      "kind": "scenario",
+      "description": "Clean five-step Guided Import",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-002",
+      "kind": "scenario",
+      "description": "Guided Import blocking validations",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-003",
+      "kind": "scenario",
+      "description": "Balance advisory acknowledgement",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-004",
+      "kind": "scenario",
+      "description": "Cancel throughout Guided Import",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-005",
+      "kind": "scenario",
+      "description": "Completion totals, history link and date filters",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-006",
+      "kind": "scenario",
+      "description": "Structured mapping correction",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-007",
+      "kind": "scenario",
+      "description": "OFX, QIF and QBO source family",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-008",
+      "kind": "scenario",
+      "description": "MT940, CAMT.053 and CAMT.054 source family",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-009",
+      "kind": "scenario",
+      "description": "Final import concurrent retry, idempotency and cleanup",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-010",
+      "kind": "scenario",
+      "description": "Cross-tenant batch detail denial",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-011",
+      "kind": "scenario",
+      "description": "Owner, artifact, account and exact-version lineage",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-IMPORT-012",
+      "kind": "scenario",
+      "description": "OCR problem state correction and exact-session abandon",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-MAP-001",
+      "kind": "scenario",
+      "description": "Broad Manager, Banking and Statement route/readiness map",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-001",
+      "kind": "scenario",
+      "description": "Basic Statement Profile create, test and publish",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-002",
+      "kind": "scenario",
+      "description": "Save Draft & Exit always available",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-003",
+      "kind": "scenario",
+      "description": "Basic/Advanced mode and unsaved state preservation",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-004",
+      "kind": "scenario",
+      "description": "Statement contextual help",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-005",
+      "kind": "scenario",
+      "description": "AJAX Draft persistence and exact workspace restoration",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-006",
+      "kind": "scenario",
+      "description": "Advanced visual layout and persistence",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-007",
+      "kind": "scenario",
+      "description": "Direct text versus OCR extraction modes",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-008",
+      "kind": "scenario",
+      "description": "Original/prepared image preprocessing",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-009",
+      "kind": "scenario",
+      "description": "Password-protected PDF security",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-010",
+      "kind": "scenario",
+      "description": "Single image selection, clear and clipboard paste",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-011",
+      "kind": "scenario",
+      "description": "Published OCR test profile and single-image Guided Intake",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-012",
+      "kind": "scenario",
+      "description": "Multiple images and archive intake",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-013",
+      "kind": "scenario",
+      "description": "Mixed PDF/image ZIP rejection",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-014",
+      "kind": "scenario",
+      "description": "Statement interpretation and running-balance chain",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-BANK-PROFILE-015",
+      "kind": "scenario",
+      "description": "Low confidence and bounded recovery",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-CORE-001",
+      "kind": "scenario",
+      "description": "Certified package and runner smoke",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-CORE-002",
+      "kind": "scenario",
+      "description": "Manager login",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-CORE-003",
+      "kind": "scenario",
+      "description": "Workspace selection",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-D2A-001",
+      "kind": "scenario",
+      "description": "Phase 25H-D2-A website-only artifact workflow",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-D2B-001",
+      "kind": "scenario",
+      "description": "Phase 25H-D2-B processing-usage paths",
+      "migrationStatus": "ActivePhaseAcceptancePending",
+      "dynomaxStatus": "BlockedByFoundationPASS",
+      "phase": "Phase25H-D2B",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-HELP-001",
+      "kind": "scenario",
+      "description": "Help Center landing, search and guide navigation",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-HELP-002",
+      "kind": "scenario",
+      "description": "Knowledge Base admin import, publish and image lifecycle",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-HELP-003",
+      "kind": "scenario",
+      "description": "Annotated guide capture and media catalog",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PAYROLL-001",
+      "kind": "scenario",
+      "description": "Payroll reminders runtime smoke",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PE-001",
+      "kind": "scenario",
+      "description": "Payment Evidence profile and preview",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PE-002",
+      "kind": "scenario",
+      "description": "Payment Evidence end-to-end import",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PE-003",
+      "kind": "scenario",
+      "description": "Payment Evidence retry and duplicate prevention",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PE-004",
+      "kind": "scenario",
+      "description": "Payment Evidence ownership and cross-tenant security",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PRODUCT-001",
+      "kind": "scenario",
+      "description": "Product stock routes and inventory UI smoke",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PUBLIC-001",
+      "kind": "scenario",
+      "description": "Public homepage observation",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-PUBLIC-002",
+      "kind": "scenario",
+      "description": "Privacy page capture",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "SCN-SUPPORT-001",
+      "kind": "scenario",
+      "description": "Support IMAP transient retry and circuit",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": []
+    },
+    {
+      "id": "imports.abandon-session",
+      "kind": "source-action",
+      "description": "Abandon exactly one owned session.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.advance-preview-to-review",
+      "kind": "source-action",
+      "description": "Advance the exact session from Preview to Review and generate the authoritative validation snapshot.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_3"
+      ]
+    },
+    {
+      "id": "imports.advance-review-to-final",
+      "kind": "source-action",
+      "description": "Advance a validation-clean exact session from Review to the final import confirmation step.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.advance-preview-to-review"
+      ]
+    },
+    {
+      "id": "imports.batch-detail-json",
+      "kind": "source-action",
+      "description": "Read authoritative batch and transaction counts for the exact tenant-owned batch and prove the same batch identifier is denied after switching to another tenant workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.COMPLETED_IMPORT_BATCH"
+      ]
+    },
+    {
+      "id": "imports.cancel-visible-action",
+      "kind": "source-action",
+      "description": "Open the cancellation path for the exact active session.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.concurrent-final-import-retry",
+      "kind": "source-action",
+      "description": "Submit the exact final-import form twice as a bounded same-session retry and prove operation-id idempotency.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.advance-review-to-final"
+      ]
+    },
+    {
+      "id": "imports.current-session",
+      "kind": "source-action",
+      "description": "Classify any active session before navigating or mutating.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_1"
+      ]
+    },
+    {
+      "id": "imports.draft-profile-guidance",
+      "kind": "source-action",
+      "description": "Distinguish a workspace with retained Draft profiles but no Published import-ready profile from a genuinely empty profile workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.evidence-file",
+      "kind": "source-action",
+      "description": "Select one or more evidence files.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2"
+      ]
+    },
+    {
+      "id": "imports.final-import-form",
+      "kind": "source-action",
+      "description": "Resolve the exact final-import form, session transport and antiforgery token.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.advance-review-to-final"
+      ]
+    },
+    {
+      "id": "imports.history-exact-runtime-batch",
+      "kind": "source-action",
+      "description": "Resolve the one exact batch created by the current runtime-unique synthetic filename.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.COMPLETED_IMPORT_BATCH"
+      ]
+    },
+    {
+      "id": "imports.next-preview-upload",
+      "kind": "source-action",
+      "description": "Upload and inspect evidence, then route to Preview or Extraction Review.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2",
+        "imports.evidence-file"
+      ]
+    },
+    {
+      "id": "imports.published-version-with-current-draft",
+      "kind": "source-action",
+      "description": "Verify that a profile with an earlier Published version remains available to Guided Import even when its current working version is Draft.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.read-feedback-banner",
+      "kind": "source-action",
+      "description": "Read the immediate TempData feedback produced by a Guided Import POST.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.reject-mixed-evidence-archive",
+      "kind": "source-action",
+      "description": "Reject a ZIP containing both PDF and image evidence.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2"
+      ]
+    },
+    {
+      "id": "imports.select-bank-account",
+      "kind": "source-action",
+      "description": "Select the exact protected test bank account.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_1"
+      ]
+    },
+    {
+      "id": "imports.select-profile",
+      "kind": "source-action",
+      "description": "Select the exact active Published profile from the Guided Import control.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_1"
+      ]
+    },
+    {
+      "id": "imports.session-json-schema",
+      "kind": "source-action",
+      "description": "Validate the exact browser-visible ImportSession serialization before reading session state.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT"
+      ]
+    },
+    {
+      "id": "imports.start-session",
+      "kind": "source-action",
+      "description": "Create an exact ImportSession and advance to Evidence.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_1"
+      ]
+    },
+    {
+      "id": "imports.step1-cancel-overview",
+      "kind": "source-action",
+      "description": "Verify the no-session Step 1 Cancel action returns to Banking Overview without creating an ImportSession.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.GUIDED_STEP_1"
+      ]
+    },
+    {
+      "id": "imports.undo-exact-runtime-batch",
+      "kind": "source-action",
+      "description": "Reverse the exact disposable test batch and remove its unlocked transactions.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "STATE.COMPLETED_IMPORT_BATCH"
+      ]
+    },
+    {
+      "id": "imports.upload-image-only-archive",
+      "kind": "source-action",
+      "description": "Upload one ZIP containing supported image evidence only.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2"
+      ]
+    },
+    {
+      "id": "imports.upload-multiple-images",
+      "kind": "source-action",
+      "description": "Select multiple screenshot/image files in one Guided Import upload.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2"
+      ]
+    },
+    {
+      "id": "imports.upload-pdf-only-archive",
+      "kind": "source-action",
+      "description": "Upload one ZIP containing PDF evidence only.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.GUIDED_IMPORT",
+        "imports.start-session",
+        "STATE.GUIDED_STEP_2"
+      ]
+    },
+    {
+      "id": "inventory.count-page-no-debug",
+      "kind": "source-action",
+      "description": "Verify the Count creation page loads and the removed temporary debug messages are absent from source/runtime evidence.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    },
+    {
+      "id": "login.password-autocomplete",
+      "kind": "source-action",
+      "description": "Verify the active login password control advertises the browser current-password contract.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.BROWSER.OPEN"
+      ]
+    },
+    {
+      "id": "payment-evidence.delete-exact-batch",
+      "kind": "source-action",
+      "description": "Delete the exact disposable InReview Payment Evidence batch and prove the exact GUID no longer opens.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_BATCH"
+      ]
+    },
+    {
+      "id": "payment-evidence.delete-exact-profile",
+      "kind": "source-action",
+      "description": "Delete only the exact disposable profile created by the test.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE"
+      ]
+    },
+    {
+      "id": "payment-evidence.execute-import",
+      "kind": "source-action",
+      "description": "Execute the exact previewed Payment Evidence import and follow the server redirect to the exact batch review workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE",
+        "STATE.PAYMENT_EVIDENCE_PREVIEW"
+      ]
+    },
+    {
+      "id": "payment-evidence.execute-import-double-submit",
+      "kind": "source-action",
+      "description": "Submit the exact ExecuteImport form twice from one preview operation to verify retry safety.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE",
+        "STATE.PAYMENT_EVIDENCE_PREVIEW"
+      ]
+    },
+    {
+      "id": "payment-evidence.find-exact-profile",
+      "kind": "source-action",
+      "description": "Resolve the exact disposable Payment Evidence profile card and its own ID after save.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE"
+      ]
+    },
+    {
+      "id": "payment-evidence.foreign-batch-denial",
+      "kind": "source-action",
+      "description": "Prove direct access to the exact owner batch is denied in a different tenant workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_BATCH"
+      ]
+    },
+    {
+      "id": "payment-evidence.foreign-profile-denial",
+      "kind": "source-action",
+      "description": "Prove the exact disposable owner profile is not listed in a different tenant workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE"
+      ]
+    },
+    {
+      "id": "payment-evidence.import-preview",
+      "kind": "source-action",
+      "description": "Use the exact disposable profile to preview representative payment evidence without executing the import.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE"
+      ]
+    },
+    {
+      "id": "payment-evidence.new-profile-modal",
+      "kind": "source-action",
+      "description": "Open and reset the dedicated new Payment Evidence profile modal through its visible action.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.open-exact-profile",
+      "kind": "source-action",
+      "description": "Reopen the exact saved profile and verify persisted mapping/settings.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE"
+      ]
+    },
+    {
+      "id": "payment-evidence.open-profiles-tab",
+      "kind": "source-action",
+      "description": "Open the Payment Evidence Profiles workspace directly without unrelated route discovery.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.owner-access-restored",
+      "kind": "source-action",
+      "description": "Prove owner access to the exact batch is restored after returning from the foreign workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_BATCH"
+      ]
+    },
+    {
+      "id": "payment-evidence.owner-batch-access",
+      "kind": "source-action",
+      "description": "Prove the exact disposable Payment Evidence batch is accessible in its owner workspace before the tenant switch.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_BATCH"
+      ]
+    },
+    {
+      "id": "payment-evidence.owner-lineage-source",
+      "kind": "source-action",
+      "description": "Certify tenant, manager, user, operation, source artifact and exact profile ownership for the disposable Payment Evidence batch.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.PACKAGE.CERTIFY",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.profile-preview-map",
+      "kind": "source-action",
+      "description": "Preview a synthetic CSV and configure the generated mapping grid through visible controls before saving.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.read-exact-batch-review",
+      "kind": "source-action",
+      "description": "Verify the exact imported batch review workspace, batch status, totals and imported row classifications.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_BATCH"
+      ]
+    },
+    {
+      "id": "payment-evidence.read-import-preview-results",
+      "kind": "source-action",
+      "description": "Read the exact direct-child Preview Results card after UploadPreview without matching its ancestor cards.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE",
+        "STATE.PAYMENT_EVIDENCE_PROFILE",
+        "STATE.PAYMENT_EVIDENCE_PREVIEW"
+      ]
+    },
+    {
+      "id": "payment-evidence.same-operation-idempotency-source",
+      "kind": "source-action",
+      "description": "Certify the pre-check, unique owner-operation fence and exact winning-batch recovery used by concurrent retry execution.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.PACKAGE.CERTIFY",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.save-profile",
+      "kind": "source-action",
+      "description": "Create the exact disposable Payment Evidence profile after visible preview/mapping.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payment-evidence.verify-single-active-batch",
+      "kind": "source-action",
+      "description": "Verify retry produced exactly one active batch entry for the exact synthetic evidence filename and captured batch GUID.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.PAYMENT_EVIDENCE"
+      ]
+    },
+    {
+      "id": "payroll.reminders-runtime",
+      "kind": "source-action",
+      "description": "Verify the reminder settings route loads without the historical nullable MaxAsync runtime exception.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    },
+    {
+      "id": "phase25h-d2a.website-cleanup-visible",
+      "kind": "source-action",
+      "description": "Delete only the exact disposable website objects and prove their absence through the website.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2A_DEPLOYED"
+      ]
+    },
+    {
+      "id": "phase25h-d2a.website-preview-friendly-error",
+      "kind": "source-action",
+      "description": "Expose a specific, safe and actionable Payment Evidence preview failure through the website.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2A_DEPLOYED"
+      ]
+    },
+    {
+      "id": "phase25h-d2a.website-preview-outcome-classification",
+      "kind": "source-action",
+      "description": "Classify the immediate rendered result of UploadPreview before waiting for the Preview Results success card.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2A_DEPLOYED"
+      ]
+    },
+    {
+      "id": "phase25h-d2a.website-preview-visible",
+      "kind": "source-action",
+      "description": "Prove the deployed website visibly accepts and previews one exact runtime-unique Payment Evidence CSV after D2-A.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2A_DEPLOYED"
+      ]
+    },
+    {
+      "id": "phase25h-d2a.website-retry-single-batch",
+      "kind": "source-action",
+      "description": "Prove through the website that two bounded submissions of the exact Execute Import form resolve to one visible batch.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2A_DEPLOYED"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.bounded-recovery",
+      "kind": "source-action",
+      "description": "Exercise exactly three real bounded OCR attempts.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT",
+        "phase25h-d2b.ocr-processing"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.cached-remap",
+      "kind": "source-action",
+      "description": "Exercise cached remapping without rerunning OCR.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT",
+        "phase25h-d2b.ocr-processing"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.direct-text-processing",
+      "kind": "source-action",
+      "description": "Exercise a successful direct-text extraction through the website.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.image-preparation",
+      "kind": "source-action",
+      "description": "Exercise preview-only image preparation without extraction.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.ocr-processing",
+      "kind": "source-action",
+      "description": "Exercise a successful image OCR extraction through the website.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT"
+      ]
+    },
+    {
+      "id": "phase25h-d2b.website-cleanup",
+      "kind": "source-action",
+      "description": "Remove the exact temporary sample and disposable never-published Draft.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.D2B_DEPLOYED",
+        "STATE.DISPOSABLE_STATEMENT_DRAFT"
+      ]
+    },
+    {
+      "id": "phase25j.closeout.no-active-guided-session",
+      "kind": "source-action",
+      "description": "Verify final closeout starts with no active Guided Import session.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.PROTECTED_BASELINE_KNOWN"
+      ]
+    },
+    {
+      "id": "phase25j.closeout.payment-evidence-cleanup",
+      "kind": "source-action",
+      "description": "Verify no disposable Payment Evidence profile or test batch/file remains after the accepted Payment Evidence scopes.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.PROTECTED_BASELINE_KNOWN"
+      ]
+    },
+    {
+      "id": "phase25j.closeout.production-baseline",
+      "kind": "source-action",
+      "description": "Read the exact preserved 77-row production batch directly through the tenant-scoped BatchDetail handler.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.PROTECTED_BASELINE_KNOWN"
+      ]
+    },
+    {
+      "id": "phase25j.closeout.protected-profile-state",
+      "kind": "source-action",
+      "description": "Verify both protected Phase 25J tenant profiles remain exactly Published v1 and no disposable Statement test profile remains.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.PROTECTED_BASELINE_KNOWN"
+      ]
+    },
+    {
+      "id": "products.legacy-stock-overview-redirect",
+      "kind": "source-action",
+      "description": "Verify the legacy no-ID product inventory route remains backward compatible.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    },
+    {
+      "id": "products.optional-category-colour",
+      "kind": "source-action",
+      "description": "Verify optional category colour values use hidden nullable transport inputs plus separate colour pickers.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    },
+    {
+      "id": "products.stock-overview-menu-route",
+      "kind": "source-action",
+      "description": "Verify the Product stock levels menu points to the valid inventory overview route.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    },
+    {
+      "id": "profiles.breadcrumb-runtime",
+      "kind": "source-action",
+      "description": "Verify the catalogue breadcrumb reflects Banking / Profiles rather than a generic page label.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "profiles.configure-exact-statement",
+      "kind": "source-action",
+      "description": "Open the exact Statement Profile by ID.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "profiles.delete-never-published-draft",
+      "kind": "source-action",
+      "description": "Delete an exact disposable never-published, unreferenced Draft.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "profiles.find-exact-user-card",
+      "kind": "source-action",
+      "description": "Locate exactly one tenant profile by exact displayed name.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "profiles.open-new-statement",
+      "kind": "source-action",
+      "description": "Open a new tenant Statement Profile workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES"
+      ]
+    },
+    {
+      "id": "profiles.publish-tested-version",
+      "kind": "source-action",
+      "description": "Publish a profile already in Tested lifecycle.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "profiles.read-card-lifecycle",
+      "kind": "source-action",
+      "description": "Read the exact profile lifecycle badge without positional guessing.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "NAV.BANKING.PROFILES",
+        "STATE.EXACT_PROFILE_CARD"
+      ]
+    },
+    {
+      "id": "review.accept-continue",
+      "kind": "source-action",
+      "description": "Accept reviewed extraction and continue to Guided Preview.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.accept-warnings",
+      "kind": "source-action",
+      "description": "Acknowledge advisory warnings before acceptance.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.file-summaries",
+      "kind": "source-action",
+      "description": "Read the per-source-file summary cards above the review table.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.form",
+      "kind": "source-action",
+      "description": "Confirm the mandatory review page and exact session.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.problem-state-correction-persistence",
+      "kind": "source-action",
+      "description": "Prove an invalid posted OCR row remains visible as a blocking problem, then a valid correction is saved and persists after a fresh exact-session reload.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.rows",
+      "kind": "source-action",
+      "description": "Read extracted transaction rows.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.save-corrections",
+      "kind": "source-action",
+      "description": "Save non-blocking review corrections without accepting.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.source-file-field",
+      "kind": "source-action",
+      "description": "Verify per-row source attribution.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "review.verify-image-order-dedup",
+      "kind": "source-action",
+      "description": "Verify screenshot archive exact-row deduplication, stable date/source ordering and source attribution.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.EXTRACTION_REVIEW_SESSION",
+        "review.form"
+      ]
+    },
+    {
+      "id": "shell.workspace-switcher-open",
+      "kind": "source-action",
+      "description": "Open the workspace switcher through the visible desktop workspace chip after its client listener is ready.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN"
+      ]
+    },
+    {
+      "id": "shell.workspace-switcher-select",
+      "kind": "source-action",
+      "description": "Select one exact workspace from the open switcher.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN"
+      ]
+    },
+    {
+      "id": "statement.add-anchor-rule",
+      "kind": "source-action",
+      "description": "Add start/end anchor cards through the visible editor.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.add-ignore-region",
+      "kind": "source-action",
+      "description": "Add one visible Ignore region through the editor toolbar.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.amount-rules",
+      "kind": "source-action",
+      "description": "Configure signed amount and number-format interpretation.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.balance-validation-settings",
+      "kind": "source-action",
+      "description": "Configure running-balance and confidence validation.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.bank-name",
+      "kind": "source-action",
+      "description": "Set/read source or issuer name.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.cancel",
+      "kind": "source-action",
+      "description": "Leave the workspace without deleting a persisted profile.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.choose-image-source",
+      "kind": "source-action",
+      "description": "Select screenshot/image evidence.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.choose-selectable-pdf-source",
+      "kind": "source-action",
+      "description": "Select a PDF containing embedded selectable text.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.clear-sample",
+      "kind": "source-action",
+      "description": "Detach the temporary profile sample.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED"
+      ]
+    },
+    {
+      "id": "statement.currency",
+      "kind": "source-action",
+      "description": "Select profile currency.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.disable-ocr-for-direct-text",
+      "kind": "source-action",
+      "description": "Use direct embedded PDF text without OCR.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.force-ocr",
+      "kind": "source-action",
+      "description": "Select OCR-only extraction mode.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.image-type",
+      "kind": "source-action",
+      "description": "Set expected image type.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.import-json",
+      "kind": "source-action",
+      "description": "Load exported settings JSON into the form for review.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.manual-column-editor",
+      "kind": "source-action",
+      "description": "Edit generated manual column bands and verify normalized JSON.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.ocr-dpi",
+      "kind": "source-action",
+      "description": "Set OCR/render DPI.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.ocr-language",
+      "kind": "source-action",
+      "description": "Select installed OCR language.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.ocr-provider",
+      "kind": "source-action",
+      "description": "Select an installed OCR provider.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.open-detailed-section",
+      "kind": "source-action",
+      "description": "Open one exact detailed configuration section through the desktop Statement navigation.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.open-major-section",
+      "kind": "source-action",
+      "description": "Open an exact major progress section such as Save Profile.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.ordering-duplicates-settings",
+      "kind": "source-action",
+      "description": "Configure strict duplicate cleanup and summary-row removal.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.page-initialization-readiness",
+      "kind": "source-action",
+      "description": "Wait until all Statement Profile client controllers and mode/section handlers are bound.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.prepare-image",
+      "kind": "source-action",
+      "description": "Prepare or refresh the pre-OCR preview without running extraction.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED"
+      ]
+    },
+    {
+      "id": "statement.profile-id",
+      "kind": "source-action",
+      "description": "Read the exact persisted profile ID.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.profile-name",
+      "kind": "source-action",
+      "description": "Set/read the visible profile name.",
+      "migrationStatus": "SourceRecertifiedForFoundation",
+      "dynomaxStatus": "MappedToFoundationAction",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.read-ajax-outcome",
+      "kind": "source-action",
+      "description": "Classify the immediate result of a Statement AJAX action before waiting for a later state.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.read-extracted-rows",
+      "kind": "source-action",
+      "description": "Read exact displayed extracted-row values after Test or Remap.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.read-recovery-history",
+      "kind": "source-action",
+      "description": "Read the complete rendered recovery history and accepted-result summary.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.read-test-outcome",
+      "kind": "source-action",
+      "description": "Read the authoritative representative-test state, row count, provider and publish readiness.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.recovery-attempt-editor",
+      "kind": "source-action",
+      "description": "Configure materially different retry attempts through generated visible cards.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.recovery-enable-limits",
+      "kind": "source-action",
+      "description": "Enable bounded OCR recovery and set total-attempt and time limits.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.regions-editor",
+      "kind": "source-action",
+      "description": "Configure and verify percentage-based OCR regions through the generated region cards.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.remap-validate",
+      "kind": "source-action",
+      "description": "Remap cached geometry without rerunning OCR.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.rerun-extraction",
+      "kind": "source-action",
+      "description": "Rerun provider extraction after extraction-affecting changes.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.reset-absa",
+      "kind": "source-action",
+      "description": "Load default ABSA rules into the current form.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.row-reconstruction-settings",
+      "kind": "source-action",
+      "description": "Configure wrapped-description reconstruction.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.run-bounded-recovery",
+      "kind": "source-action",
+      "description": "Execute the primary extraction and no more than the configured total recovery attempts.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED"
+      ]
+    },
+    {
+      "id": "statement.run-test",
+      "kind": "source-action",
+      "description": "Run the representative extraction test.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED"
+      ]
+    },
+    {
+      "id": "statement.sample-file",
+      "kind": "source-action",
+      "description": "Stage representative sample evidence.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.save-draft-continue",
+      "kind": "source-action",
+      "description": "Save a fully valid Draft and remain in the workspace.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.save-draft-exit",
+      "kind": "source-action",
+      "description": "Permissively save an incomplete Draft and return to catalogue.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.save-draft-publish",
+      "kind": "source-action",
+      "description": "Save and publish the exact reviewed cached test result.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.statement-type",
+      "kind": "source-action",
+      "description": "Set/read document type.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.switch-advanced",
+      "kind": "source-action",
+      "description": "Switch the workspace into Advanced mode.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN"
+      ]
+    },
+    {
+      "id": "statement.table-detection-settings",
+      "kind": "source-action",
+      "description": "Configure table detection and wrapped-row geometry settings.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.use-detected-columns",
+      "kind": "source-action",
+      "description": "Convert detected or starter bands into manual editable columns.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.validation-minimum-ocr-confidence",
+      "kind": "source-action",
+      "description": "Configure the source-confirmed OCR confidence rule through its generated visible rule card.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "statement.switch-advanced"
+      ]
+    },
+    {
+      "id": "statement.verify-amount-field-precedence",
+      "kind": "source-action",
+      "description": "Verify Signed Amount is used when present and Debit/Credit fallback produces credit minus debit when Signed Amount is blank.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.verify-best-recovery-result",
+      "kind": "source-action",
+      "description": "Verify the accepted recovery attempt is the strict highest-scoring source result.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.verify-running-balance-order",
+      "kind": "source-action",
+      "description": "Verify same-date source order and a continuous running-balance chain.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "statement.verify-wrapped-row-reconstruction",
+      "kind": "source-action",
+      "description": "Verify an undated, amountless continuation line is appended to the previous transaction description during manual visual Remap when wrapped-row and continuation settings are enabled.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT",
+        "STATE.STATEMENT_WORKSPACE_OPEN",
+        "STATE.STATEMENT_SAMPLE_STAGED",
+        "STATE.STATEMENT_TEST_RESULT"
+      ]
+    },
+    {
+      "id": "support.imap-circuit-source",
+      "kind": "source-action",
+      "description": "Certify circuit-breaker failure updates and duplicate-log removal from current source.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.PACKAGE.CERTIFY"
+      ]
+    },
+    {
+      "id": "support.imap-transient-retry-source",
+      "kind": "source-action",
+      "description": "Certify one bounded retry for transient transport failures while invalid credentials remain non-retryable.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.PACKAGE.CERTIFY"
+      ]
+    },
+    {
+      "id": "workspace.desktop-wrap-collapse",
+      "kind": "source-action",
+      "description": "Verify the workspace menu collapses instead of rendering visible navigation on more than one row.",
+      "migrationStatus": "HistoricalDefinition",
+      "dynomaxStatus": "Planned",
+      "phase": "Backlog",
+      "dependencies": [
+        "CORE.AUTH.LOGIN",
+        "CORE.WORKSPACE.SELECT"
+      ]
+    }
+  ]
+}

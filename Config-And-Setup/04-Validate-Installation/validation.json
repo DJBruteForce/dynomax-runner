@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "validateWindows": true,
+  "validatePowerShell": true,
+  "validateDatabase": true,
+  "validateSchema": true,
+  "validateProjects": true,
+  "validateWebsiteAccess": false
+}

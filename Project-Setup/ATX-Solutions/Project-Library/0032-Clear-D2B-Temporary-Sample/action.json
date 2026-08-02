@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2b.clear-sample",
+  "displayName": "Clear the exact D2-B temporary sample",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Clear D2B Temporary Sample",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 120,
+  "outputs": [
+    {
+      "name": "d2bSampleCleared",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bSampleStaged",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2bCurrentSampleType",
+      "type": "String",
+      "required": false
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

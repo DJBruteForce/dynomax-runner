@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "atx.initial.website-reachability",
+  "displayName": "ATX website reachability",
+  "projectKey": "atx-solutions",
+  "environment": "production",
+  "timeoutSeconds": 180,
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "atx.website.open",
+      "cleanup": false
+    }
+  ]
+}

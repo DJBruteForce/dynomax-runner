@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.auth.login",
+  "displayName": "Authenticate approved ATX Manager test user with canonical username input",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Authenticate Test Manager",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 120,
+  "outputs": [
+    {
+      "name": "authenticated",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "authenticatedRole",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "authenticatedUrl",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.statement.verify-exact-draft",
+  "displayName": "Verify exact Statement Draft identity and desktop lifecycle badge",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Verify Exact Statement Draft",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 90,
+  "outputs": [
+    {
+      "name": "statementDraftVerified",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "statementProfileState",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "lifecycleBadgeSelector",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "allowInstallMissingComponents": true,
+  "pythonCommandCandidates": [
+    "py.exe",
+    "python.exe"
+  ],
+  "requirements": [
+    {
+      "id": "windows",
+      "kind": "Windows",
+      "required": true
+    },
+    {
+      "id": "powershell",
+      "kind": "PowerShell",
+      "minimumVersion": "5.1",
+      "required": true
+    },
+    {
+      "id": "python",
+      "kind": "Command",
+      "candidates": [
+        "py.exe",
+        "python.exe"
+      ],
+      "versionArguments": [
+        "--version"
+      ],
+      "required": true,
+      "installInstructions": "Install a supported Python 3 release and add it to PATH."
+    },
+    {
+      "id": "node",
+      "kind": "Command",
+      "candidates": [
+        "node.exe"
+      ],
+      "versionArguments": [
+        "--version"
+      ],
+      "required": true,
+      "installInstructions": "Install Node.js and add it to PATH."
+    },
+    {
+      "id": "npm",
+      "kind": "Command",
+      "candidates": [
+        "npm.cmd",
+        "npm.exe"
+      ],
+      "versionArguments": [
+        "--version"
+      ],
+      "required": true,
+      "installInstructions": "Install npm with Node.js."
+    },
+    {
+      "id": "robotframework",
+      "kind": "PythonPackage",
+      "package": "robotframework",
+      "importName": "robot",
+      "required": true,
+      "install": true
+    },
+    {
+      "id": "robotframework-browser",
+      "kind": "PythonPackage",
+      "package": "robotframework-browser",
+      "importName": "Browser",
+      "required": true,
+      "install": true,
+      "postInstall": [
+        {
+          "pythonModule": "Browser.entry",
+          "arguments": [
+            "init"
+          ],
+          "timeoutSeconds": 1200,
+          "runWhen": "InstalledThisRun"
+        }
+      ]
+    },
+    {
+      "id": "playwright-node",
+      "kind": "NodePackage",
+      "package": "playwright",
+      "global": true,
+      "required": true,
+      "install": true,
+      "postInstall": [
+        {
+          "commandCandidates": [
+            "npx.cmd",
+            "npx.exe",
+            "npx"
+          ],
+          "arguments": [
+            "playwright",
+            "install",
+            "chromium"
+          ],
+          "timeoutSeconds": 1200,
+          "runWhen": "InstalledThisRun"
+        }
+      ]
+    },
+    {
+      "id": "psscriptanalyzer",
+      "kind": "PowerShellModule",
+      "module": "PSScriptAnalyzer",
+      "required": false,
+      "install": false
+    }
+  ],
+  "logging": {
+    "showCommands": true,
+    "streamProcessOutput": true,
+    "heartbeatSeconds": 15,
+    "showSkippedPostInstall": true
+  },
+  "defaultProbeTimeoutSeconds": 60,
+  "defaultInstallTimeoutSeconds": 1200
+}

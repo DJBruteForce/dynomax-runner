@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "demo.website.inspect",
+  "displayName": "Inspect homepage structure",
+  "projectKey": "dynomax-demo",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "Demo Inspect Homepage Structure",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "bodyTextLength",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "headingCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "linkCount",
+      "type": "Integer",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

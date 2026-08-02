@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "atx.phase25h.d2b.processing-usage",
+  "displayName": "ATX Phase 25H-D2-B Processing Usage",
+  "projectKey": "atx-solutions",
+  "environment": "production",
+  "timeoutSeconds": 1800,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "atx.auth.login",
+      "cleanup": false
+    },
+    {
+      "order": 20,
+      "actionId": "atx.ui.settle-overlays",
+      "cleanup": false
+    },
+    {
+      "order": 30,
+      "actionId": "atx.workspace.select",
+      "cleanup": false
+    },
+    {
+      "order": 35,
+      "actionId": "atx.banking.profiles.recover-stale-foundation-drafts",
+      "cleanup": false
+    },
+    {
+      "order": 40,
+      "actionId": "atx.banking.profiles.open-user-catalogue",
+      "cleanup": false
+    },
+    {
+      "order": 50,
+      "actionId": "atx.banking.profiles.create-statement-draft",
+      "cleanup": false
+    },
+    {
+      "order": 60,
+      "actionId": "atx.banking.statement.verify-exact-draft",
+      "cleanup": false
+    },
+    {
+      "order": 70,
+      "actionId": "atx.banking.d2b.prepare-statement-workspace",
+      "cleanup": false
+    },
+    {
+      "order": 80,
+      "actionId": "atx.banking.d2b.direct-text-processing",
+      "cleanup": false
+    },
+    {
+      "order": 90,
+      "actionId": "atx.banking.d2b.clear-sample",
+      "cleanup": false
+    },
+    {
+      "order": 100,
+      "actionId": "atx.banking.d2b.image-preparation",
+      "cleanup": false
+    },
+    {
+      "order": 110,
+      "actionId": "atx.banking.d2b.ocr-processing",
+      "cleanup": false
+    },
+    {
+      "order": 120,
+      "actionId": "atx.banking.d2b.cached-remap",
+      "cleanup": false
+    },
+    {
+      "order": 130,
+      "actionId": "atx.banking.d2b.bounded-recovery",
+      "cleanup": false
+    },
+    {
+      "order": 140,
+      "actionId": "atx.banking.d2b.clear-sample",
+      "cleanup": false
+    },
+    {
+      "order": 200,
+      "actionId": "atx.auth.login",
+      "cleanup": true
+    },
+    {
+      "order": 210,
+      "actionId": "atx.ui.settle-overlays",
+      "cleanup": true
+    },
+    {
+      "order": 220,
+      "actionId": "atx.workspace.select",
+      "cleanup": true
+    },
+    {
+      "order": 230,
+      "actionId": "atx.banking.d2b.clear-sample",
+      "cleanup": true
+    },
+    {
+      "order": 240,
+      "actionId": "atx.banking.profiles.delete-exact-draft",
+      "cleanup": true
+    },
+    {
+      "order": 250,
+      "actionId": "atx.auth.logout",
+      "cleanup": true
+    }
+  ],
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true
+}

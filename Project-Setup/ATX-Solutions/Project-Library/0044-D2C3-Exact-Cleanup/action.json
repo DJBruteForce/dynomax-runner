@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2c3.cleanup",
+  "displayName": "Run one independent D2-C3 cleanup browser block",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Run Independent D2C3 Cleanup Block",
+  "sessionBehavior": "RequiresNewBrowser",
+  "timeoutSeconds": 900,
+  "outputs": [
+    {
+      "name": "d2c3CleanupComplete",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

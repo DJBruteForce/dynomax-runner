@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "dynomax.core.109.legacy-current-fallback",
+  "displayName": "Dynomax Core 1.0.9 legacy current-version fallback",
+  "projectKey": "dynomax-core-109-exact-version-acceptance-r1",
+  "environment": "local",
+  "timeoutSeconds": 120,
+  "alwaysRunCleanup": false,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "dynomax.core.exact-version.probe",
+      "cleanup": false,
+      "continueOnFailure": false
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.workspace.select",
+  "displayName": "Select the exact ATX test workspace",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Select Test Workspace",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 90,
+  "outputs": [
+    {
+      "name": "targetWorkspace",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "workspaceBefore",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "workspaceSelected",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

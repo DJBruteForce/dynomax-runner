@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "demo.context.verify",
+  "displayName": "Verify shared action context",
+  "projectKey": "dynomax-demo",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "Demo Verify Shared Action Context",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "sharedContextVerified",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

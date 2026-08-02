@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "actionId": "demo.website.open",
+  "displayName": "Open configured website",
+  "projectKey": "dynomax-demo",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "Demo Open Configured Website",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "websiteTitle",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "websiteUrl",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

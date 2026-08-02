@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "V63",
+  "scenarioId": "SCN-D2B-001",
+  "projectContextZipSha256": "beaf371d51b352a92b7aa260b9519c171a75f6c1b8577d5508d530cc93ff618f",
+  "sourceFiles": [
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Statement.cshtml",
+      "sha256": "2eedf0f8401a20a16b8490e648aee49c5e51c8e71b30d7c583392ee74183e56f"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Statement.cshtml.cs",
+      "sha256": "9bf33caddee62a723117072108610973abc23f7663947b39b63a676d244ad2fd"
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/SourceIngestion/BankStatementProfileTestArtifactStore.cs",
+      "sha256": "e78e2f5966b7d383e5f2773096c4f2485bd0783e7f2ae6c8e315ea2c0109fd5d"
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/SourceIngestion/BankingContentExtractionService.cs",
+      "sha256": "7fa33cd8c3bdb1781a4bca945c964b308cb56d5fc543c2201e845644055f2f04"
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/SourceIngestion/BankImportSourceService.cs",
+      "sha256": "0408c09ff29a54418e7fe11d98d91cb0b7b559c69fb2f910e77d263f4ec958ba"
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/SourceIngestion/BankImportPdfOcrNormalizer.cs",
+      "sha256": "df0ddbd69b9a53ae7d616b80798a4d1d03dc1b27c6abe893e318b00ab50612e7"
+    },
+    {
+      "path": "AtxSolutions/Features/Banking/Services/Usage/BankingUsageEventService.cs",
+      "sha256": "90e333407e330a617ac0255210fa41a7e21e8398a2a5bdf49007dc02ba529eb1"
+    },
+    {
+      "path": "AtxSolutions/wwwroot/css/banking-statement-test-lab.css",
+      "sha256": "c15969fdab2f61c189d2aef3ff9a7d5ad67f82746b4ff814892b7f3ee104b089"
+    }
+  ],
+  "samples": [
+    {
+      "path": "Payload/Project-Setup/ATX-Solutions/Project-And-Config/Test-Workspace/Samples/ATX_Phase25H_D2B_Direct_Text_Statement.pdf",
+      "sha256": "ab09baa9941fcb9319aeeea35f53718f06d7731e9ce136642e5d31443b17cb6e"
+    },
+    {
+      "path": "Payload/Project-Setup/ATX-Solutions/Project-And-Config/Test-Workspace/Samples/ATX_Phase25H_D2B_OCR_Statement.png",
+      "sha256": "fdef0c68b6760ddbb29ff24a5815d0746d484bdba0e9f01f4cfcccbc84f81e08"
+    }
+  ],
+  "packageCorrection": {
+    "classification": "TEST_INVALID",
+    "failedAction": "atx.banking.d2b.ocr-processing",
+    "plainEnglish": "Direct PDF processing and image preparation passed. The OCR action then reopened the profile and lost the temporary image sample, so ATX correctly asked for a sample and reported an unknown mode.",
+    "rootCause": "The shared exact-profile helper always navigated to the profile URL, even when the correct Statement page was already active. The full navigation discarded browser-local file selection and the current SampleCacheToken.",
+    "correction": "Preserve the current exact Statement page, navigate only when needed, and require an active selected file or sample cache token before OCR, Remap and recovery.",
+    "sessionReuse": "000003-Phase25H-D2B-Processing-Usage",
+    "sqlRequired": false
+  }
+}

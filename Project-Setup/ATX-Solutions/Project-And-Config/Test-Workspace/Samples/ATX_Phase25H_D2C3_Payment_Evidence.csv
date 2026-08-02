@@ -1,0 +1,6 @@
+Date,Description,Reference,Amount,External Transaction Id,Payer Name,Payer Email,Fee,Net,Gross,Event Type,Merchant Reference
+2026-07-01,Customer payment,REF001,100.00,TX001,Alice Example,alice@example.test,0.00,100.00,100.00,Payment,MR001
+2026-07-02,Gateway fee,FEE002,0.00,TX002,Gateway Fees,fees@example.test,2.50,-2.50,0.00,Fee,MR002
+2026-07-03,Customer refund,REF003,-25.00,TX003,Bob Example,bob@example.test,0.00,-25.00,-25.00,Refund,MR003
+2026-07-04,Settlement payout,PAY004,75.00,TX004,Gateway Settlement,settlement@example.test,0.00,75.00,75.00,Payout,MR004
+2026-07-01,Customer payment,REF001,100.00,TX001,Alice Example,alice@example.test,0.00,100.00,100.00,Payment,MR001

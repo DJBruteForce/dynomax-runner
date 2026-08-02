@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "actionId": "demo.cleanup.marker",
+  "displayName": "Remove the demo temporary marker",
+  "projectKey": "dynomax-demo",
+  "engine": "PowerShell",
+  "entryPoint": "Cleanup-DemoMarker.ps1",
+  "sessionBehavior": "DoesNotUseBrowser",
+  "inputs": [],
+  "outputs": [
+    { "name": "cleanupVerified", "type": "Boolean", "required": true }
+  ],
+  "timeoutSeconds": 30,
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "Diagnostics"
+  }
+}

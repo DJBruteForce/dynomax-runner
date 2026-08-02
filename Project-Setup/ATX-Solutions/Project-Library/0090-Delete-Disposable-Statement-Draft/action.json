@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.profiles.delete-exact-draft",
+  "displayName": "Delete exact disposable never-published Statement Draft",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Delete Exact Disposable Statement Draft",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 120,
+  "outputs": [
+    {
+      "name": "statementProfileDeleted",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "deletedProfileId",
+      "type": "String",
+      "required": false
+    },
+    {
+      "name": "cleanupOutcome",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

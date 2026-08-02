@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.context.verify",
+  "displayName": "Verify shared workflow context",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Verify Shared Context",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "sharedContextVerified",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

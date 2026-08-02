@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "framework": "Dynomax",
+  "frameworkVersion": "1.0.2",
+  "generatedAtUtc": "2026-07-31T07:16:53.078638+00:00",
+  "manifestExcludes": [
+    "PACKAGE_MANIFEST.json"
+  ],
+  "fileCount": 64,
+  "files": [
+    {
+      "path": "Apply-Dynomax-Patch-1.0.2.bat",
+      "size": 385,
+      "sha256": "ba7fef712722a6ea854d429a21046bbd7a26e81551db38d1ed4494c276f7e872"
+    },
+    {
+      "path": "Apply-Dynomax-Patch-1.0.2.ps1",
+      "size": 1433,
+      "sha256": "e5dc73eb6acd8671af15ac0a6800b5e587aac9e9d5f71da3b993239deab44729"
+    },
+    {
+      "path": "Config-And-Setup/01-Prerequisites/Invoke-PrerequisiteSetup.ps1",
+      "size": 11863,
+      "sha256": "c4c9ecd21b68a776ff04904810575231ba8c3ca6a2b2861a9745d68aae21700f"
+    },
+    {
+      "path": "Config-And-Setup/01-Prerequisites/Run.bat",
+      "size": 386,
+      "sha256": "ee6de0246185f1abb387a52df06ab208d0e38413a5808f830d2a20749030d0e0"
+    },
+    {
+      "path": "Config-And-Setup/01-Prerequisites/prerequisites.json",
+      "size": 2815,
+      "sha256": "8f081be5e8a8a7719a97bd24d0ba35d9c00d62b773013e10078f6c316b13c5c8"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Initialize-DynomaxDatabase.ps1",
+      "size": 5016,
+      "sha256": "0c7a5933e1d64d8c1b8ec2c69f640303524ff848ffe270072bc06d2cf037e1e0"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0000_Bootstrap.sql",
+      "size": 519,
+      "sha256": "8702777b5cc82cf378ce7b39234a9274e8964392d34cc98f527032b8f0c3d3df"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0001_Framework.sql",
+      "size": 1077,
+      "sha256": "ed9f213377980bd3190ab38f0ce97cf6edd9a4244cda5e020b91173c236bc52c"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0002_Project.sql",
+      "size": 2263,
+      "sha256": "af4f0f09a2e14bca6d636e20c01caf07d5ecf45ce7d0bf2478aeb2b109c699d3"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0003_Catalogue.sql",
+      "size": 3433,
+      "sha256": "958b0c644931b4d3a841dbed3bd5fdfef69f0ce0e4a34568bb1bbb023166fc7d"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0004_Execution.sql",
+      "size": 2504,
+      "sha256": "18e1e2097fb7ae0fa42599a3fb067b90258b79df7cfec0675f95d0b85d67ab44"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0005_Artifacts.sql",
+      "size": 1207,
+      "sha256": "9508e59a1c939bbf643df20c71f2e55e6ad26db9092378c3d46089aec711bc7b"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0006_Indexes.sql",
+      "size": 1521,
+      "sha256": "f1174e002c0d6f624fe8d0799541f6d015214b28c9ee5179bb71ab63ce38d1d4"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Migrations/0007_AdvancedExecution.sql",
+      "size": 5331,
+      "sha256": "42b75d5747715aafb312c2d92a9d3e05c0fc5cd9716ee31d09adeaabdd16855e"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/Run.bat",
+      "size": 388,
+      "sha256": "f6c5d55e32bc4e74970d795b41a8b8a7a8a412efa5ad85cd03ba526c90d8853d"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/database.json",
+      "size": 490,
+      "sha256": "6cf5c468736eda188cd87bd909acfeea88bc1375fb8dfce75970d0050301d97c"
+    },
+    {
+      "path": "Config-And-Setup/02-Database/schema-contract.json",
+      "size": 5353,
+      "sha256": "4a8c57fba2d1eb59b35c71e84c6c412c87b794547280731d3121c939e172fee4"
+    },
+    {
+      "path": "Config-And-Setup/03-Core/Initialize-DynomaxCore.ps1",
+      "size": 2788,
+      "sha256": "0e89945dd6f6e0e003090f4c2645ff028ca025f62723d459264728742026e8a2"
+    },
+    {
+      "path": "Config-And-Setup/03-Core/Run.bat",
+      "size": 384,
+      "sha256": "760ccd8b268d869fff9eda9394429a05c08232f47af09b518aeb39db5750ad97"
+    },
+    {
+      "path": "Config-And-Setup/03-Core/core.json",
+      "size": 120,
+      "sha256": "4f7bf96c3c4f94c27fe6f872bd4af908e29b613488c4c486c9a4a3429bfc4185"
+    },
+    {
+      "path": "Config-And-Setup/04-Validate-Installation/Run.bat",
+      "size": 386,
+      "sha256": "b6e8e454b263486e96091346acf4b969fc88531a39df95d89f48f171d65feb43"
+    },
+    {
+      "path": "Config-And-Setup/04-Validate-Installation/Test-DynomaxInstallation.ps1",
+      "size": 3755,
+      "sha256": "0f82146850a7a2959df15187e7025fa0fe54fdb4c64170f60b3be55b0b6fdb34"
+    },
+    {
+      "path": "Config-And-Setup/04-Validate-Installation/validation.json",
+      "size": 198,
+      "sha256": "d714065cd1190513fd35ea1bbe7d0109318e873bec395c718eb4b19fa7382a0b"
+    },
+    {
+      "path": "Core/Catalogue/Dynomax.Catalogue.ps1",
+      "size": 15573,
+      "sha256": "6663908b3a09646b1d475d8a9d163ed04dd05d9a81d42b59551efac7573d4c31"
+    },
+    {
+      "path": "Core/Catalogue/New-DynomaxWorkflowSession.ps1",
+      "size": 2503,
+      "sha256": "6b6a84ca3ac9e76a6d28c16a888940351c25defec238f4b8bff8534d1cf563b1"
+    },
+    {
+      "path": "Core/Common/Dynomax.Common.ps1",
+      "size": 5380,
+      "sha256": "767468716798066785bb7d12e039761cbef326712ddbbc65e320725b2a0a8eaf"
+    },
+    {
+      "path": "Core/Database/Dynomax.Database.ps1",
+      "size": 7669,
+      "sha256": "4184cd0f09559f952917426e060ef0af9bd5a46c9fa1346142d970e59f21eb6e"
+    },
+    {
+      "path": "Core/Execution/Dynomax.Process.ps1",
+      "size": 7425,
+      "sha256": "118cf01bc73194c94ac10480cadd763fa54e221a65b208c0d5d568243ceb965e"
+    },
+    {
+      "path": "Core/Execution/Dynomax.Workflow.ps1",
+      "size": 11028,
+      "sha256": "a3f52a677a068f45e231f942a6f9a6728097bcf62e6acdf18b503cb7b8ba4e12"
+    },
+    {
+      "path": "Core/Execution/Persist-DynomaxRobotAction.ps1",
+      "size": 2172,
+      "sha256": "330629fc9de40697db2af60b70d8063758d0c445abef9dff7fdec32c60250dff"
+    },
+    {
+      "path": "Core/Invoke-DynomaxWorkflow.ps1",
+      "size": 10292,
+      "sha256": "9f10b7c5b4be49fe8d73eb0188cf7060de2c1161afb495d55aa1058851a30329"
+    },
+    {
+      "path": "Core/Results/Dynomax.Results.ps1",
+      "size": 12185,
+      "sha256": "1e83eed7eff331c88faa298fb347cf32db5a463fe6e32a40346f70519b46d1b3"
+    },
+    {
+      "path": "Core/Robot/Dynomax.resource",
+      "size": 3285,
+      "sha256": "9c108c9f684cd4e7779498797134659d03670be751566afc41b0c4840db44c49"
+    },
+    {
+      "path": "Core/Templates/Action/Execute-Action.ps1",
+      "size": 209,
+      "sha256": "cc5391cb9a94668037d2cf49414d0ebc223854d4ed74ee7bddb22ae5775cda9d"
+    },
+    {
+      "path": "Core/Templates/Action/Run.bat",
+      "size": 376,
+      "sha256": "c30e870df3a6b310fe4d35037e6c8718972e723c07552d415f56c493c1c3a758"
+    },
+    {
+      "path": "Core/Templates/Action/action.json",
+      "size": 411,
+      "sha256": "3de1dcbdb3b18f283a548d7801b0c1196fd4cd6e5b26007bec44d5bdb84265b0"
+    },
+    {
+      "path": "Core/Templates/Action/action.resource",
+      "size": 127,
+      "sha256": "234652639412bd7d08b4c2ab642e4f47b9bccb03ca4344845c3c25ed6cb8b3aa"
+    },
+    {
+      "path": "Core/Templates/Project/project.json",
+      "size": 462,
+      "sha256": "9f5022cf4c34a628d33b8e45b1d6b28d427ccfe1e84d65943e7dbac96b275dfe"
+    },
+    {
+      "path": "Core/Templates/Workflow/Execute-Workflow.ps1",
+      "size": 492,
+      "sha256": "cd0ad4dc991a0ccbcebfc11e99b2c729ef64f7cbdcfe7bd5c33225f66a893641"
+    },
+    {
+      "path": "Core/Templates/Workflow/Run.bat",
+      "size": 378,
+      "sha256": "82a6e395ea1766031048f6473aa98629b26a3d89d91b1688ffcf0187ae33205e"
+    },
+    {
+      "path": "Core/Templates/Workflow/workflow.json",
+      "size": 301,
+      "sha256": "81742e824f8e38dd57a9bbdd6f43432637ea7f9b94163c34a1a58e520e21959c"
+    },
+    {
+      "path": "Exports/.keep",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "Install-Dynomax.bat",
+      "size": 464,
+      "sha256": "924c5bb0eb4220f707f7188ba28fa804dca3a843e774488cb04d5aad8babb2f1"
+    },
+    {
+      "path": "Install-Dynomax.ps1",
+      "size": 1322,
+      "sha256": "3df427b65d6e06d2767c12c9b3adf0d7ca98811f1e864519a7bcefd3a3fa2c8e"
+    },
+    {
+      "path": "New-Workflow-Session.bat",
+      "size": 324,
+      "sha256": "eac317ecf97f05fb417f3a8610609581e4267db75a0a70e0a9d4ae8f37ff3598"
+    },
+    {
+      "path": "PATCH_1_0_1.md",
+      "size": 1272,
+      "sha256": "7ff3f2d4da6e8d538460d8c6db1f5b245758a6d24d18f1358a4fe3e2f6af68b5"
+    },
+    {
+      "path": "PATCH_1_0_2.md",
+      "size": 1213,
+      "sha256": "2651f7520c163de64106dc76acb95be74ad90d20d3aeb11088d83d0e17e9096a"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-And-Config/Configure-Project.ps1",
+      "size": 992,
+      "sha256": "77c6e0c989edba13525d46e7ae1270e3ae78d6545b9fe8ae38dbbe65b8f2ff82"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-And-Config/Run.bat",
+      "size": 379,
+      "sha256": "418f8446b7318632ba4d374d18c57958dcf9b6807b1c51f6249efb6327b9c0d9"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-And-Config/project.json",
+      "size": 737,
+      "sha256": "1a9c9dd76919458776eab4645c0df6e145248078ad6f90ce231eb38a1882ceaf"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Library/0001-Open-Website/Execute-Action.ps1",
+      "size": 1081,
+      "sha256": "30687e210e6dcde5bc1aa1ebbad8c0afd5b99d6b8b813b9a17b446f9143488a3"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Library/0001-Open-Website/Run.bat",
+      "size": 376,
+      "sha256": "c30e870df3a6b310fe4d35037e6c8718972e723c07552d415f56c493c1c3a758"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Library/0001-Open-Website/action.json",
+      "size": 602,
+      "sha256": "7d270a40ce32d93fb93df84882b5473190dcfd97eb3a3c3e42dd7b4998ce92a3"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Library/0001-Open-Website/action.resource",
+      "size": 820,
+      "sha256": "a0d0abf4e4189cc63a323a8fcf116a2f07df532364223911587c6e8dc0ce96f6"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Workflow/Sessions/000001-Website-Reachability/Execute-Workflow.ps1",
+      "size": 492,
+      "sha256": "cd0ad4dc991a0ccbcebfc11e99b2c729ef64f7cbdcfe7bd5c33225f66a893641"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Workflow/Sessions/000001-Website-Reachability/Run.bat",
+      "size": 378,
+      "sha256": "82a6e395ea1766031048f6473aa98629b26a3d89d91b1688ffcf0187ae33205e"
+    },
+    {
+      "path": "Project-Setup/ATX-Solutions/Project-Workflow/Sessions/000001-Website-Reachability/workflow.json",
+      "size": 384,
+      "sha256": "b4e986cc4af9d3cbe62ef77884dae4ed1dc8a04c396bf339b673d9c5c0257e8f"
+    },
+    {
+      "path": "Project-Setup/_Template/README.md",
+      "size": 116,
+      "sha256": "82c61b3de625a0983282ae96a0d1835fc54e48da21d01e34bc5646c918d94173"
+    },
+    {
+      "path": "README.md",
+      "size": 3629,
+      "sha256": "3bfb62c0df58aaf1b56f2fd1e67977f01e9b03bbeab4a8dba2a22903886986bd"
+    },
+    {
+      "path": "Run-Initial-Validation.bat",
+      "size": 194,
+      "sha256": "227aded1aa0933d6082a436b043e18c3d9e5b81789649d3dbb1913e824c85f76"
+    },
+    {
+      "path": "STATIC_VALIDATION.md",
+      "size": 1467,
+      "sha256": "d87044ebd461d52e23ef58cecf4241393da2ad61a5531b1a097324ffaca8144d"
+    },
+    {
+      "path": "Temp/Runs/.keep",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "VERSION.txt",
+      "size": 7,
+      "sha256": "0dc8489f55b24f8c7f12619f9e5e25a3eab2ce5cce7e057413d9c27c26b7d675"
+    },
+    {
+      "path": "dynomax.json",
+      "size": 873,
+      "sha256": "baa68154ff8d63f34da49c13f68ac3ddb71db81df41eb5389bd810e0b2737ee2"
+    }
+  ]
+}

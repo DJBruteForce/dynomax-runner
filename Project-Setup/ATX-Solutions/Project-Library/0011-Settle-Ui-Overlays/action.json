@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.ui.settle-overlays",
+  "displayName": "Settle cookie consent and nonfunctional overlays",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Settle Nonfunctional UI Overlays",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 30,
+  "outputs": [
+    {
+      "name": "overlaysSettled",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

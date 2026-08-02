@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "actionId": "dynomax.core.exact-version.probe",
+  "displayName": "Dynomax Core exact-version probe",
+  "projectKey": "dynomax-core-109-exact-version-acceptance-r1",
+  "engine": "PowerShell",
+  "entryPoint": "Invoke-VersionProbe.ps1",
+  "sessionBehavior": "DoesNotUseBrowser",
+  "timeoutSeconds": 30,
+  "outputs": [
+    {
+      "name": "marker",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "probeVersion",
+      "type": "Integer",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "Diagnostics"
+  }
+}

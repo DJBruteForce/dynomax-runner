@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.website.inspect-homepage",
+  "displayName": "Inspect ATX Solutions public homepage",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Inspect Homepage",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "firstVisibleH1",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "visibleH1Count",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "headingCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "linkCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "buttonCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "formCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "imageCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "inputCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "pageLanguage",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "consoleLogStatus",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "consoleLogText",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "resourceEntriesObserved",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "failedResourceCandidateCount",
+      "type": "Integer",
+      "required": true
+    },
+    {
+      "name": "resourceObservationJson",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

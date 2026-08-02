@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "atx.initial.public-homepage-observation",
+  "displayName": "ATX Solutions Public Homepage Observation",
+  "projectKey": "atx-solutions",
+  "environment": "production",
+  "timeoutSeconds": 240,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "atx.website.open",
+      "cleanup": false
+    },
+    {
+      "order": 20,
+      "actionId": "atx.website.inspect-homepage",
+      "cleanup": false
+    },
+    {
+      "order": 30,
+      "actionId": "atx.website.capture-homepage",
+      "cleanup": false
+    },
+    {
+      "order": 40,
+      "actionId": "atx.context.verify",
+      "cleanup": false
+    },
+    {
+      "order": 50,
+      "actionId": "atx.report.create",
+      "cleanup": false
+    }
+  ],
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true
+}

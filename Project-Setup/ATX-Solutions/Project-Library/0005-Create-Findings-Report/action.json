@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.report.create",
+  "displayName": "Create ATX public homepage findings report",
+  "projectKey": "atx-solutions",
+  "engine": "PowerShell",
+  "entryPoint": "Create-Findings.ps1",
+  "sessionBehavior": "DoesNotUseBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "findingsReportCreated",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "Diagnostics"
+  }
+}

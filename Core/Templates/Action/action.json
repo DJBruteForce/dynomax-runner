@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "actionId": "project.area.action",
+  "displayName": "Action display name",
+  "projectKey": "replace-me",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "Project Area Action",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 30,
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

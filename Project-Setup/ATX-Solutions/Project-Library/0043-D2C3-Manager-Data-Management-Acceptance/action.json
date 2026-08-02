@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2c3.manager-data-management-acceptance",
+  "displayName": "Verify Manager Data Management preview identity, import and exact undo",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Verify D2C3 Manager Data Management Acceptance",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 1200,
+  "outputs": [
+    {
+      "name": "d2c3ManagerAcceptancePassed",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3ManagerOperationStable",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3ManagerBatchReversed",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3ManagerBatchId",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

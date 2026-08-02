@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "1.0.1",
+  "fixtureId": "dynomax-core-1.0.9-exact-version-runtime-r1",
+  "requiredDynomaxCoreVersion": "1.0.9",
+  "databaseChange": "Isolated fixture catalogue and run records only; no schema change; no deletion.",
+  "files": [
+    {
+      "path": "FixtureProject/FIXTURE_PROJECT.json",
+      "sha256": "b5574e335182bd1827692d610a2e6ceff591035996504d094f95115d66e11418",
+      "length": 259
+    },
+    {
+      "path": "FixtureProject/Project-And-Config/project.json",
+      "sha256": "3b63d893473e56f0a30d1a1a97a8e24a3244a340e91cbbf4246cab2cde787a6f",
+      "length": 693
+    },
+    {
+      "path": "FixtureProject/Project-Library/0001-Exact-Version-Probe-V2/Invoke-VersionProbe.ps1",
+      "sha256": "51683b82a3df8bdbd75290801aa8d1afc6211c6bbd2a1a9c31fb90d99c0df2c2",
+      "length": 720
+    },
+    {
+      "path": "FixtureProject/Project-Library/0001-Exact-Version-Probe-V2/action.json",
+      "sha256": "581e8cc3fce8f058e3bfee8faab25a0c164460a226a026f8eb301e52ce80fd2f",
+      "length": 611
+    },
+    {
+      "path": "FixtureProject/Project-Workflow/Sessions/0100-Exact-Version-Pinned-V1/Payload/0001-Exact-Version-Probe-V1/Invoke-VersionProbe.ps1",
+      "sha256": "215e330a27b4c88f3400383078f332cca0a4277eaf17c48e3abb11969e6e5eb6",
+      "length": 720
+    },
+    {
+      "path": "FixtureProject/Project-Workflow/Sessions/0100-Exact-Version-Pinned-V1/Payload/0001-Exact-Version-Probe-V1/action.json",
+      "sha256": "581e8cc3fce8f058e3bfee8faab25a0c164460a226a026f8eb301e52ce80fd2f",
+      "length": 611
+    },
+    {
+      "path": "FixtureProject/Project-Workflow/Sessions/0100-Exact-Version-Pinned-V1/workflow.json",
+      "sha256": "d0dfcdb2247718b4a8351b3d58942f1b8668bbd4ba6aafc90ac3a09ccac69fa1",
+      "length": 475
+    },
+    {
+      "path": "FixtureProject/Project-Workflow/Sessions/0200-Legacy-Current-Fallback/workflow.json",
+      "sha256": "66bcb642f7e4fc28f74111726bab9fdd01c23d712dfd2be2ef27e55a649df2c9",
+      "length": 460
+    },
+    {
+      "path": "FixtureProject/Project-Workflow/Sessions/0300-Stale-Pinned-V1/workflow.json",
+      "sha256": "9a7c4eabde610bd248c82dd4b12480c481ee718b6308f17a88c6300e33a6b46b",
+      "length": 476
+    },
+    {
+      "path": "README.md",
+      "sha256": "e665bc76dc44f1cbdcc0a40bc1c957e2375c1074db7e0fd09888c8615e9a6bd3",
+      "length": 3493
+    },
+    {
+      "path": "Run-Exact-Version-Acceptance.bat",
+      "sha256": "93d3847058b28fce8d6c13648038781688d9a3042385a68007a04562819c0920",
+      "length": 585
+    },
+    {
+      "path": "Run-Exact-Version-Acceptance.ps1",
+      "sha256": "641175308684ef3bce487fde6f7a3bae0c08868c40ba2d8bda39b452257df14f",
+      "length": 29786
+    }
+  ]
+}

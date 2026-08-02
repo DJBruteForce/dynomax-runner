@@ -1,0 +1,16 @@
+# Dynomax runtime and generated files
+/Logs/
+/Temp/
+/Exports/
+Project-Setup/**/Project-And-Config/Install-State/
+Patches/**/Backup/
+Patches/**/Backups/
+Patches/**/Exact-Version-Acceptance-Fixture/Results/
+*.zip
+
+# Development tooling
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo

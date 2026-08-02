@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "actionId": "demo.report.create",
+  "displayName": "Create website findings report",
+  "projectKey": "dynomax-demo",
+  "engine": "PowerShell",
+  "entryPoint": "Create-Findings.ps1",
+  "sessionBehavior": "DoesNotUseBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "findingsReportCreated",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "Diagnostics"
+  }
+}

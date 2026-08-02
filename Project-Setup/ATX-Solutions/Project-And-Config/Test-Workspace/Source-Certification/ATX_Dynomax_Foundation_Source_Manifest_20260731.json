@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "generatedAtSast": "2026-07-31T15:30:00+02:00",
+  "authority": {
+    "projectZip": "Project Context File(15).zip",
+    "projectZipSha256": "beaf371d51b352a92b7aa260b9519c171a75f6c1b8577d5508d530cc93ff618f",
+    "agentContext": "ATX_Agent_Context_Index_20260731(1).md",
+    "sourceOfTruth": "ATX_Robot_Testing_Source_of_Truth_20260731_V55_Dynomax_Credential_Redaction.md"
+  },
+  "runtimeBoundary": "WebsiteOnly",
+  "sqlRequired": false,
+  "sourceFiles": [
+    {
+      "path": "AtxSolutions/Pages/Login.cshtml",
+      "sha256": "ffe69a2c43dcfbfcc64c18ee0dd5705644fac7b9ffcd9e22382b6516e76f0380",
+      "purpose": "login form, two-factor and profile-selection contract"
+    },
+    {
+      "path": "AtxSolutions/Pages/Shared/_Layout.cshtml",
+      "sha256": "77f395745897f3b83d3974009fce717b72fee4ea146f476905d52740c243ce61",
+      "purpose": "authenticated root, workspace switcher and logout contract"
+    },
+    {
+      "path": "AtxSolutions/wwwroot/js/workspace-switcher.js",
+      "sha256": "65e283c109375844f983dda38fb84f5753cf884c7dbf1f34d0c27bbe52e98dd1",
+      "purpose": "workspace switcher readiness/listener contract"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Index.cshtml",
+      "sha256": "22a4192c31e281e20504172cff4f57238bb8ef7d204b30cfc41062406b9e52b2",
+      "purpose": "catalogue, starter copy, exact card and delete form contract"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Index.cshtml.cs",
+      "sha256": "3c261f3f7d1e3aafb48a9dac54c2b10263810cfc836f510b7b1dec7e1acce7ea",
+      "purpose": "CreateCopy and Delete handlers"
+    },
+    {
+      "path": "AtxSolutions/Pages/Banking/Profiles/Statement.cshtml",
+      "sha256": "2eedf0f8401a20a16b8490e648aee49c5e51c8e71b30d7c583392ee74183e56f",
+      "purpose": "exact Draft identity, client readiness and visible desktop lifecycle badge contract"
+    }
+  ],
+  "correctedContracts": [
+    {
+      "contract": "statement.visible-desktop-lifecycle-badge",
+      "selector": "css=.statement-page-header .statement-header-meta .statement-state-badge:visible",
+      "expectedVisibleCount": 1
+    },
+    {
+      "contract": "cleanup.truthful-exact-draft-deletion",
+      "requiredContext": [
+        "statementProfileDeleted",
+        "deletedProfileId",
+        "cleanupOutcome"
+      ]
+    },
+    {
+      "contract": "dynomax.cleanup-block-authenticated-prerequisites",
+      "cleanupActionChain": [
+        "atx.auth.login",
+        "atx.ui.settle-overlays",
+        "atx.workspace.select",
+        "atx.banking.profiles.delete-exact-draft",
+        "atx.auth.logout"
+      ],
+      "browserSession": "fresh cleanup Robot block"
+    },
+    {
+      "contract": "foundation.stale-package-draft-recovery",
+      "requiredPrefix": "Dynomax TEST Statement Draft ",
+      "requiredState": "Draft",
+      "prohibitedState": "Published",
+      "identity": "exact GUID-bound delete form"
+    },
+    {
+      "contract": "authentication.runtime-credential-redaction",
+      "usernameInput": "Fill Secret with %ATX_TEST_USERNAME",
+      "passwordInput": "Fill Secret with %ATX_TEST_PASSWORD",
+      "exportedCredentialValuesAllowed": false
+    }
+  ]
+}

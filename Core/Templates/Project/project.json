@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "replace-me",
+  "displayName": "Replace Me",
+  "projectType": "WebApplication",
+  "evidenceBoundary": "WebsiteOnly",
+  "browser": "chromium",
+  "headless": false,
+  "environments": [
+    {
+      "key": "test",
+      "displayName": "Test",
+      "baseUrl": "https://example.invalid",
+      "browser": "chromium",
+      "headless": false,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}

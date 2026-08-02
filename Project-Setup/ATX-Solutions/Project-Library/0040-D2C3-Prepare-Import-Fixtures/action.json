@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2c3.prepare-import-fixtures",
+  "displayName": "Create or reuse the approved Published Structured test profile and create disposable CSV fixtures",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Prepare D2C3 Import Fixtures",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 420,
+  "outputs": [
+    {
+      "name": "d2c3FixturesPrepared",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3StructuredProfileName",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2c3GuidedSamplePath",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2c3ManagerSamplePath",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2c3StructuredProfileId",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "d2c3StructuredProfilePublished",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3StructuredProfilePreservationApproved",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

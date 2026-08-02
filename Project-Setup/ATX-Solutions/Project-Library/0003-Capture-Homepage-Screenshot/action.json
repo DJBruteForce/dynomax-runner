@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.website.capture-homepage",
+  "displayName": "Capture ATX Solutions homepage screenshot",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Capture Homepage Screenshot",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "screenshotFile",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

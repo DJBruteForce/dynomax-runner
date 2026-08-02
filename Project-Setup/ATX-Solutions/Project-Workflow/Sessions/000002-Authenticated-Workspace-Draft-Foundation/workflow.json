@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "atx.foundation.authenticated-workspace-draft",
+  "displayName": "ATX Authenticated Workspace and Disposable Draft Foundation",
+  "projectKey": "atx-solutions",
+  "environment": "production",
+  "timeoutSeconds": 420,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "atx.auth.login",
+      "cleanup": false
+    },
+    {
+      "order": 20,
+      "actionId": "atx.ui.settle-overlays",
+      "cleanup": false
+    },
+    {
+      "order": 30,
+      "actionId": "atx.workspace.select",
+      "cleanup": false
+    },
+    {
+      "order": 35,
+      "actionId": "atx.banking.profiles.recover-stale-foundation-drafts",
+      "cleanup": false
+    },
+    {
+      "order": 40,
+      "actionId": "atx.banking.profiles.open-user-catalogue",
+      "cleanup": false
+    },
+    {
+      "order": 50,
+      "actionId": "atx.banking.profiles.create-statement-draft",
+      "cleanup": false
+    },
+    {
+      "order": 60,
+      "actionId": "atx.banking.statement.verify-exact-draft",
+      "cleanup": false
+    },
+    {
+      "order": 70,
+      "actionId": "atx.auth.login",
+      "cleanup": true
+    },
+    {
+      "order": 75,
+      "actionId": "atx.ui.settle-overlays",
+      "cleanup": true
+    },
+    {
+      "order": 80,
+      "actionId": "atx.workspace.select",
+      "cleanup": true
+    },
+    {
+      "order": 90,
+      "actionId": "atx.banking.profiles.delete-exact-draft",
+      "cleanup": true
+    },
+    {
+      "order": 100,
+      "actionId": "atx.auth.logout",
+      "cleanup": true
+    }
+  ],
+  "stopOnFunctionalFailure": true,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true
+}

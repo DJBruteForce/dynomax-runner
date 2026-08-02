@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.d2c3.guided-banking-acceptance",
+  "displayName": "Verify Guided Banking preview, final import and exact undo",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Verify D2C3 Guided Banking Acceptance",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 1200,
+  "outputs": [
+    {
+      "name": "d2c3GuidedAcceptancePassed",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3GuidedBatchReversed",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "d2c3GuidedBatchId",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

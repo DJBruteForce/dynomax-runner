@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "patchVersion": "1.0.3",
+  "generatedAtUtc": "2026-07-31T07:31:02.828047+00:00",
+  "fileCount": 18,
+  "files": [
+    {
+      "path": "Apply-Patch.bat",
+      "size": 374,
+      "sha256": "b2a4a71ae7989839f085b589e5c23e6dce97f17c7bf6eca6ff69f377b619d00f"
+    },
+    {
+      "path": "Apply-Patch.ps1",
+      "size": 4341,
+      "sha256": "9a982f656bdcfc0cfe6f5808665f4edec9eb3499f1ff1e9375cc0329d71d3f68"
+    },
+    {
+      "path": "PATCH_NOTES.md",
+      "size": 1186,
+      "sha256": "f23f4384163d96dbe0c17c6e3e564d4b88eec875037739694bde2e4ef2bccc7d"
+    },
+    {
+      "path": "Payload/Config-And-Setup/02-Database/Migrations/0008_FrameworkValidation.sql",
+      "size": 2000,
+      "sha256": "cab2607cc0be53d74ff65cd02394a17fab2c07e8ae612dcde735f1776bbaa391"
+    },
+    {
+      "path": "Payload/Config-And-Setup/02-Database/schema-contract.json",
+      "size": 6250,
+      "sha256": "af0f3856180504f3d99896be5dd75dc290cf302199a18fc5ebdf70395bc32bad"
+    },
+    {
+      "path": "Payload/Config-And-Setup/05-Framework-Self-Test/Invoke-DynomaxSelfTest.ps1",
+      "size": 12081,
+      "sha256": "60d163d55a9fdc0add63fec08435ef6358108fa851ec997c6b268afafa8832f2"
+    },
+    {
+      "path": "Payload/Config-And-Setup/05-Framework-Self-Test/Run.bat",
+      "size": 384,
+      "sha256": "b00af456cc95f047ed8da4c002b34ffb08928663cd60e2ce90ec1eb71180eb7a"
+    },
+    {
+      "path": "Payload/Config-And-Setup/05-Framework-Self-Test/framework-self-test.robot",
+      "size": 718,
+      "sha256": "ea7a0339614cb0b0c814dc69b88c0a4539cb62df17509cb61d9a25be84a13e86"
+    },
+    {
+      "path": "Payload/Config-And-Setup/05-Framework-Self-Test/self-test.json",
+      "size": 270,
+      "sha256": "94d282193f92fcbe15ed04544cebb62e78cf9671010bca7a7a9c98ffb4dd60e5"
+    },
+    {
+      "path": "Payload/Core/Execution/Dynomax.Workflow.ps1",
+      "size": 11021,
+      "sha256": "cf15896f74a5cea838e1a18ae6babfc357bbf82f1d474269b2d08d51b209f0d3"
+    },
+    {
+      "path": "Payload/Project-Setup/ATX-Solutions/README.md",
+      "size": 310,
+      "sha256": "0c319929c2f0968379c2e262d1137474564a8bb33ad1d328d2c8243695766fa7"
+    },
+    {
+      "path": "Payload/Project-Setup/README.md",
+      "size": 360,
+      "sha256": "0519cae4133e9df6297bb163b977987ac2d81d773c4fbe8a0f0a326f068cc839"
+    },
+    {
+      "path": "Payload/README.md",
+      "size": 3722,
+      "sha256": "3a68a6f293ae29aa664205a56f3fc700bfd97c9861fde123bc5b2876a2d814b6"
+    },
+    {
+      "path": "Payload/Run-Dynomax-Self-Test.bat",
+      "size": 155,
+      "sha256": "77ee6f388a1add7e9a6d7f0b32b20860c5af09867e0229f942316ccc6697ebd5"
+    },
+    {
+      "path": "Payload/Run-Initial-Validation.bat",
+      "size": 228,
+      "sha256": "ab56d0463dd304c411b0b5442fb38c57d90903b39976baad58ab52085bf6f116"
+    },
+    {
+      "path": "Payload/VERSION.txt",
+      "size": 7,
+      "sha256": "fc1c281f1d0879bb81d24496eb278296d469a4c7d78565b035a14b51eab620b3"
+    },
+    {
+      "path": "Payload/dynomax.json",
+      "size": 992,
+      "sha256": "58003f49296c85e923c7b59356d4906ce0758ec41c5199f5d5f1a3a985143280"
+    },
+    {
+      "path": "STATIC_VALIDATION.md",
+      "size": 2030,
+      "sha256": "71bb01bef78ac06a5cef78fd7cac1b00be8544115942f37168d9a04e2bde0182"
+    }
+  ]
+}

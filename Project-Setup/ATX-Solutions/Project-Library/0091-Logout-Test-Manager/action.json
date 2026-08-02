@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.auth.logout",
+  "displayName": "Logout approved ATX test user",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Logout Test Manager",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "loggedOut",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

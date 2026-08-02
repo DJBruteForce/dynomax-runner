@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "atx.phase25h.d2c3.website-acceptance",
+  "displayName": "ATX Phase 25H-D2-C3 Website Acceptance",
+  "projectKey": "atx-solutions",
+  "environment": "production",
+  "timeoutSeconds": 3000,
+  "steps": [
+    {
+      "order": 10,
+      "actionId": "atx.auth.login",
+      "cleanup": false,
+      "actionVersion": 3
+    },
+    {
+      "order": 20,
+      "actionId": "atx.ui.settle-overlays",
+      "cleanup": false,
+      "actionVersion": 1
+    },
+    {
+      "order": 30,
+      "actionId": "atx.workspace.select",
+      "cleanup": false,
+      "actionVersion": 1
+    },
+    {
+      "order": 40,
+      "actionId": "atx.banking.d2c3.payment-evidence-acceptance",
+      "cleanup": false,
+      "actionVersion": 5
+    },
+    {
+      "order": 50,
+      "actionId": "atx.banking.d2c3.prepare-import-fixtures",
+      "cleanup": false,
+      "actionVersion": 6
+    },
+    {
+      "order": 60,
+      "actionId": "atx.banking.d2c3.guided-banking-acceptance",
+      "cleanup": false,
+      "actionVersion": 6
+    },
+    {
+      "order": 70,
+      "actionId": "atx.banking.d2c3.manager-data-management-acceptance",
+      "cleanup": false,
+      "actionVersion": 5
+    },
+    {
+      "order": 200,
+      "actionId": "atx.banking.d2c3.cleanup",
+      "cleanup": true,
+      "actionVersion": 10
+    }
+  ],
+  "stopOnFunctionalFailure": false,
+  "alwaysRunCleanup": true,
+  "exportResultZip": true,
+  "version": "1.0.18",
+  "description": "Phase 25H-D2-C3 website acceptance with exact action-version pins, Robot generator-scope-safe Guided session schema expressions, Windows-path-safe prerequisites, lifecycle-page Published verification, normalized optional cleanup context, and one self-contained cleanup action v10 using RequiresNewBrowser."
+}

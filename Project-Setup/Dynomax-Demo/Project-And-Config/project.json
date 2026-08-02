@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "dynomax-demo",
+  "displayName": "Dynomax Demo",
+  "projectType": "WebApplication",
+  "defaultEngine": "RobotBrowser",
+  "evidenceBoundary": "WebsiteOnly",
+  "browser": "chromium",
+  "headless": false,
+  "defaultTimeoutSeconds": 30,
+  "secretReferences": {},
+  "environments": [
+    {
+      "key": "atx-public-homepage",
+      "displayName": "ATX Public Homepage",
+      "baseUrl": "https://atxsolutions.co.za",
+      "browser": "chromium",
+      "headless": false,
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "allowedHosts": [
+        "atxsolutions.co.za"
+      ]
+    }
+  ]
+}

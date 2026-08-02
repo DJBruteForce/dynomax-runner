@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.banking.profiles.create-statement-draft",
+  "displayName": "Create exact disposable Statement Draft from ABSA starter",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Create Disposable Statement Draft",
+  "sessionBehavior": "RequiresExistingBrowser",
+  "timeoutSeconds": 120,
+  "outputs": [
+    {
+      "name": "statementProfileName",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "statementProfileId",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "statementProfileUrl",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "statementProfileCreationAttempted",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "statementProfileCreated",
+      "type": "Boolean",
+      "required": true
+    },
+    {
+      "name": "statementProfileState",
+      "type": "String",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}

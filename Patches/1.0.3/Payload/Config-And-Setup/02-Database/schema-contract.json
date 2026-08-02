@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "schema": "dmx",
+  "tables": {
+    "MigrationHistory": [
+      "MigrationId",
+      "Checksum",
+      "AppliedAtUtc",
+      "DurationMilliseconds",
+      "Succeeded",
+      "ErrorMessage"
+    ],
+    "FrameworkVersion": [
+      "FrameworkVersionId",
+      "VersionNumber",
+      "InstalledAtUtc",
+      "IsCurrent"
+    ],
+    "Project": [
+      "ProjectId",
+      "ProjectKey",
+      "DisplayName",
+      "ProjectType",
+      "IsActive",
+      "CreatedAtUtc"
+    ],
+    "ProjectVersion": [
+      "ProjectVersionId",
+      "ProjectId",
+      "VersionNumber",
+      "DefinitionHash",
+      "DefinitionJson",
+      "IsCurrent",
+      "CreatedAtUtc"
+    ],
+    "ProjectEnvironment": [
+      "ProjectEnvironmentId",
+      "ProjectVersionId",
+      "EnvironmentKey",
+      "DisplayName",
+      "BaseUrl",
+      "DefinitionJson"
+    ],
+    "ProjectSequence": [
+      "ProjectId",
+      "NextSessionNumber"
+    ],
+    "Action": [
+      "ActionId",
+      "ProjectId",
+      "ActionKey",
+      "DisplayName",
+      "IsActive",
+      "CreatedAtUtc"
+    ],
+    "ActionVersion": [
+      "ActionVersionId",
+      "ActionId",
+      "VersionNumber",
+      "Engine",
+      "EntryPoint",
+      "KeywordName",
+      "SessionBehavior",
+      "DefinitionHash",
+      "ImplementationHash",
+      "DefinitionJson",
+      "IsCurrent",
+      "CreatedAtUtc"
+    ],
+    "Workflow": [
+      "WorkflowId",
+      "ProjectId",
+      "WorkflowKey",
+      "DisplayName",
+      "IsActive",
+      "CreatedAtUtc"
+    ],
+    "WorkflowVersion": [
+      "WorkflowVersionId",
+      "WorkflowId",
+      "VersionNumber",
+      "EnvironmentKey",
+      "DefinitionHash",
+      "DefinitionJson",
+      "IsCurrent",
+      "CreatedAtUtc"
+    ],
+    "WorkflowStep": [
+      "WorkflowStepId",
+      "WorkflowVersionId",
+      "StepOrder",
+      "ActionKey",
+      "RequestedActionVersion",
+      "IsCleanup",
+      "ContinueOnFailure",
+      "DefinitionJson"
+    ],
+    "TestRun": [
+      "RunId",
+      "ProjectId",
+      "WorkflowVersionId",
+      "MachineName",
+      "EnvironmentKey",
+      "Status",
+      "StartedAtUtc",
+      "EndedAtUtc",
+      "WorkingDirectory",
+      "PackageHash",
+      "Summary"
+    ],
+    "ActionRun": [
+      "ActionRunId",
+      "RunId",
+      "StepOrder",
+      "ActionVersionId",
+      "ActionKey",
+      "Status",
+      "IsCleanup",
+      "StartedAtUtc",
+      "EndedAtUtc",
+      "Message",
+      "OutputJson"
+    ],
+    "RunContextValue": [
+      "RunContextValueId",
+      "RunId",
+      "ContextKey",
+      "ValueJson",
+      "IsSecret",
+      "CreatedAtUtc",
+      "UpdatedAtUtc"
+    ],
+    "ArtifactContent": [
+      "ArtifactContentId",
+      "Sha256",
+      "OriginalLength",
+      "StoredLength",
+      "CompressionType",
+      "Content",
+      "CreatedAtUtc"
+    ],
+    "Artifact": [
+      "ArtifactId",
+      "RunId",
+      "ActionKey",
+      "ArtifactContentId",
+      "ArtifactType",
+      "OriginalFileName",
+      "MimeType",
+      "CreatedAtUtc"
+    ],
+    "ActionSourceFingerprint": [
+      "ActionSourceFingerprintId",
+      "ActionVersionId",
+      "DependencyKey",
+      "SourcePath",
+      "Sha256",
+      "IsRequired",
+      "CreatedAtUtc"
+    ],
+    "ActionCertification": [
+      "ActionCertificationId",
+      "ActionVersionId",
+      "EnvironmentKey",
+      "MachineName",
+      "Status",
+      "CertifiedAtUtc",
+      "DetailsJson"
+    ],
+    "Assertion": [
+      "AssertionId",
+      "ActionRunId",
+      "AssertionName",
+      "ExpectedValue",
+      "ActualValue",
+      "Passed",
+      "CreatedAtUtc"
+    ],
+    "RunEvent": [
+      "RunEventId",
+      "RunId",
+      "ActionRunId",
+      "EventLevel",
+      "EventType",
+      "Message",
+      "DataJson",
+      "CreatedAtUtc"
+    ],
+    "CleanupRegistration": [
+      "CleanupRegistrationId",
+      "RunId",
+      "SourceActionRunId",
+      "CleanupActionKey",
+      "ObjectType",
+      "ObjectIdentifier",
+      "RegistrationJson",
+      "CreatedAtUtc"
+    ],
+    "CleanupRun": [
+      "CleanupRunId",
+      "CleanupRegistrationId",
+      "Status",
+      "StartedAtUtc",
+      "EndedAtUtc",
+      "Message"
+    ],
+    "RetentionPolicy": [
+      "RetentionPolicyId",
+      "PolicyKey",
+      "RetainDays",
+      "MaximumArtifactBytes",
+      "IsEnabled",
+      "UpdatedAtUtc"
+    ],
+    "FrameworkValidationRun": [
+      "ValidationRunId",
+      "FrameworkVersion",
+      "MachineName",
+      "ValidationType",
+      "Status",
+      "StartedAtUtc",
+      "EndedAtUtc",
+      "Summary",
+      "ResultJson"
+    ],
+    "FrameworkValidationArtifact": [
+      "FrameworkValidationArtifactId",
+      "ValidationRunId",
+      "ArtifactContentId",
+      "ArtifactType",
+      "OriginalFileName",
+      "MimeType",
+      "CreatedAtUtc"
+    ]
+  },
+  "foreignKeys": [
+    "FK_ProjectVersion_Project",
+    "FK_ProjectEnvironment_ProjectVersion",
+    "FK_ProjectSequence_Project",
+    "FK_Action_Project",
+    "FK_ActionVersion_Action",
+    "FK_Workflow_Project",
+    "FK_WorkflowVersion_Workflow",
+    "FK_WorkflowStep_WorkflowVersion",
+    "FK_TestRun_Project",
+    "FK_TestRun_WorkflowVersion",
+    "FK_ActionRun_TestRun",
+    "FK_ActionRun_ActionVersion",
+    "FK_RunContextValue_TestRun",
+    "FK_Artifact_TestRun",
+    "FK_Artifact_Content",
+    "FK_ActionSourceFingerprint_ActionVersion",
+    "FK_ActionCertification_ActionVersion",
+    "FK_Assertion_ActionRun",
+    "FK_RunEvent_TestRun",
+    "FK_RunEvent_ActionRun",
+    "FK_CleanupRegistration_TestRun",
+    "FK_CleanupRegistration_ActionRun",
+    "FK_CleanupRun_Registration",
+    "FK_FrameworkValidationArtifact_Run",
+    "FK_FrameworkValidationArtifact_Content"
+  ],
+  "indexes": [
+    "IX_ProjectVersion_Current",
+    "IX_ActionVersion_Current",
+    "IX_WorkflowVersion_Current",
+    "IX_TestRun_ProjectStarted",
+    "IX_ActionRun_RunStep",
+    "IX_Artifact_Run",
+    "IX_RunEvent_RunCreated",
+    "IX_ActionCertification_ActionEnvironment",
+    "IX_FrameworkValidationRun_Started",
+    "IX_FrameworkValidationArtifact_Run"
+  ]
+}

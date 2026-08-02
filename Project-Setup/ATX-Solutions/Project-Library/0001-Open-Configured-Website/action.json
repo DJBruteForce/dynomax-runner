@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "actionId": "atx.website.open",
+  "displayName": "Open configured ATX Solutions website",
+  "projectKey": "atx-solutions",
+  "engine": "RobotBrowser",
+  "entryPoint": "action.resource",
+  "keyword": "ATX Open Configured Website",
+  "sessionBehavior": "RequiresNewOrExistingBrowser",
+  "timeoutSeconds": 60,
+  "outputs": [
+    {
+      "name": "websiteTitle",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "websiteUrl",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "navigationResult",
+      "type": "String",
+      "required": true
+    },
+    {
+      "name": "websiteReachable",
+      "type": "Boolean",
+      "required": true
+    }
+  ],
+  "evidencePolicy": {
+    "onPass": "StructuredOnly",
+    "onFailure": "ScreenshotAndDiagnostics"
+  }
+}
