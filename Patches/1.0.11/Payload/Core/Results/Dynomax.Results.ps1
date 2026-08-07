@@ -644,20 +644,3 @@ function Set-DynomaxClipboardFile {
     [System.Windows.Forms.Clipboard]::SetDataObject($data, $true)
 }
 
-
-
-function Copy-DynomaxAttemptRecorderEvidence {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$RunDirectory,
-        [Parameter(Mandatory)][string]$TestEvidenceDirectory
-    )
-
-    $source = Join-Path $RunDirectory 'attempt-recorder'
-    if (-not (Test-Path -LiteralPath $source -PathType Container)) { return $false }
-    $destination = Join-Path $TestEvidenceDirectory 'AttemptRecorder'
-    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
-    [System.IO.Directory]::CreateDirectory($destination) | Out-Null
-    Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
-    return $true
-}

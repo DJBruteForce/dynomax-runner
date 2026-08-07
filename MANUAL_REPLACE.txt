@@ -1,0 +1,18 @@
+DYNOMAX CORE 1.0.11 R4 - MANUAL RUNTIME FILE REPLACEMENT
+
+This package contains runtime files only. It does not contain an installer, SQL, migrations, Portal files, Worker files, Workflow changes, Action changes, Test changes, publication changes, or certification changes.
+
+TARGET ROOT
+C:\Dynomax
+
+REPLACEMENT
+1. Stop Visual Studio debugging if Dynomax.Runner.Worker is running.
+2. Back up the existing C:\Dynomax\Core folder.
+3. Copy the Core folder from this package into C:\Dynomax.
+4. Choose Merge/Replace when Windows asks.
+5. Confirm that this new file exists:
+   C:\Dynomax\Core\Robot\DynomaxTimeout.py
+6. Start Dynomax.Runner.Worker through Visual Studio Debug/F5.
+7. Run Test workflow against the existing certified publication.
+
+Do not compile, materialize, publish, or certify again.

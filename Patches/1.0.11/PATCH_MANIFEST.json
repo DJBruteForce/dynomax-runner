@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "patchName": "Dynomax Core 1.0.11 R4 R2 Robot runtime hotfix (installer validation correction)",
+  "patchVersion": "1.0.11",
+  "acceptedInstalledVersions": [
+    "1.0.10",
+    "1.0.11"
+  ],
+  "databaseChange": "None",
+  "configurationMutation": {
+    "path": "dynomax.json",
+    "property": "frameworkVersion",
+    "value": "1.0.11",
+    "preserveOtherProperties": true
+  },
+  "files": [
+    {
+      "path": "Core/Execution/Dynomax.ExecutionPolicy.ps1",
+      "sha256": "8e5b8dc8755c84caebbe95f7bfc1d737fb20192d2e163521d90e797441b1f696",
+      "length": 16074
+    },
+    {
+      "path": "Core/Execution/Dynomax.Workflow.ps1",
+      "sha256": "0159562097c986795f4f4cf680ff147e5493b477ad43a44ff39880ce10aa2f63",
+      "length": 43248
+    },
+    {
+      "path": "Core/Execution/Record-DynomaxExecutionAttempt.ps1",
+      "sha256": "1f3ba02a6800803bd13b6262841c1df67908682078671aac578e142308c5d4c2",
+      "length": 4027
+    },
+    {
+      "path": "Core/Invoke-DynomaxWorkflow.ps1",
+      "sha256": "e8ad4b098956299563cc8258ffe71773688dd80616b68f0772d41d342c5007b4",
+      "length": 24740
+    },
+    {
+      "path": "Core/Results/Dynomax.Results.ps1",
+      "sha256": "f202c3df947f91c30e17e180de9b074386fde7f9012c689a218d03da4fd5e41d",
+      "length": 33137
+    },
+    {
+      "path": "Core/Robot/Dynomax.resource",
+      "sha256": "3b091d893536fb57c19f9c7ae9a622cc39edf59090ff74678854737742605b9b",
+      "length": 13568
+    },
+    {
+      "path": "README.md",
+      "sha256": "2c2c611f6e17591b85d2983c47b5a90961dc5419c3f67229e93b905d731d2713",
+      "length": 770
+    },
+    {
+      "path": "VERSION.txt",
+      "sha256": "f7203e1fe8b031838f4bb41be4a69d4acd94fc898bf043159609b4de39aa1532",
+      "length": 8
+    }
+  ],
+  "patchRevision": "R4-R2"
+}

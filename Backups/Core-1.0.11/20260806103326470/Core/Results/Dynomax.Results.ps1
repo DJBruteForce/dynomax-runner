@@ -462,12 +462,8 @@ ORDER BY a.CreatedAtUtc,a.OriginalFileName;
             }
         })
 
-        $runWorkingDirectory = [string]$runRow.WorkingDirectory
-        $attemptSummary = Get-DynomaxExecutionAttemptSummary -RunDirectory $runWorkingDirectory
-        $attemptEvidencePath = Join-Path $runWorkingDirectory 'execution-attempts.jsonl'
-
         $summary = [ordered]@{
-            schemaVersion=3
+            schemaVersion=2
             runId=[string]$runRow.RunId
             projectKey=[string]$runRow.ProjectKey
             projectName=[string]$runRow.ProjectName
@@ -487,14 +483,9 @@ ORDER BY a.CreatedAtUtc,a.OriginalFileName;
             passedActionCount=@($actions | Where-Object {$_.status -eq 'PASS'}).Count
             cleanupActionCount=@($actions | Where-Object {$_.cleanup}).Count
             artifactCount=$artifacts.Count
-            totalAttempts=[int]$attemptSummary.totalAttempts
-            actionsRetried=[int]$attemptSummary.actionsRetried
-            actionsRecoveredAfterRetry=[int]$attemptSummary.actionsRecoveredAfterRetry
-            actionsWithExhaustedRetries=[int]$attemptSummary.actionsWithExhaustedRetries
         }
 
         Write-DynomaxJson -Value $summary -Path (Join-Path $OutputDirectory 'RunSummary.json')
-        if(Test-Path -LiteralPath $attemptEvidencePath -PathType Leaf){Copy-Item -LiteralPath $attemptEvidencePath -Destination (Join-Path $OutputDirectory 'execution-attempts.jsonl') -Force}
         Write-DynomaxJson -Value ([ordered]@{schemaVersion=2;runId=[string]$RunId;actions=$actions}) -Path (Join-Path $OutputDirectory 'ActionResults.json')
         Write-DynomaxJson -Value ([ordered]@{schemaVersion=1;runId=[string]$RunId;values=$context}) -Path (Join-Path $OutputDirectory 'ContextSnapshot.json')
         Write-DynomaxJson -Value ([ordered]@{schemaVersion=1;runId=[string]$RunId;assertions=$assertions}) -Path (Join-Path $OutputDirectory 'Assertions.json')
@@ -512,10 +503,6 @@ ORDER BY a.CreatedAtUtc,a.OriginalFileName;
             "- Started UTC: $($summary.startedAtUtc)",
             "- Ended UTC: $($summary.endedAtUtc)",
             "- Actions: $($summary.actionCount)",
-            "- Execution attempts: $($summary.totalAttempts)",
-            "- Actions retried: $($summary.actionsRetried)",
-            "- Recovered after retry: $($summary.actionsRecoveredAfterRetry)",
-            "- Exhausted retries: $($summary.actionsWithExhaustedRetries)",
             "- SQL artifacts: $($summary.artifactCount)",'',
             '## Actions',''
         )
@@ -526,7 +513,6 @@ ORDER BY a.CreatedAtUtc,a.OriginalFileName;
         }
         $lines += @('','## Package contents','',
             '- ActionResults.json - complete per-action records and outputs.',
-            '- execution-attempts.jsonl - structured attempt, delay, classification and evidence decisions.',
             '- ContextSnapshot.json - all non-secret persisted context.',
             '- Assertions.json - structured assertions recorded for the run.',
             '- Events.json - structured run events.',
@@ -644,20 +630,3 @@ function Set-DynomaxClipboardFile {
     [System.Windows.Forms.Clipboard]::SetDataObject($data, $true)
 }
 
-
-
-function Copy-DynomaxAttemptRecorderEvidence {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$RunDirectory,
-        [Parameter(Mandatory)][string]$TestEvidenceDirectory
-    )
-
-    $source = Join-Path $RunDirectory 'attempt-recorder'
-    if (-not (Test-Path -LiteralPath $source -PathType Container)) { return $false }
-    $destination = Join-Path $TestEvidenceDirectory 'AttemptRecorder'
-    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
-    [System.IO.Directory]::CreateDirectory($destination) | Out-Null
-    Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
-    return $true
-}

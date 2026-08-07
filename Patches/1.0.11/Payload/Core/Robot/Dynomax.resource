@@ -3,7 +3,6 @@ Library    Browser
 Library    OperatingSystem
 Library    Process
 Library    Collections
-Library    ${CURDIR}${/}DynomaxTimeout.py
 
 *** Keywords ***
 Start Dynomax Browser
@@ -14,6 +13,11 @@ Start Dynomax Browser
 
 Stop Dynomax Browser
     Run Keyword And Ignore Error    Close Browser
+
+Run Dynomax Keyword With Timeout
+    [Arguments]    ${keyword_name}    ${timeout}
+    [Timeout]    ${timeout}
+    Run Keyword    ${keyword_name}
 
 Execute Dynomax Action With Policy
     [Arguments]    ${keyword_name}    ${is_cleanup}=False
@@ -40,12 +44,12 @@ Execute Dynomax Action With Policy
         IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
             ${previous_log_level}=    Set Log Level    NONE
             TRY
-                ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
+                ${attempt_status}    ${attempt_message}=    Run Keyword And Ignore Error    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
             FINALLY
                 Set Log Level    ${previous_log_level}
             END
         ELSE
-            ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
+            ${attempt_status}    ${attempt_message}=    Run Keyword And Ignore Error    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
         END
         ${attempt_ended}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
         ${is_last_numbered_attempt}=    Evaluate    int($attempt) >= int($DYNOMAX_MAXIMUM_ATTEMPTS)
@@ -56,33 +60,90 @@ Execute Dynomax Action With Policy
         ${message64}=    Evaluate    base64.b64encode(str($attempt_message).encode('utf-8')).decode('ascii')    modules=base64
         ${declared_classification}=    Get Dynomax Context Value    currentClassification.${DYNOMAX_ACTION_ID}    ${EMPTY}
         ${attempt_wait}=    Evaluate    int($DYNOMAX_WAIT_BEFORE_SECONDS) if int($attempt) == 1 else 0
-        ${recorder_ok}    ${record_data}    ${record_stdout}    ${record_stderr}=    Invoke Dynomax Attempt Recorder
+        ${attempt_recorder_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}attempt-recorder${/}${DYNOMAX_STEP_ORDER}${/}${attempt}
+        Create Directory    ${attempt_recorder_dir}
+        ${attempt_recorder_stdout}=    Set Variable    ${attempt_recorder_dir}${/}stdout.log
+        ${attempt_recorder_stderr}=    Set Variable    ${attempt_recorder_dir}${/}stderr.log
+        ${record}=    Run Process
+        ...    ${DYNOMAX_POWERSHELL}
+        ...    -NoLogo
+        ...    -NoProfile
+        ...    -ExecutionPolicy
+        ...    Bypass
+        ...    -File
+        ...    ${DYNOMAX_ATTEMPT_RECORDER_SCRIPT}
+        ...    -DynomaxRoot
+        ...    ${DYNOMAX_ROOT}
+        ...    -RunDirectory
+        ...    ${DYNOMAX_RUN_DIR}
+        ...    -RunId
+        ...    ${DYNOMAX_RUN_ID}
+        ...    -StepOrder
+        ...    ${DYNOMAX_STEP_ORDER}
+        ...    -StepId
+        ...    ${DYNOMAX_STEP_ID}
+        ...    -ActionKey
+        ...    ${DYNOMAX_ACTION_ID}
+        ...    -ActionVersion
+        ...    ${DYNOMAX_RESOLVED_ACTION_VERSION}
+        ...    -ActionVersionId
+        ...    ${DYNOMAX_ACTION_VERSION_ID}
+        ...    -AttemptNumber
         ...    ${attempt}
+        ...    -StartedAtUtc
         ...    ${attempt_started}
+        ...    -EndedAtUtc
         ...    ${attempt_ended}
+        ...    -Status
         ...    ${attempt_status}
+        ...    -MessageBase64
         ...    ${message64}
-        ...    ${proposed_delay}
+        ...    -RetryOnCsv
+        ...    ${DYNOMAX_RETRY_ON_CSV}
+        ...    -WaitBeforeExecutionSeconds
         ...    ${attempt_wait}
+        ...    -DelayBeforeNextAttemptSeconds
+        ...    ${proposed_delay}
+        ...    -BrowserSessionDecision
+        ...    ${DYNOMAX_BROWSER_SESSION_RETRY_MODE}
+        ...    -EvidencePolicy
+        ...    ${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}
+        ...    -IsFinalAttempt
         ...    ${forced_final}
+        ...    -IsCleanup
         ...    ${is_cleanup}
-        ...    ${timed_out}
+        ...    -SensitiveAction
+        ...    ${DYNOMAX_SENSITIVE_ACTION}
+        ...    -DeclaredClassification
         ...    ${declared_classification}
-        IF    not ${recorder_ok}
+        ...    stdout=${attempt_recorder_stdout}
+        ...    stderr=${attempt_recorder_stderr}
+        ${record_stdout}=    Get File    ${attempt_recorder_stdout}
+        ${record_stderr}=    Get File    ${attempt_recorder_stderr}
+        IF    ${record.rc} != 0
             ${recorder_diagnostic}=    Evaluate    ('stdout=' + str($record_stdout) + '; stderr=' + str($record_stderr))[:4000]
-            Log    Dynomax attempt recorder failed. ${recorder_diagnostic}    ERROR
-            Run Keyword And Ignore Error    Set Dynomax Context Value    attemptRecorderFailure.${DYNOMAX_ACTION_ID}.${attempt}    ${recorder_diagnostic}
+            Log    Dynomax attempt recorder failed with exit code ${record.rc}. ${recorder_diagnostic}    ERROR
+            Set Dynomax Context Value    attemptRecorderFailure.${DYNOMAX_ACTION_ID}.${attempt}    ${recorder_diagnostic}
             IF    '${attempt_status}' == 'PASS'
-                Fail    Dynomax Action passed but mandatory execution-attempt evidence could not be persisted.
+                Fail    Dynomax Action passed but execution-attempt evidence could not be persisted.
             END
-            Fail Dynomax Preserving Action Failure    ${attempt_message}
+            IF    ${DYNOMAX_SENSITIVE_ACTION}
+                Fail    Sensitive Action failed; detailed message suppressed. Attempt evidence persistence also failed.
+            ELSE
+                Fail    ${attempt_message}
+            END
         END
+        ${record_data}=    Evaluate    json.loads($record_stdout)    modules=json
         ${retryable}=    Evaluate    bool($record_data.get('retryable', False))
         IF    '${attempt_status}' == 'PASS'
             RETURN
         END
         IF    not ${retryable}
-            Fail Dynomax Preserving Action Failure    ${attempt_message}
+            IF    ${DYNOMAX_SENSITIVE_ACTION}
+                Fail    Sensitive Action failed; detailed message suppressed.
+            ELSE
+                Fail    ${attempt_message}
+            END
         END
         IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'EveryFailedAttempt'
             ${attempt_evidence_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}attempt-evidence${/}${DYNOMAX_STEP_ORDER}${/}${attempt}
@@ -101,107 +162,6 @@ Execute Dynomax Action With Policy
     END
     Fail    Action execution ended without a final result.
 
-Invoke Dynomax Attempt Recorder
-    [Arguments]    ${attempt}    ${attempt_started}    ${attempt_ended}    ${attempt_status}    ${message64}    ${proposed_delay}    ${attempt_wait}    ${forced_final}    ${is_cleanup}    ${timed_out}    ${declared_classification}
-    ${attempt_recorder_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}attempt-recorder${/}${DYNOMAX_STEP_ORDER}${/}${attempt}
-    Create Directory    ${attempt_recorder_dir}
-    ${attempt_recorder_stdout}=    Set Variable    ${attempt_recorder_dir}${/}stdout.log
-    ${attempt_recorder_stderr}=    Set Variable    ${attempt_recorder_dir}${/}stderr.log
-    ${invoke_status}    ${record_or_error}=    Run Keyword And Ignore Error    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_ATTEMPT_RECORDER_SCRIPT}
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -StepOrder
-    ...    ${DYNOMAX_STEP_ORDER}
-    ...    -StepId
-    ...    ${DYNOMAX_STEP_ID}
-    ...    -ActionKey
-    ...    ${DYNOMAX_ACTION_ID}
-    ...    -ActionVersion
-    ...    ${DYNOMAX_RESOLVED_ACTION_VERSION}
-    ...    -ActionVersionId
-    ...    ${DYNOMAX_ACTION_VERSION_ID}
-    ...    -AttemptNumber
-    ...    ${attempt}
-    ...    -StartedAtUtc
-    ...    ${attempt_started}
-    ...    -EndedAtUtc
-    ...    ${attempt_ended}
-    ...    -Status
-    ...    ${attempt_status}
-    ...    -MessageBase64
-    ...    ${message64}
-    ...    -RetryOnCsv
-    ...    ${DYNOMAX_RETRY_ON_CSV}
-    ...    -WaitBeforeExecutionSeconds
-    ...    ${attempt_wait}
-    ...    -DelayBeforeNextAttemptSeconds
-    ...    ${proposed_delay}
-    ...    -BrowserSessionDecision
-    ...    ${DYNOMAX_BROWSER_SESSION_RETRY_MODE}
-    ...    -EvidencePolicy
-    ...    ${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}
-    ...    -IsFinalAttempt
-    ...    ${forced_final}
-    ...    -IsCleanup
-    ...    ${is_cleanup}
-    ...    -TimedOut
-    ...    ${timed_out}
-    ...    -SensitiveAction
-    ...    ${DYNOMAX_SENSITIVE_ACTION}
-    ...    -DeclaredClassification
-    ...    ${declared_classification}
-    ...    stdout=${attempt_recorder_stdout}
-    ...    stderr=${attempt_recorder_stderr}
-    ${record_stdout}=    Read Dynomax Optional Text File    ${attempt_recorder_stdout}
-    ${record_stderr}=    Read Dynomax Optional Text File    ${attempt_recorder_stderr}
-    IF    '${invoke_status}' != 'PASS'
-        ${record_stderr}=    Evaluate    (str($record_stderr) + '; invocation=' + str($record_or_error))[:4000]
-        RETURN    ${False}    ${None}    ${record_stdout}    ${record_stderr}
-    END
-    ${record}=    Set Variable    ${record_or_error}
-    ${json_status}    ${record_data_or_error}=    Run Keyword And Ignore Error    Evaluate    json.loads($record_stdout)    modules=json
-    ${exit_ok}=    Evaluate    int($record.rc) == 0
-    IF    not ${exit_ok} or '${json_status}' != 'PASS'
-        IF    '${json_status}' != 'PASS'
-            ${record_stderr}=    Evaluate    (str($record_stderr) + '; json=' + str($record_data_or_error))[:4000]
-        END
-        RETURN    ${False}    ${None}    ${record_stdout}    ${record_stderr}
-    END
-    RETURN    ${True}    ${record_data_or_error}    ${record_stdout}    ${record_stderr}
-
-Read Dynomax Optional Text File
-    [Arguments]    ${path}
-    ${exists}=    Run Keyword And Return Status    File Should Exist    ${path}
-    IF    not ${exists}
-        RETURN    <file not created: ${path}>
-    END
-    ${read_status}    ${content_or_error}=    Run Keyword And Ignore Error    Get File    ${path}
-    IF    '${read_status}' != 'PASS'
-        RETURN    <file unreadable: ${content_or_error}>
-    END
-    RETURN    ${content_or_error}
-
-Fail Dynomax Preserving Action Failure
-    [Arguments]    ${attempt_message}
-    IF    ${DYNOMAX_SENSITIVE_ACTION}
-        Fail    Sensitive Action failed; detailed message suppressed.
-    END
-    ${safe_message}=    Convert To String    ${attempt_message}
-    IF    $safe_message == ''
-        Fail    Dynomax Action failed without an error message.
-    END
-    Fail    ${safe_message}
 
 Capture Dynomax Png Snapshot
     ${output_dir}=    Set Variable    ${OUTPUT DIR}

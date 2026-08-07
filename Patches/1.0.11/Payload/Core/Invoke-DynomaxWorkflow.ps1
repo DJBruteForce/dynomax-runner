@@ -224,7 +224,6 @@ finally{
     if(Test-Path $screenshots){Copy-Item -LiteralPath $screenshots -Destination (Join-Path $testEvidence 'Screenshots') -Recurse -Force}
     $attemptEvidence=Join-Path $runDirectory 'attempt-evidence'
     if(Test-Path $attemptEvidence){Copy-Item -LiteralPath $attemptEvidence -Destination (Join-Path $testEvidence 'Attempts') -Recurse -Force}
-    [void](Copy-DynomaxAttemptRecorderEvidence -RunDirectory $runDirectory -TestEvidenceDirectory $testEvidence)
 
     $definitions=Ensure-DynomaxDirectory -Path (Join-Path $stagingRoot 'Definitions')
     $projectDefinitionDir=Ensure-DynomaxDirectory -Path (Join-Path $definitions 'Project')

@@ -1,0 +1,44 @@
+{
+    "schemaVersion":  1,
+    "patchVersion":  "1.0.11",
+    "createdAtUtc":  "2026-08-06T10:33:26.4851825Z",
+    "dynomaxRoot":  "C:\\Dynomax",
+    "files":  [
+                  {
+                      "path":  "Core/Execution/Dynomax.ExecutionPolicy.ps1",
+                      "existed":  false
+                  },
+                  {
+                      "path":  "Core/Execution/Dynomax.Workflow.ps1",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "Core/Execution/Record-DynomaxExecutionAttempt.ps1",
+                      "existed":  false
+                  },
+                  {
+                      "path":  "Core/Invoke-DynomaxWorkflow.ps1",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "Core/Results/Dynomax.Results.ps1",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "Core/Robot/Dynomax.resource",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "README.md",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "VERSION.txt",
+                      "existed":  true
+                  },
+                  {
+                      "path":  "dynomax.json",
+                      "existed":  true
+                  }
+              ]
+}

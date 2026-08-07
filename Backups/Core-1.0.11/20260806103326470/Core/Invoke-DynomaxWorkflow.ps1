@@ -19,7 +19,6 @@ $root=$current
 . (Join-Path $root 'Core\Database\Dynomax.Database.ps1')
 . (Join-Path $root 'Core\Catalogue\Dynomax.Catalogue.ps1')
 . (Join-Path $root 'Core\Results\Dynomax.Results.ps1')
-. (Join-Path $root 'Core\Execution\Dynomax.ExecutionPolicy.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.Workflow.ps1')
 
 if(-not $DynomaxConfigPath){$DynomaxConfigPath=Join-Path $root 'dynomax.json'}
@@ -93,8 +92,6 @@ try{
     foreach($step in $allSteps){
         $plan=Resolve-DynomaxActionExecutionSource -ProjectFolder $projectFolder -ProjectKey ([string]$workflow.projectKey) -Step $step -SqlConfig $sqlConfig -WorkflowDirectory $WorkflowDirectory
         Set-DynomaxStepExecutionMetadata -Step $step -Plan $plan
-        $actionDefinition=Read-DynomaxJson -Path ([string]$plan.DefinitionPath)
-        [void](Assert-DynomaxStepExecutionPolicy -Step $step -ActionDefinition $actionDefinition -ActionVersionId ([Guid]$plan.ActionVersionId))
         $stepPlans[[string][int]$step.order]=$plan
     }
     Assert-DynomaxVersionPinnedSessionPlan -Steps $allSteps
@@ -222,9 +219,6 @@ finally{
     }
     $screenshots=Join-Path $runDirectory 'screenshots'
     if(Test-Path $screenshots){Copy-Item -LiteralPath $screenshots -Destination (Join-Path $testEvidence 'Screenshots') -Recurse -Force}
-    $attemptEvidence=Join-Path $runDirectory 'attempt-evidence'
-    if(Test-Path $attemptEvidence){Copy-Item -LiteralPath $attemptEvidence -Destination (Join-Path $testEvidence 'Attempts') -Recurse -Force}
-    [void](Copy-DynomaxAttemptRecorderEvidence -RunDirectory $runDirectory -TestEvidenceDirectory $testEvidence)
 
     $definitions=Ensure-DynomaxDirectory -Path (Join-Path $stagingRoot 'Definitions')
     $projectDefinitionDir=Ensure-DynomaxDirectory -Path (Join-Path $definitions 'Project')

@@ -377,16 +377,6 @@ function Assert-DynomaxVersionPinnedSessionPlan {
     }
 }
 
-function ConvertTo-DynomaxRobotCellValue {
-    [CmdletBinding()]
-    param([AllowNull()][object]$Value)
-
-    if ($null -eq $Value) { return '${EMPTY}' }
-    $text = [string]$Value
-    if ($text.Length -eq 0) { return '${EMPTY}' }
-    return $text
-}
-
 function New-DynomaxRobotSuite {
     [CmdletBinding()]
     param(
@@ -441,7 +431,6 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_BROWSER}    $browser")
     $lines.Add("`${DYNOMAX_HEADLESS}    $headless")
     $lines.Add("`${DYNOMAX_VIEWPORT}    $viewport")
-    $lines.Add("`${DYNOMAX_ACTION_METADATA_READY}    False")
     $lines.Add('')
     $lines.Add('*** Test Cases ***')
     foreach($step in ($Steps|Sort-Object order)){
@@ -449,22 +438,20 @@ function New-DynomaxRobotSuite {
         $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
         $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
         $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
-        $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
         $resolvedVersion=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxResolvedActionVersion' -DefaultValue '')
         $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
         if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
         $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
         $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
         $lines.Add($name)
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
         $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
+        $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedText")
         $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
-        $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
+        $retryOnCsv=(@($policy.RetryOn) -join ',')
         $sensitiveAction=$false
         foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
             $classification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
@@ -484,7 +471,6 @@ function New-DynomaxRobotSuite {
         $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
         $lines.Add("    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
         $lines.Add('')
     }
@@ -601,7 +587,7 @@ function Invoke-DynomaxPowerShellAction {
         $retainEvidence=$attemptResult.Status -notin @('PASS','SKIPPED') -and ($policy.EvidencePolicy -eq 'EveryFailedAttempt' -or $isFinalAttempt)
         $attemptMessage=if($isSensitiveAction -and $attemptResult.Status -notin @('PASS','SKIPPED')){'Sensitive Action attempt failed; detailed message suppressed.'}else{$attemptResult.Message}
         $waitEvidence=if($attempt -eq 1){$policy.WaitBeforeSeconds}else{0}
-        [void](Write-DynomaxExecutionAttempt -RunDirectory $RunDirectory -RunId $RunId -StepOrder ([int]$Step.order) -StepId $stepId -ActionKey ([string]$Step.actionId) -ActionVersion $actionVersion -ActionVersionId $actionVersionId -AttemptNumber $attempt -StartedAtUtc $startedAt -EndedAtUtc $endedAt -Status $attemptResult.Status -Message $attemptMessage -FailureClassification $classification -WaitBeforeExecutionSeconds $waitEvidence -DelayBeforeNextAttemptSeconds $delay -BrowserSessionDecision 'Reuse' -EvidencePolicy $policy.EvidencePolicy -EvidenceRetained:$retainEvidence -TimedOut:$timedOut -IsFinalAttempt:$isFinalAttempt -IsCleanup:$isCleanup)
+        [void](Write-DynomaxExecutionAttempt -RunDirectory $RunDirectory -RunId $RunId -StepOrder ([int]$Step.order) -StepId $stepId -ActionKey ([string]$Step.actionId) -ActionVersion $actionVersion -ActionVersionId $actionVersionId -AttemptNumber $attempt -StartedAtUtc $startedAt -EndedAtUtc $endedAt -Status $attemptResult.Status -Message $attemptMessage -FailureClassification $classification -WaitBeforeExecutionSeconds $waitEvidence -DelayBeforeNextAttemptSeconds $delay -BrowserSessionDecision 'Reuse' -EvidencePolicy $policy.EvidencePolicy -EvidenceRetained:$retainEvidence -IsFinalAttempt:$isFinalAttempt -IsCleanup:$isCleanup)
 
         $finalOutputPath=Join-Path $RunDirectory ("action-{0}.json" -f $Step.order)
         $finalConsolePath=Join-Path $RunDirectory ("action-{0}.console.log" -f $Step.order)

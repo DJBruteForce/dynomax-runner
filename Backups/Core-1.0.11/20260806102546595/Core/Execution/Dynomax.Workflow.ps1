@@ -339,7 +339,7 @@ function Assert-DynomaxVersionPinnedSessionPlan {
             $session = [string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxSessionBehavior' -DefaultValue 'DoesNotUseBrowser')
 
             if ($section.Name -eq 'normal' -and [bool](Get-DynomaxPropertyValue -Object $step -Name 'continueOnFailure' -DefaultValue $false)) {
-                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Version-pinned workflows are fail-fast in Dynomax Core 1.0.11. Step '$key' cannot set continueOnFailure=true."
+                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Version-pinned workflows are fail-fast in Dynomax Core 1.0.10. Step '$key' cannot set continueOnFailure=true."
             }
 
             if ($engine -notin @('RobotBrowser','PowerShell')) {
@@ -350,13 +350,13 @@ function Assert-DynomaxVersionPinnedSessionPlan {
                     Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "RobotBrowser action '$key' has unsupported session behavior '$session'."
                 }
                 if ($robotVersionByActionKey.ContainsKey($key) -and [string]$robotVersionByActionKey[$key] -ne [string]$versionId) {
-                    Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) Robot block requests more than one version of action '$key'. Core 1.0.11 cannot load two resource versions with the same Robot keyword into one shared browser suite."
+                    Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) Robot block requests more than one version of action '$key'. Core 1.0.10 cannot load two resource versions with the same Robot keyword into one shared browser suite."
                 }
                 $robotVersionByActionKey[$key] = [string]$versionId
                 if (-not $insideRobotBlock) {
                     $robotBlockCount++
                     if ($robotBlockCount -gt 1) {
-                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) plan contains more than one Robot browser block. Dynomax Core 1.0.11 supports one contiguous Robot block per normal or cleanup section."
+                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) plan contains more than one Robot browser block. Dynomax Core 1.0.10 supports one contiguous Robot block per normal or cleanup section."
                     }
                     if ($session -eq 'RequiresExistingBrowser') {
                         Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Action '$key' requires an existing browser, but it starts the independent $($section.Name) Robot block."
@@ -375,16 +375,6 @@ function Assert-DynomaxVersionPinnedSessionPlan {
             }
         }
     }
-}
-
-function ConvertTo-DynomaxRobotCellValue {
-    [CmdletBinding()]
-    param([AllowNull()][object]$Value)
-
-    if ($null -eq $Value) { return '${EMPTY}' }
-    $text = [string]$Value
-    if ($text.Length -eq 0) { return '${EMPTY}' }
-    return $text
 }
 
 function New-DynomaxRobotSuite {
@@ -416,7 +406,6 @@ function New-DynomaxRobotSuite {
     $viewport=if($viewportValue){$viewportValue|ConvertTo-Json -Compress}else{'{"width":1440,"height":900}'}
     $coreResource=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Robot\Dynomax.resource')).Replace('\','/')
     $persistScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Persist-DynomaxRobotAction.ps1')).Replace('\','/')
-    $attemptRecorderScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Record-DynomaxExecutionAttempt.ps1')).Replace('\','/')
     $rootForward=[System.IO.Path]::GetFullPath($DynomaxRoot).Replace('\','/')
     $runForward=[System.IO.Path]::GetFullPath($RunDirectory).Replace('\','/')
     $contextForward=[System.IO.Path]::GetFullPath($ContextPath).Replace('\','/')
@@ -435,13 +424,11 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_RUN_DIR}    $runForward")
     $lines.Add("`${DYNOMAX_CONTEXT_PATH}    $contextForward")
     $lines.Add("`${DYNOMAX_PERSIST_SCRIPT}    $persistScript")
-    $lines.Add("`${DYNOMAX_ATTEMPT_RECORDER_SCRIPT}    $attemptRecorderScript")
     $lines.Add("`${DYNOMAX_POWERSHELL}    $psForward")
     $lines.Add("`${DYNOMAX_BASE_URL}    $baseUrl")
     $lines.Add("`${DYNOMAX_BROWSER}    $browser")
     $lines.Add("`${DYNOMAX_HEADLESS}    $headless")
     $lines.Add("`${DYNOMAX_VIEWPORT}    $viewport")
-    $lines.Add("`${DYNOMAX_ACTION_METADATA_READY}    False")
     $lines.Add('')
     $lines.Add('*** Test Cases ***')
     foreach($step in ($Steps|Sort-Object order)){
@@ -449,43 +436,18 @@ function New-DynomaxRobotSuite {
         $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
         $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
         $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
-        $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
         $resolvedVersion=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxResolvedActionVersion' -DefaultValue '')
         $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
         if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
-        $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
         $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
         $lines.Add($name)
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
         $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
-        $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
-        $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
-        $sensitiveAction=$false
-        foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
-            $classification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
-            $secretFlag=[bool](Get-DynomaxPropertyValue -Object $input -Name 'secret' -DefaultValue $false)
-            if($secretFlag -or $classification -in @('Secret','Sensitive')){$sensitiveAction=$true;break}
-        }
-        $sensitiveText=if($sensitiveAction){'True'}else{'False'}
+        $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedText")
         $lines.Add("    Set Test Variable    `${DYNOMAX_RESOLVED_ACTION_VERSION}    $resolvedVersion")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_WAIT_BEFORE_SECONDS}    $($policy.WaitBeforeSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    $($policy.AttemptTimeoutSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_ATTEMPTS}    $($policy.MaximumAttempts)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_DELAY_SECONDS}    $($policy.RetryDelaySeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_BACKOFF}    $($policy.Backoff)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    $($policy.MaximumRetryDelaySeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    $($policy.OverallTimeoutSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_ON_CSV}    $retryOnCsv")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
-        $lines.Add("    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
+        $lines.Add("    Execute Dynomax Action Keyword    $($definition.keyword)    $cleanup")
         $lines.Add('')
     }
     $suitePath=Join-Path $RunDirectory 'generated-workflow.robot'
@@ -547,83 +509,13 @@ function Invoke-DynomaxPowerShellAction {
     $folder=[string]$fingerprint.Folder
     $definition=$fingerprint.Definition
     $entry=[string]$fingerprint.EntryPointPath
-    $policy=Get-DynomaxExecutionPolicy -Step $Step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
-    $isSensitiveAction=$false
-    foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
-        $inputClassification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
-        $secretFlag=[bool](Get-DynomaxPropertyValue -Object $input -Name 'secret' -DefaultValue $false)
-        if($secretFlag -or $inputClassification -in @('Secret','Sensitive')){$isSensitiveAction=$true;break}
-    }
+    $outputPath=Join-Path $RunDirectory ("action-{0}.json" -f $Step.order)
+    $args=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$entry,'-DynomaxRoot',$DynomaxRoot,'-RunId',[string]$RunId,'-StepOrder',[string]$Step.order,'-ContextPath',$ContextPath,'-OutputPath',$outputPath)
+    $process=Invoke-DynomaxProcess -FilePath $PowerShellPath -Arguments $args -WorkingDirectory $folder -TimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 0)) -ConsoleLogPath (Join-Path $RunDirectory ("action-{0}.console.log" -f $Step.order)) -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName ("PowerShell action {0}" -f $Step.actionId)
     $isCleanup=[bool](Get-DynomaxPropertyValue -Object $Step -Name 'cleanup' -DefaultValue $false)
+    $actionResult=Resolve-DynomaxExternalActionResult -ProcessResult $process -OutputPath $outputPath -IsCleanup:$isCleanup
     $actionVersionIdText=[string](Get-DynomaxPropertyValue -Object $Step -Name 'DynomaxActionVersionId' -DefaultValue '')
     if(-not $actionVersionIdText){throw "Action '$($Step.actionId)' has no preflight action-version ID."}
-    $actionVersionId=[Guid]$actionVersionIdText
-    $stepId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'stepId' -DefaultValue ("step-{0}" -f $Step.order))
-    $actionVersion=[int](Get-DynomaxPropertyValue -Object $Step -Name 'DynomaxResolvedActionVersion' -DefaultValue (Get-DynomaxPropertyValue -Object $Step -Name 'actionVersion' -DefaultValue 0))
-    $overallWatch=[System.Diagnostics.Stopwatch]::StartNew()
-    if($policy.WaitBeforeSeconds -gt 0){Start-Sleep -Seconds $policy.WaitBeforeSeconds}
-
-    $finalResult=$null
-    $lastProcess=$null
-    for($attempt=1;$attempt -le $policy.MaximumAttempts;$attempt++){
-        $remaining=[Math]::Floor($policy.OverallTimeoutSeconds-$overallWatch.Elapsed.TotalSeconds)
-        if($remaining -le 0){
-            $finalResult=[pscustomobject]@{Status=$(if($isCleanup){'CLEANUP_FAILED'}else{'ERROR'});Message='Overall execution timeout expired before the next attempt could start.';OutputJson=$null}
-            break
-        }
-        $attemptTimeout=[int][Math]::Max(1,[Math]::Min($policy.AttemptTimeoutSeconds,$remaining))
-        $attemptDirectory=Ensure-DynomaxDirectory -Path (Join-Path $RunDirectory ("attempt-scratch\{0}\{1}" -f $Step.order,$attempt))
-        $attemptOutputPath=Join-Path $attemptDirectory 'output.json'
-        $attemptConsolePath=Join-Path $attemptDirectory 'console.log'
-        $args=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$entry,'-DynomaxRoot',$DynomaxRoot,'-RunId',[string]$RunId,'-StepOrder',[string]$Step.order,'-ContextPath',$ContextPath,'-OutputPath',$attemptOutputPath)
-        $startedAt=[DateTime]::UtcNow
-        $timedOut=$false
-        $process=$null
-        try{
-            $process=Invoke-DynomaxProcess -FilePath $PowerShellPath -Arguments $args -WorkingDirectory $folder -TimeoutSeconds $attemptTimeout -ConsoleLogPath $attemptConsolePath -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName ("PowerShell action {0} attempt {1}" -f $Step.actionId,$attempt)
-            $lastProcess=$process
-            $attemptResult=Resolve-DynomaxExternalActionResult -ProcessResult $process -OutputPath $attemptOutputPath -IsCleanup:$isCleanup
-        }
-        catch{
-            $timedOut=$_.Exception.Message -match '(?i)exceeded .* seconds|timeout'
-            $attemptResult=[pscustomobject]@{Status=$(if($isCleanup){'CLEANUP_FAILED'}else{'ERROR'});Message=$_.Exception.Message;OutputJson=$null}
-        }
-        $endedAt=[DateTime]::UtcNow
-        $declaredClassification=$null
-        if($attemptOutputPath -and (Test-Path -LiteralPath $attemptOutputPath -PathType Leaf)){
-            try{$outputObject=Read-DynomaxJson -Path $attemptOutputPath;$declaredClassification=[string](Get-DynomaxPropertyValue -Object $outputObject -Name 'failureClassification' -DefaultValue '')}catch{}
-        }
-        $classification=Get-DynomaxFailureClassification -Message $attemptResult.Message -TimedOut:$timedOut -DeclaredClassification $declaredClassification
-        $canRetry=$attemptResult.Status -notin @('PASS','SKIPPED') -and $attempt -lt $policy.MaximumAttempts -and $classification -and @($policy.RetryOn) -contains $classification
-        $delay=if($canRetry){Get-DynomaxRetryDelaySeconds -Policy $policy -CompletedAttemptNumber $attempt}else{0}
-        if($canRetry -and ($overallWatch.Elapsed.TotalSeconds+$delay) -ge $policy.OverallTimeoutSeconds){$canRetry=$false;$delay=0}
-        $isFinalAttempt=$attemptResult.Status -notin @('PASS','SKIPPED') -and -not $canRetry
-        $retainEvidence=$attemptResult.Status -notin @('PASS','SKIPPED') -and ($policy.EvidencePolicy -eq 'EveryFailedAttempt' -or $isFinalAttempt)
-        $attemptMessage=if($isSensitiveAction -and $attemptResult.Status -notin @('PASS','SKIPPED')){'Sensitive Action attempt failed; detailed message suppressed.'}else{$attemptResult.Message}
-        $waitEvidence=if($attempt -eq 1){$policy.WaitBeforeSeconds}else{0}
-        [void](Write-DynomaxExecutionAttempt -RunDirectory $RunDirectory -RunId $RunId -StepOrder ([int]$Step.order) -StepId $stepId -ActionKey ([string]$Step.actionId) -ActionVersion $actionVersion -ActionVersionId $actionVersionId -AttemptNumber $attempt -StartedAtUtc $startedAt -EndedAtUtc $endedAt -Status $attemptResult.Status -Message $attemptMessage -FailureClassification $classification -WaitBeforeExecutionSeconds $waitEvidence -DelayBeforeNextAttemptSeconds $delay -BrowserSessionDecision 'Reuse' -EvidencePolicy $policy.EvidencePolicy -EvidenceRetained:$retainEvidence -TimedOut:$timedOut -IsFinalAttempt:$isFinalAttempt -IsCleanup:$isCleanup)
-
-        $finalOutputPath=Join-Path $RunDirectory ("action-{0}.json" -f $Step.order)
-        $finalConsolePath=Join-Path $RunDirectory ("action-{0}.console.log" -f $Step.order)
-        if($attemptResult.Status -in @('PASS','SKIPPED') -or $isFinalAttempt){
-            if(Test-Path -LiteralPath $attemptOutputPath -PathType Leaf){Copy-Item -LiteralPath $attemptOutputPath -Destination $finalOutputPath -Force}
-            if(-not $isSensitiveAction -and (Test-Path -LiteralPath $attemptConsolePath -PathType Leaf)){Copy-Item -LiteralPath $attemptConsolePath -Destination $finalConsolePath -Force}
-        }elseif($policy.EvidencePolicy -eq 'EveryFailedAttempt'){
-            $evidenceDirectory=Ensure-DynomaxDirectory -Path (Join-Path $RunDirectory ("attempt-evidence\{0}\{1}" -f $Step.order,$attempt))
-            if(Test-Path -LiteralPath $attemptOutputPath -PathType Leaf){Copy-Item -LiteralPath $attemptOutputPath -Destination (Join-Path $evidenceDirectory 'output.json') -Force}
-            if(Test-Path -LiteralPath $attemptConsolePath -PathType Leaf){Copy-Item -LiteralPath $attemptConsolePath -Destination (Join-Path $evidenceDirectory 'console.log') -Force}
-        }
-        if(Test-Path -LiteralPath $attemptDirectory){Remove-Item -LiteralPath $attemptDirectory -Recurse -Force -ErrorAction SilentlyContinue}
-
-        $finalResult=$attemptResult
-        if($attemptResult.Status -in @('PASS','SKIPPED') -or -not $canRetry){break}
-        if($delay -gt 0){Start-Sleep -Seconds $delay}
-    }
-    $overallWatch.Stop()
-    if($null -eq $finalResult){$finalResult=[pscustomobject]@{Status=$(if($isCleanup){'CLEANUP_FAILED'}else{'ERROR'});Message='Action execution ended without a final result.';OutputJson=$null}}
-    $persistedMessage=if($isSensitiveAction -and $finalResult.Status -notin @('PASS','SKIPPED')){'Sensitive Action failed; detailed message suppressed.'}else{$finalResult.Message}
-    $persistedOutput=if($isSensitiveAction -and $finalResult.Status -notin @('PASS','SKIPPED')){$null}else{$finalResult.OutputJson}
-    Add-DynomaxActionRun -SqlConfig $SqlConfig -RunId $RunId -StepOrder ([int]$Step.order) -ActionKey ([string]$Step.actionId) -ActionVersionId $actionVersionId -Status $finalResult.Status -Message $persistedMessage -OutputJson $persistedOutput -IsCleanup:$isCleanup
-    return $lastProcess
+    Add-DynomaxActionRun -SqlConfig $SqlConfig -RunId $RunId -StepOrder ([int]$Step.order) -ActionKey ([string]$Step.actionId) -ActionVersionId ([Guid]$actionVersionIdText) -Status $actionResult.Status -Message $actionResult.Message -OutputJson $actionResult.OutputJson -IsCleanup:$isCleanup
+    return $process
 }
-
