@@ -417,6 +417,8 @@ function New-DynomaxRobotSuite {
     $coreResource=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Robot\Dynomax.resource')).Replace('\','/')
     $persistScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Persist-DynomaxRobotAction.ps1')).Replace('\','/')
     $attemptRecorderScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Record-DynomaxExecutionAttempt.ps1')).Replace('\','/')
+    $controlFlowScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Invoke-DynomaxControlFlow.ps1')).Replace('\','/')
+    $workflowPathForward=[System.IO.Path]::GetFullPath((Join-Path $WorkflowDirectory 'workflow.json')).Replace('\','/')
     $rootForward=[System.IO.Path]::GetFullPath($DynomaxRoot).Replace('\','/')
     $runForward=[System.IO.Path]::GetFullPath($RunDirectory).Replace('\','/')
     $contextForward=[System.IO.Path]::GetFullPath($ContextPath).Replace('\','/')
@@ -426,7 +428,7 @@ function New-DynomaxRobotSuite {
     $lines.Add("Resource    $coreResource")
     foreach($resource in ($resourcePaths|Select-Object -Unique)){$lines.Add("Resource    $resource")}
     $lines.Add('Suite Setup    Start Dynomax Browser')
-    $lines.Add('Suite Teardown    Stop Dynomax Browser')
+    $lines.Add('Suite Teardown    Complete Dynomax Browser Suite')
     $lines.Add('Test Teardown    Persist Dynomax Robot Action Result')
     $lines.Add('')
     $lines.Add('*** Variables ***')
@@ -436,11 +438,21 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_CONTEXT_PATH}    $contextForward")
     $lines.Add("`${DYNOMAX_PERSIST_SCRIPT}    $persistScript")
     $lines.Add("`${DYNOMAX_ATTEMPT_RECORDER_SCRIPT}    $attemptRecorderScript")
+    $lines.Add("`${DYNOMAX_CONTROL_FLOW_SCRIPT}    $controlFlowScript")
+    $lines.Add("`${DYNOMAX_WORKFLOW_PATH}    $workflowPathForward")
     $lines.Add("`${DYNOMAX_POWERSHELL}    $psForward")
     $lines.Add("`${DYNOMAX_BASE_URL}    $baseUrl")
     $lines.Add("`${DYNOMAX_BROWSER}    $browser")
     $lines.Add("`${DYNOMAX_HEADLESS}    $headless")
     $lines.Add("`${DYNOMAX_VIEWPORT}    $viewport")
+    $discoveryConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'discovery' -DefaultValue $null
+    $discoveryEnabled=if($discoveryConfig){ConvertTo-DynomaxBooleanString (Get-DynomaxPropertyValue -Object $discoveryConfig -Name 'enabled' -DefaultValue $false)}else{'False'}
+    $discoveryTargetNodeId=if($discoveryConfig){[string](Get-DynomaxPropertyValue -Object $discoveryConfig -Name 'targetNodeId' -DefaultValue '')}else{''}
+    $lines.Add("`${DYNOMAX_DISCOVERY_ENABLED}    $discoveryEnabled")
+    $lines.Add("`${DYNOMAX_DISCOVERY_TARGET_NODE_ID}    $discoveryTargetNodeId")
+    $controlFlowConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'controlFlow' -DefaultValue $null
+    $controlFlowEnabled=$null -ne $controlFlowConfig
+    $lines.Add("`${DYNOMAX_CONTROL_FLOW_ENABLED}    $(if($controlFlowEnabled){'True'}else{'False'})")
     $lines.Add("`${DYNOMAX_ACTION_METADATA_READY}    False")
     $lines.Add('')
     $lines.Add('*** Test Cases ***')
@@ -454,12 +466,14 @@ function New-DynomaxRobotSuite {
         $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
         if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
         $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
+        $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
         $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
         $lines.Add($name)
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
+        $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
         $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
         $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
@@ -485,7 +499,20 @@ function New-DynomaxRobotSuite {
         $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
         $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
         $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
+        if($controlFlowEnabled -and $cleanup -eq 'False'){
+            $lines.Add("    `${control_flow_decision}=    Should Run Dynomax Control Flow Action    $workflowNodeId")
+            $lines.Add("    IF    '`${control_flow_decision}' == 'DEFER'")
+            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("        Skip    Action execution slot deferred by Workflow control flow.")
+            $lines.Add("    END")
+            $lines.Add("    IF    '`${control_flow_decision}' == 'SKIP_FINAL'")
+            $lines.Add("        Skip    Action was not selected by Workflow control flow.")
+            $lines.Add("    END")
+        }
         $lines.Add("    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
+        if($controlFlowEnabled -and $cleanup -eq 'False'){
+            $lines.Add("    Advance Dynomax Control Flow After Action    $workflowNodeId")
+        }
         $lines.Add('')
     }
     $suitePath=Join-Path $RunDirectory 'generated-workflow.robot'

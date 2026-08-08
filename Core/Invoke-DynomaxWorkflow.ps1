@@ -20,6 +20,7 @@ $root=$current
 . (Join-Path $root 'Core\Catalogue\Dynomax.Catalogue.ps1')
 . (Join-Path $root 'Core\Results\Dynomax.Results.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.ExecutionPolicy.ps1')
+. (Join-Path $root 'Core\Execution\Dynomax.ControlFlow.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.Workflow.ps1')
 
 if(-not $DynomaxConfigPath){$DynomaxConfigPath=Join-Path $root 'dynomax.json'}
@@ -139,7 +140,30 @@ function Invoke-DynomaxStepSequence {
             if(-not(Test-Path $outputXml)){throw "Robot did not produce output.xml. Exit code: $($process.ExitCode). Error: $($process.StandardError)"}
         }
         elseif($engine -eq 'PowerShell'){
-            [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
+            $disposition='RUN'
+            if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
+                $decision=Get-DynomaxControlFlowDecision -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId
+                $disposition=[string]$decision.Disposition
+            }
+            if($disposition -eq 'RUN'){
+                try{
+                    [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
+                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                        [void](Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId)
+                    }
+                }catch{
+                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){[void](Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId)}
+                    throw
+                }
+            }
+            elseif($disposition -eq 'SKIP_FINAL'){
+                $versionId=[Guid][string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue [Guid]::Empty)
+                Add-DynomaxActionRun -SqlConfig $sqlConfig -RunId $runId -StepOrder ([int]$step.order) -ActionKey ([string]$step.actionId) -ActionVersionId $versionId -Status 'SKIPPED' -Message 'Action was not selected by Workflow control flow.'
+            }
+            elseif($disposition -ne 'DEFER'){
+                throw "Unsupported control-flow disposition '$disposition' for '$logicalNodeId'."
+            }
             $index++
         }
         else{throw "Unsupported action engine '$engine' for '$($step.actionId)'."}
@@ -175,12 +199,25 @@ try{
         $python=Resolve-DynomaxCommand -Candidates @($prereq.pythonCommandCandidates)
         if(-not $python){throw 'Python was not found. Run prerequisite setup.'}
 
+        if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+            [void](Initialize-DynomaxControlFlowState -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory)
+        }
         try{Invoke-DynomaxStepSequence -Sequence $mainSteps}catch{$executionException=$_}
         $alwaysRunCleanup=[bool](Get-DynomaxPropertyValue -Object $workflow -Name 'alwaysRunCleanup' -DefaultValue $true)
         if($alwaysRunCleanup -and $cleanupSteps.Count -gt 0){
             try{Invoke-DynomaxStepSequence -Sequence $cleanupSteps}catch{$cleanupException=$_}
         }
         $overall=Get-DynomaxOverallStatus -SqlConfig $sqlConfig -RunId $runId
+        if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+            $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+            if(Test-Path -LiteralPath $statePath -PathType Leaf){
+                $controlState=Read-DynomaxJson -Path $statePath
+                $terminalStatus=[string](Get-DynomaxPropertyValue -Object $controlState -Name 'terminalStatus' -DefaultValue '')
+                if($terminalStatus -eq 'FAIL'){$overall='FAIL'}
+                elseif($terminalStatus -eq 'PASS' -and -not $executionException){$overall='PASS'}
+                elseif(-not $terminalStatus -and -not $executionException){$overall='ERROR';$executionException=[pscustomobject]@{Exception=[System.InvalidOperationException]::new('Workflow control flow did not reach a terminal node.')}}
+            }
+        }
         if($cleanupException -and $overall -eq 'PASS'){$overall='CLEANUP_FAILED'}
         if($executionException -and $overall -eq 'PASS'){$overall='ERROR'}
         $message="Workflow '$($workflow.displayName)' completed with status $overall."
@@ -217,11 +254,13 @@ finally{
     $testEvidence=Ensure-DynomaxDirectory -Path (Join-Path $stagingRoot 'TestEvidence')
     $robotResult=Join-Path $runDirectory 'robot-result'
     if(Test-Path $robotResult){Copy-Item -LiteralPath $robotResult -Destination (Join-Path $testEvidence 'Robot') -Recurse -Force}
-    foreach($file in Get-ChildItem -LiteralPath $runDirectory -File -ErrorAction SilentlyContinue | Where-Object{$_.Name -match '^(preflight\.json|robot-console\.log|generated-workflow\.robot|action-.*\.(json|log)|persist-.*\.(log|txt))$'}){
+    foreach($file in Get-ChildItem -LiteralPath $runDirectory -File -ErrorAction SilentlyContinue | Where-Object{$_.Name -match '^(preflight\.json|control-flow-state\.json|robot-console\.log|generated-workflow\.robot|action-.*\.(json|log)|persist-.*\.(log|txt))$'}){
         Copy-Item -LiteralPath $file.FullName -Destination $testEvidence -Force
     }
     $screenshots=Join-Path $runDirectory 'screenshots'
     if(Test-Path $screenshots){Copy-Item -LiteralPath $screenshots -Destination (Join-Path $testEvidence 'Screenshots') -Recurse -Force}
+    $discoveryEvidence=Join-Path $runDirectory 'discovery'
+    if(Test-Path $discoveryEvidence){Copy-Item -LiteralPath $discoveryEvidence -Destination (Join-Path $testEvidence 'Discovery') -Recurse -Force}
     $attemptEvidence=Join-Path $runDirectory 'attempt-evidence'
     if(Test-Path $attemptEvidence){Copy-Item -LiteralPath $attemptEvidence -Destination (Join-Path $testEvidence 'Attempts') -Recurse -Force}
     [void](Copy-DynomaxAttemptRecorderEvidence -RunDirectory $runDirectory -TestEvidenceDirectory $testEvidence)

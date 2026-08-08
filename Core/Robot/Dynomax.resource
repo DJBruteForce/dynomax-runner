@@ -4,16 +4,242 @@ Library    OperatingSystem
 Library    Process
 Library    Collections
 Library    ${CURDIR}${/}DynomaxTimeout.py
+Library    ${CURDIR}${/}DynomaxDiscovery.py
 
 *** Keywords ***
 Start Dynomax Browser
     Create Directory    ${DYNOMAX_RUN_DIR}${/}screenshots
     New Browser    ${DYNOMAX_BROWSER}    headless=${DYNOMAX_HEADLESS}
-    New Context    viewport=${DYNOMAX_VIEWPORT}
+    ${discovery_enabled}=    Get Variable Value    \${DYNOMAX_DISCOVERY_ENABLED}    ${False}
+    IF    ${discovery_enabled}
+        ${har_path}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}discovery-network.raw.har
+        ${har}=    Create Dictionary    path=${har_path}    omitContent=${False}
+        New Context    viewport=${DYNOMAX_VIEWPORT}    recordHar=${har}
+    ELSE
+        New Context    viewport=${DYNOMAX_VIEWPORT}
+    END
     New Page    about:blank
 
 Stop Dynomax Browser
     Run Keyword And Ignore Error    Close Browser
+
+Complete Dynomax Browser Suite
+    ${discovery_enabled}=    Get Variable Value    \${DYNOMAX_DISCOVERY_ENABLED}    ${False}
+    IF    ${discovery_enabled}
+        Run Keyword And Ignore Error    Capture Dynomax Discovery Evidence
+        Run Keyword And Ignore Error    Stop Dynomax Browser
+        Finalize Dynomax Discovery Evidence
+        ${control_flow_enabled}=    Get Variable Value    \${DYNOMAX_CONTROL_FLOW_ENABLED}    ${False}
+        IF    ${control_flow_enabled}
+            Assert Dynomax Discovery Target Reached
+        END
+    ELSE
+        Stop Dynomax Browser
+    END
+
+Finalize Dynomax Discovery Evidence
+    ${discovery_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}discovery
+    Create Directory    ${discovery_dir}
+    ${raw_har}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}discovery-network.raw.har
+    ${safe_har}=    Set Variable    ${discovery_dir}${/}network.har.json
+    ${har_exists}=    Run Keyword And Return Status    File Should Exist    ${raw_har}
+    IF    ${har_exists}
+        ${har_ok}=    Sanitize Discovery Har    ${raw_har}    ${safe_har}    ${DYNOMAX_CONTEXT_PATH}
+        Should Be True    ${har_ok}    Discovery network evidence could not be sanitized safely.
+    ELSE
+        Create File    ${safe_har}    {"log":{"version":"1.2","creator":{"name":"Dynomax sanitized Discovery HAR","version":"2"},"entries":[]},"security":{"rawRequestBodiesIncluded":false,"rawResponseBodiesIncluded":false,"boundedSanitizedTextOrJsonBodyExcerptsMayBeIncluded":true,"cookiesIncluded":false,"authorizationHeadersIncluded":false,"queryValuesIncluded":false}}
+    END
+    ${safe_for_handoff}=    Validate Discovery Evidence    ${discovery_dir}    ${DYNOMAX_CONTEXT_PATH}
+    Should Be True    ${safe_for_handoff}    Discovery evidence failed the mandatory agent-handoff security/completeness gate. See security-report.json.
+
+Capture Dynomax Discovery Evidence
+    ${discovery_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}discovery
+    Create Directory    ${discovery_dir}
+
+    ${previous_log_level}=    Set Log Level    NONE
+    TRY
+        ${structure_script}=    Get Discovery Script    structure    ${DYNOMAX_CONTEXT_PATH}
+        ${structure_status}    ${structure}=    Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${structure_script}
+        IF    '${structure_status}' == 'PASS'
+            ${structure_raw}=    Evaluate    json.dumps($structure, ensure_ascii=False)    modules=json
+            ${structure_json}=    Sanitize Discovery Json    ${structure_raw}    ${DYNOMAX_CONTEXT_PATH}
+            Create File    ${discovery_dir}${/}page-structure.json    ${structure_json}
+        ELSE
+            Create File    ${discovery_dir}${/}page-structure.json    {"captureWarning":"Rich page-structure capture failed."}
+        END
+
+        ${dom_script}=    Get Discovery Script    dom    ${DYNOMAX_CONTEXT_PATH}
+        ${dom_status}    ${dom}=    Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${dom_script}
+        IF    '${dom_status}' == 'PASS'
+            ${safe_dom}=    Sanitize Discovery Text    ${dom}    ${DYNOMAX_CONTEXT_PATH}    1500000
+            Create File    ${discovery_dir}${/}page-dom.html    ${safe_dom}
+        ELSE
+            Create File    ${discovery_dir}${/}page-dom.html    <!-- Dynomax Discovery DOM capture failed -->
+        END
+
+        ${text_script}=    Get Discovery Script    text    ${DYNOMAX_CONTEXT_PATH}
+        ${text_status}    ${text}=    Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${text_script}
+        IF    '${text_status}' == 'PASS'
+            ${safe_text}=    Sanitize Discovery Text    ${text}    ${DYNOMAX_CONTEXT_PATH}    100000
+            Create File    ${discovery_dir}${/}page-text.txt    ${safe_text}
+        ELSE
+            Create File    ${discovery_dir}${/}page-text.txt    [Dynomax Discovery visible-text capture failed]
+        END
+
+        ${timing_script}=    Get Discovery Script    timing    ${DYNOMAX_CONTEXT_PATH}
+        ${timing_status}    ${timing}=    Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${timing_script}
+        IF    '${timing_status}' == 'PASS'
+            ${timing_raw}=    Evaluate    json.dumps($timing, ensure_ascii=False)    modules=json
+            ${timing_json}=    Sanitize Discovery Json    ${timing_raw}    ${DYNOMAX_CONTEXT_PATH}
+            Create File    ${discovery_dir}${/}resource-timing.json    ${timing_json}
+        ELSE
+            Create File    ${discovery_dir}${/}resource-timing.json    {"captureWarning":"Resource timing capture failed."}
+        END
+
+        ${console_status}    ${console}=    Run Keyword And Ignore Error    Get Console Log    full=True
+        IF    '${console_status}' == 'PASS'
+            ${console_raw}=    Evaluate    json.dumps($console, ensure_ascii=False)    modules=json
+            ${console_safe}=    Sanitize Discovery Json    ${console_raw}    ${DYNOMAX_CONTEXT_PATH}
+            Create File    ${discovery_dir}${/}console.json    ${console_safe}
+        ELSE
+            Create File    ${discovery_dir}${/}console.json    []
+        END
+
+        ${errors_status}    ${page_errors}=    Run Keyword And Ignore Error    Get Page Errors    full=True
+        IF    '${errors_status}' == 'PASS'
+            ${errors_raw}=    Evaluate    json.dumps($page_errors, ensure_ascii=False)    modules=json
+            ${errors_safe}=    Sanitize Discovery Json    ${errors_raw}    ${DYNOMAX_CONTEXT_PATH}
+            Create File    ${discovery_dir}${/}page-errors.json    ${errors_safe}
+        ELSE
+            Create File    ${discovery_dir}${/}page-errors.json    []
+        END
+
+        ${mask_script}=    Get Discovery Script    mask    ${DYNOMAX_CONTEXT_PATH}
+        ${mask_status}    ${mask_result}=    Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${mask_script}
+        IF    '${mask_status}' == 'PASS'
+            ${mask_json_raw}=    Evaluate    json.dumps($mask_result, ensure_ascii=False)    modules=json
+            ${mask_json}=    Sanitize Discovery Json    ${mask_json_raw}    ${DYNOMAX_CONTEXT_PATH}
+            Create File    ${discovery_dir}${/}screenshot-mask.json    ${mask_json}
+        ELSE
+            Create File    ${discovery_dir}${/}screenshot-mask.json    {"applied":false,"formControlsMasked":false,"captureWarning":"Screenshot masking failed."}
+        END
+        Run Keyword And Ignore Error    Take Screenshot    ${discovery_dir}${/}screenshot-viewport.png
+        Run Keyword And Ignore Error    Take Screenshot    ${discovery_dir}${/}screenshot-full-page.png    fullPage=True
+        ${unmask_script}=    Get Discovery Script    unmask    ${DYNOMAX_CONTEXT_PATH}
+        Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${unmask_script}
+    FINALLY
+        Set Log Level    ${previous_log_level}
+    END
+
+    ${capture_metadata}=    Evaluate    json.dumps({'schemaVersion':3,'capture':'Dynomax Discovery comprehensive agent evidence','secretValuesIncluded':False,'secretReferenceDescriptionsIncluded':False,'cookiesIncluded':False,'browserStorageIncluded':False,'rawRequestBodiesIncluded':False,'rawResponseBodiesIncluded':False,'boundedSanitizedJsonOrTextBodyExcerptsMayBeIncluded':True,'unsanitizedDomIncluded':False,'screenshotsMaskFormControls':True,'screenshotsMaskKnownRuntimeSecretsAndEmailLikeIdentityText':True,'mandatorySecurityReport':True}, indent=2)    modules=json
+    Create File    ${discovery_dir}${/}capture-metadata.json    ${capture_metadata}
+
+Assert Dynomax Discovery Target Reached
+    ${target_node}=    Get Variable Value    \${DYNOMAX_DISCOVERY_TARGET_NODE_ID}    ${EMPTY}
+    ${result}=    Run Process
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    -NoLogo
+    ...    -NoProfile
+    ...    -ExecutionPolicy
+    ...    Bypass
+    ...    -File
+    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
+    ...    -Mode
+    ...    AssertDiscoveryTarget
+    ...    -DynomaxRoot
+    ...    ${DYNOMAX_ROOT}
+    ...    -WorkflowPath
+    ...    ${DYNOMAX_WORKFLOW_PATH}
+    ...    -ContextPath
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    -RunDirectory
+    ...    ${DYNOMAX_RUN_DIR}
+    ...    -NodeId
+    ...    ${target_node}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers    ${result.rc}    0    ${result.stderr}
+
+Fail Dynomax Control Flow Action
+    [Arguments]    ${node_id}
+    ${result}=    Run Process
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    -NoLogo
+    ...    -NoProfile
+    ...    -ExecutionPolicy
+    ...    Bypass
+    ...    -File
+    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
+    ...    -Mode
+    ...    FailAction
+    ...    -DynomaxRoot
+    ...    ${DYNOMAX_ROOT}
+    ...    -WorkflowPath
+    ...    ${DYNOMAX_WORKFLOW_PATH}
+    ...    -ContextPath
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    -RunDirectory
+    ...    ${DYNOMAX_RUN_DIR}
+    ...    -NodeId
+    ...    ${node_id}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers    ${result.rc}    0    Control-flow failure notification failed: ${result.stderr}
+
+Should Run Dynomax Control Flow Action
+    [Arguments]    ${node_id}
+    ${result}=    Run Process
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    -NoLogo
+    ...    -NoProfile
+    ...    -ExecutionPolicy
+    ...    Bypass
+    ...    -File
+    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
+    ...    -Mode
+    ...    BeforeAction
+    ...    -DynomaxRoot
+    ...    ${DYNOMAX_ROOT}
+    ...    -WorkflowPath
+    ...    ${DYNOMAX_WORKFLOW_PATH}
+    ...    -ContextPath
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    -RunDirectory
+    ...    ${DYNOMAX_RUN_DIR}
+    ...    -NodeId
+    ...    ${node_id}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers    ${result.rc}    0    Control-flow decision failed: ${result.stderr}
+    ${decision}=    Evaluate    str($result.stdout).strip().upper()
+    Should Match Regexp    ${decision}    ^(RUN|DEFER|SKIP_FINAL)$    Unexpected control-flow decision: ${decision}
+    RETURN    ${decision}
+
+Advance Dynomax Control Flow After Action
+    [Arguments]    ${node_id}
+    ${result}=    Run Process
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    -NoLogo
+    ...    -NoProfile
+    ...    -ExecutionPolicy
+    ...    Bypass
+    ...    -File
+    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
+    ...    -Mode
+    ...    AfterAction
+    ...    -DynomaxRoot
+    ...    ${DYNOMAX_ROOT}
+    ...    -WorkflowPath
+    ...    ${DYNOMAX_WORKFLOW_PATH}
+    ...    -ContextPath
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    -RunDirectory
+    ...    ${DYNOMAX_RUN_DIR}
+    ...    -NodeId
+    ...    ${node_id}
+    ...    stdout=PIPE
+    ...    stderr=PIPE
+    Should Be Equal As Integers    ${result.rc}    0    Control-flow advance failed: ${result.stderr}
 
 Execute Dynomax Action With Policy
     [Arguments]    ${keyword_name}    ${is_cleanup}=False
@@ -290,6 +516,11 @@ Persist Dynomax Robot Action Result
     IF    not ${metadata_ready}
         Log    Dynomax Action metadata was not initialized; result persistence was skipped so the runtime failure is classified as ERROR.    WARN
         RETURN
+    END
+    ${control_flow_enabled}=    Get Variable Value    \${DYNOMAX_CONTROL_FLOW_ENABLED}    ${False}
+    ${is_cleanup}=    Get Variable Value    \${DYNOMAX_IS_CLEANUP}    ${False}
+    IF    ${control_flow_enabled} and not ${is_cleanup} and '${TEST_STATUS}' == 'FAIL'
+        Fail Dynomax Control Flow Action    ${DYNOMAX_WORKFLOW_NODE_ID}
     END
     ${message64}=    Evaluate    base64.b64encode($TEST_MESSAGE.encode('utf-8')).decode('ascii')    modules=base64
     IF    '${TEST_STATUS}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}
