@@ -184,6 +184,117 @@ function Add-DynomaxControlFlowTransition {
     $State.transitions=@($State.transitions)+@([pscustomobject]$transition)
 }
 
+function Get-DynomaxSystemNodeState {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$State,[Parameter(Mandatory)][string]$NodeId)
+    $matches=@($State.systemNodeStates | Where-Object { [string]$_.nodeId -eq $NodeId })
+    if($matches.Count -ne 1){throw "Control-flow System node '$NodeId' has no unique runtime state."}
+    return $matches[0]
+}
+
+function Set-DynomaxSystemNodeState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$NodeId,
+        [Parameter(Mandatory)][string]$Status,
+        [Parameter(Mandatory)][string]$Event,
+        [string]$Message,
+        [string]$BranchLabel,
+        [Nullable[int]]$BranchIndex=$null,
+        [Nullable[int]]$LoopIteration=$null,
+        [string]$StopReason
+    )
+    $nodeState=Get-DynomaxSystemNodeState -State $State -NodeId $NodeId
+    $now=[DateTime]::UtcNow.ToString('o')
+    if($Status -eq 'Running' -and -not $nodeState.startedAtUtc){$nodeState.startedAtUtc=$now}
+    if($Status -in @('PASS','FAIL','SKIPPED')){
+        if(-not $nodeState.startedAtUtc -and $Status -ne 'SKIPPED'){$nodeState.startedAtUtc=$now}
+        $nodeState.completedAtUtc=$now
+    }
+    $nodeState.status=$Status
+    $nodeState.lastEvent=$Event
+    $nodeState.message=$Message
+    $eventData=[ordered]@{
+        sequence=(@($State.systemNodeEvents).Count + 1)
+        atUtc=$now
+        nodeId=$NodeId
+        nodeType=[string]$nodeState.nodeType
+        status=$Status
+        event=$Event
+    }
+    if($Message){$eventData.message=$Message}
+    if($BranchLabel){$eventData.branchLabel=$BranchLabel}
+    if($null -ne $BranchIndex){$eventData.branchIndex=[int]$BranchIndex}
+    if($null -ne $LoopIteration){$eventData.loopIteration=[int]$LoopIteration}
+    if($StopReason){$eventData.stopReason=$StopReason}
+    $State.systemNodeEvents=@($State.systemNodeEvents)+@([pscustomobject]$eventData)
+}
+
+function Finalize-DynomaxPendingSystemNodes {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$State)
+    foreach($nodeState in @($State.systemNodeStates | Where-Object { [string]$_.status -eq 'Pending' })){
+        Set-DynomaxSystemNodeState -State $State -NodeId ([string]$nodeState.nodeId) -Status 'SKIPPED' -Event 'SystemNodeSkipped' -Message 'The System node was not selected before Workflow termination.'
+    }
+}
+
+function Get-DynomaxControlFlowRunEventId {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$Stream,
+        [Parameter(Mandatory)][int]$Sequence
+    )
+    $text=('{0:D}|{1}|{2}' -f $RunId,$Stream,$Sequence)
+    $bytes=[System.Text.Encoding]::UTF8.GetBytes($text)
+    $sha=[System.Security.Cryptography.SHA256]::Create()
+    try{$hash=$sha.ComputeHash($bytes)}finally{$sha.Dispose()}
+    $guidBytes=New-Object byte[] 16
+    [Array]::Copy($hash,0,$guidBytes,0,16)
+    return New-Object -TypeName System.Guid -ArgumentList (,$guidBytes)
+}
+
+function Sync-DynomaxControlFlowRunEvents {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$RunDirectory
+    )
+    $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
+    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){return}
+    $state=Read-DynomaxJson -Path $statePath
+    $systemEvents=@((Get-DynomaxPropertyValue -Object $state -Name 'systemNodeEvents' -DefaultValue @()))
+    $systemCursor=[int](Get-DynomaxPropertyValue -Object $state -Name 'persistedSystemNodeEventCount' -DefaultValue 0)
+    for($i=$systemCursor;$i -lt $systemEvents.Count;$i++){
+        $item=$systemEvents[$i]
+        $nodeId=[string](Get-DynomaxPropertyValue -Object $item -Name 'nodeId' -DefaultValue '')
+        $nodeType=[string](Get-DynomaxPropertyValue -Object $item -Name 'nodeType' -DefaultValue '')
+        $status=[string](Get-DynomaxPropertyValue -Object $item -Name 'status' -DefaultValue '')
+        $event=[string](Get-DynomaxPropertyValue -Object $item -Name 'event' -DefaultValue '')
+        $message=[string](Get-DynomaxPropertyValue -Object $item -Name 'message' -DefaultValue '')
+        if(-not $message){$message="$nodeType '$nodeId' -> $status ($event)."}
+        $level=if($status -eq 'FAIL'){'Error'}elseif($status -eq 'SKIPPED'){'Info'}else{'Info'}
+        $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'SystemNodeState' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
+        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel $level -EventType 'ControlFlow.SystemNodeState' -Message $message -Data $item -RunEventId $eventId
+    }
+    $transitions=@((Get-DynomaxPropertyValue -Object $state -Name 'transitions' -DefaultValue @()))
+    $transitionCursor=[int](Get-DynomaxPropertyValue -Object $state -Name 'persistedTransitionCount' -DefaultValue 0)
+    for($i=$transitionCursor;$i -lt $transitions.Count;$i++){
+        $item=$transitions[$i]
+        $from=[string](Get-DynomaxPropertyValue -Object $item -Name 'fromNodeId' -DefaultValue '')
+        $to=[string](Get-DynomaxPropertyValue -Object $item -Name 'toNodeId' -DefaultValue '')
+        $event=[string](Get-DynomaxPropertyValue -Object $item -Name 'event' -DefaultValue '')
+        $message=if($event){"Control-flow transition '$event': '$from' -> '$to'."}else{"Control-flow transition: '$from' -> '$to'."}
+        $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'Transition' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
+        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'ControlFlow.Transition' -Message $message -Data $item -RunEventId $eventId
+    }
+    $state.persistedSystemNodeEventCount=$systemEvents.Count
+    $state.persistedTransitionCount=$transitions.Count
+    Write-DynomaxJson -Value $state -Path $statePath
+}
+
 function Get-DynomaxLoopState {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$State,[Parameter(Mandatory)]$Node)
@@ -214,6 +325,9 @@ function Fail-DynomaxLoop {
     $State.nextActionNodeId=$null
     $State.terminalNodeId=[string]$LoopState.nodeId
     $State.terminalStatus='FAIL'
+    Set-DynomaxSystemNodeState -State $State -NodeId ([string]$LoopState.nodeId) -Status 'FAIL' -Event 'LoopFailed' -Message "Bounded Loop failed closed: $Reason." -LoopIteration ([int]$LoopState.iterations) -StopReason $Reason
+    Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$LoopState.nodeId) -ToNodeId ([string]$LoopState.nodeId) -When 'Failure' -EdgeId '' -Event 'LoopFailed' -LoopIteration ([int]$LoopState.iterations)
+    Finalize-DynomaxPendingSystemNodes -State $State
 }
 
 function Start-DynomaxFork {
@@ -239,6 +353,7 @@ function Start-DynomaxFork {
         }
         $index++
     }
+    Set-DynomaxSystemNodeState -State $State -NodeId $forkId -Status 'Running' -Event 'ForkStarted' -Message 'Fork began deterministic FailFast branch scheduling.'
     $State.activeFork=[pscustomobject][ordered]@{
         forkNodeId=$forkId
         joinNodeId=$joinId
@@ -265,6 +380,61 @@ function Start-DynomaxNextForkBranch {
     return [string]$branch.targetNodeId
 }
 
+function Stop-DynomaxActiveForkFailFast {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$FailedNodeId,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    $fork=Get-DynomaxPropertyValue -Object $State -Name 'activeFork' -DefaultValue $null
+    if($null -eq $fork){return}
+    $currentIndex=[int](Get-DynomaxPropertyValue -Object $fork -Name 'currentBranchIndex' -DefaultValue -1)
+    foreach($branch in @($fork.branches)){
+        if([int]$branch.index -eq $currentIndex -and [string]$branch.status -eq 'Running'){
+            $branch.status='Failed';$branch.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+            Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$fork.forkNodeId) -ToNodeId ([string]$branch.targetNodeId) -When 'Failure' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchFailed' -BranchLabel ([string]$branch.label) -BranchIndex ([int]$branch.index)
+        }elseif([string]$branch.status -eq 'Pending'){
+            $branch.status='Skipped';$branch.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+            Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$fork.forkNodeId) -ToNodeId ([string]$branch.targetNodeId) -When 'Branch' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchSkippedFailFast' -BranchLabel ([string]$branch.label) -BranchIndex ([int]$branch.index)
+        }
+    }
+    $fork.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+    $forkState=Get-DynomaxSystemNodeState -State $State -NodeId ([string]$fork.forkNodeId)
+    if([string]$forkState.status -ne 'FAIL'){
+        Set-DynomaxSystemNodeState -State $State -NodeId ([string]$fork.forkNodeId) -Status 'FAIL' -Event 'ForkFailedFast' -Message $FailureMessage
+    }
+    $joinId=[string](Get-DynomaxPropertyValue -Object $fork -Name 'joinNodeId' -DefaultValue '')
+    if($joinId){
+        $joinState=Get-DynomaxSystemNodeState -State $State -NodeId $joinId
+        if([string]$joinState.status -notin @('FAIL','PASS','SKIPPED')){
+            Set-DynomaxSystemNodeState -State $State -NodeId $joinId -Status 'SKIPPED' -Event 'JoinSkippedFailFast' -Message 'Join All was not released because the paired Fork failed fast.'
+        }
+    }
+    $State.forkHistory=@($State.forkHistory)+@($fork)
+    $State.activeFork=$null
+}
+
+function Fail-DynomaxSystemNodeExecution {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$NodeId
+    )
+    $nodeState=Get-DynomaxSystemNodeState -State $State -NodeId $NodeId
+    $nodeType=[string]$nodeState.nodeType
+    $safeMessage="$nodeType '$NodeId' failed during control-flow evaluation. Compared runtime operand values were not persisted."
+    if([string]$nodeState.status -ne 'FAIL'){
+        Set-DynomaxSystemNodeState -State $State -NodeId $NodeId -Status 'FAIL' -Event 'SystemNodeFailed' -Message $safeMessage
+    }
+    Stop-DynomaxActiveForkFailFast -State $State -FailedNodeId $NodeId -FailureMessage "Fork failed fast because System node '$NodeId' failed."
+    $State.nextActionNodeId=$null
+    $State.terminalNodeId=$NodeId
+    $State.terminalStatus='FAIL'
+    Add-DynomaxControlFlowTransition -State $State -FromNodeId $NodeId -ToNodeId $NodeId -When 'Failure' -EdgeId '' -Event 'SystemNodeFailed'
+    Finalize-DynomaxPendingSystemNodes -State $State
+}
+
 function Complete-DynomaxForkBranchAtJoin {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Plan,[Parameter(Mandatory)]$State,[Parameter(Mandatory)][string]$JoinNodeId)
@@ -273,12 +443,18 @@ function Complete-DynomaxForkBranchAtJoin {
     $currentIndex=[int]$fork.currentBranchIndex
     $current=@($fork.branches | Where-Object { [int]$_.index -eq $currentIndex })
     if($current.Count -ne 1){throw "Fork '$([string]$fork.forkNodeId)' has no active branch at Join '$JoinNodeId'."}
+    if([string]((Get-DynomaxSystemNodeState -State $State -NodeId $JoinNodeId).status) -eq 'Pending'){
+        Set-DynomaxSystemNodeState -State $State -NodeId $JoinNodeId -Status 'Running' -Event 'JoinWaiting' -Message 'Join All is waiting for all scheduled sibling branches.'
+    }
     $current[0].status='Completed'
     $current[0].completedAtUtc=[DateTime]::UtcNow.ToString('o')
+    Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$fork.forkNodeId) -ToNodeId $JoinNodeId -When 'Branch' -EdgeId ([string]$current[0].edgeId) -Event 'ForkBranchCompleted' -BranchLabel ([string]$current[0].label) -BranchIndex ([int]$current[0].index)
     $next=Start-DynomaxNextForkBranch -State $State
     if($next){return $next}
 
     $fork.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+    Set-DynomaxSystemNodeState -State $State -NodeId ([string]$fork.forkNodeId) -Status 'PASS' -Event 'ForkCompleted' -Message 'All Fork branches completed successfully.'
+    Set-DynomaxSystemNodeState -State $State -NodeId $JoinNodeId -Status 'PASS' -Event 'JoinCompleted' -Message 'Join All released after every scheduled sibling branch completed.'
     $State.forkHistory=@($State.forkHistory)+@($fork)
     $State.activeFork=$null
     $joinEdges=@(Get-DynomaxControlFlowOutgoing -Plan $Plan -NodeId $JoinNodeId | Where-Object { [string]$_.when -eq 'Success' })
@@ -314,7 +490,8 @@ function Move-DynomaxControlFlowToNextExecutable {
     $max=(@($nodes.Keys).Count * 4 + 16)
     for($hop=0;$hop -lt $max;$hop++){
         $current=$nodes[$currentId]
-        switch([string]$current.type){
+        try{
+            switch([string]$current.type){
             'Action' {
                 $State.nextActionNodeId=$currentId
                 $State.terminalNodeId=$null
@@ -322,6 +499,7 @@ function Move-DynomaxControlFlowToNextExecutable {
                 return
             }
             'Condition' {
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'Running' -Event 'ConditionEvaluating' -Message 'Condition is evaluating its configured typed operands.'
                 $result=[bool](Test-DynomaxCondition -Node $current -Context $Context)
                 $conditionOutcome=if($result){'True'}else{'False'}
                 $conditionEdges=@(Get-DynomaxControlFlowOutgoing -Plan $plan -NodeId $currentId | Where-Object { [string]$_.when -eq $conditionOutcome })
@@ -330,6 +508,7 @@ function Move-DynomaxControlFlowToNextExecutable {
                 $targetId=[string]$conditionEdge.toNodeId
                 if(-not $nodes.ContainsKey($targetId)){throw "Condition edge '$([string]$conditionEdge.edgeId)' targets missing node '$targetId'."}
                 Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When $conditionOutcome -EdgeId ([string]$conditionEdge.edgeId) -ConditionResult $result -Operator ([string]$current.operator) -Event 'ConditionSelected'
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'ConditionSelected' -Message "Condition selected the '$conditionOutcome' edge."
                 $currentId=$targetId
                 if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
                 continue
@@ -353,6 +532,9 @@ function Move-DynomaxControlFlowToNextExecutable {
             }
             'Loop' {
                 $loopState=Get-DynomaxLoopState -State $State -Node $current
+                if([string]((Get-DynomaxSystemNodeState -State $State -NodeId $currentId).status) -eq 'Pending'){
+                    Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'Running' -Event 'LoopStarted' -Message 'Bounded Loop evaluation started.' -LoopIteration ([int]$loopState.iterations)
+                }
                 $started=[DateTimeOffset]::Parse([string]$loopState.startedAtUtc)
                 $elapsed=([DateTimeOffset]::UtcNow-$started).TotalSeconds
                 if($elapsed -ge [int]$loopState.overallTimeoutSeconds){
@@ -369,6 +551,7 @@ function Move-DynomaxControlFlowToNextExecutable {
                     $edge=$exitEdges[0]
                     $targetId=[string]$edge.toNodeId
                     Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When 'False' -EdgeId ([string]$edge.edgeId) -ConditionResult $false -Operator ([string]$current.operator) -Event 'LoopExit' -LoopIteration ([int]$loopState.iterations)
+                    Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'LoopExited' -Message 'Bounded Loop exited because its condition evaluated False.' -LoopIteration ([int]$loopState.iterations) -StopReason 'ConditionFalse'
                     $currentId=$targetId
                     if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
                     continue
@@ -391,15 +574,27 @@ function Move-DynomaxControlFlowToNextExecutable {
                 $State.nextActionNodeId=$null
                 $State.terminalNodeId=$currentId
                 $State.terminalStatus='PASS'
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'WorkflowSucceeded' -Message 'Workflow reached End successfully.'
+                Finalize-DynomaxPendingSystemNodes -State $State
                 return
             }
             'Fail' {
                 $State.nextActionNodeId=$null
                 $State.terminalNodeId=$currentId
                 $State.terminalStatus='FAIL'
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'FAIL' -Event 'WorkflowFailed' -Message 'Workflow reached End with failure.'
+                Finalize-DynomaxPendingSystemNodes -State $State
                 return
             }
-            default { throw "Control-flow reached unsupported node type '$([string]$current.type)' at '$currentId'." }
+                default { throw "Control-flow reached unsupported node type '$([string]$current.type)' at '$currentId'." }
+            }
+        }
+        catch{
+            if([string]$current.type -ne 'Action'){
+                Fail-DynomaxSystemNodeExecution -State $State -NodeId $currentId
+                return
+            }
+            throw
         }
     }
     throw 'Control-flow traversal exceeded the bounded system-node hop count.'
@@ -432,7 +627,17 @@ function Initialize-DynomaxControlFlowState {
         activeFork=$null
         forkHistory=@()
         loops=@()
+        systemNodeStates=@($plan.nodes | Where-Object { [string]$_.type -ne 'Action' } | ForEach-Object {
+            [pscustomobject][ordered]@{nodeId=[string]$_.nodeId;nodeType=[string]$_.type;status='Pending';startedAtUtc=$null;completedAtUtc=$null;lastEvent=$null;message=$null}
+        })
+        systemNodeEvents=@()
+        persistedSystemNodeEventCount=0
+        persistedTransitionCount=0
     }
+    foreach($systemNodeState in @($state.systemNodeStates)){
+        Set-DynomaxSystemNodeState -State $state -NodeId ([string]$systemNodeState.nodeId) -Status 'Pending' -Event 'SystemNodePending' -Message 'System node is waiting for the runtime-selected control-flow path.'
+    }
+    Set-DynomaxSystemNodeState -State $state -NodeId $startId -Status 'PASS' -Event 'WorkflowStarted' -Message 'Workflow control flow started.'
     Move-DynomaxControlFlowToNextExecutable -Workflow $Workflow -Context $context -State $state -FromNodeId $startId -Outcome 'Success'
     Write-DynomaxJson -Value $state -Path (Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory)
     return $state
@@ -448,12 +653,15 @@ function Get-DynomaxControlFlowDecision {
     $next=[string](Get-DynomaxPropertyValue -Object $state -Name 'nextActionNodeId' -DefaultValue '')
     $terminal=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
     if($terminal){
-        if(@($state.executedActionNodeIds) -contains $NodeId -or @($state.finalSkippedActionNodeIds) -contains $NodeId){
-            return [pscustomobject]@{ShouldRun=$false;Disposition='DEFER';Reason="Control flow already completed with terminal status $terminal."}
+        # Once Workflow control flow is terminal there is no future scheduling decision to defer to.
+        # A later physical occurrence of an already-executed logical Action is still a final skip for
+        # that physical slot; returning DEFER here caused large pre-unrolled Loop suites to drain
+        # hundreds of redundant control-flow subprocesses after the Loop had already failed/passed.
+        if(-not(@($state.executedActionNodeIds) -contains $NodeId) -and -not(@($state.finalSkippedActionNodeIds) -contains $NodeId)){
+            $state.finalSkippedActionNodeIds=@($state.finalSkippedActionNodeIds)+@($NodeId)
+            Write-DynomaxJson -Value $state -Path $statePath
         }
-        $state.finalSkippedActionNodeIds=@($state.finalSkippedActionNodeIds)+@($NodeId)
-        Write-DynomaxJson -Value $state -Path $statePath
-        return [pscustomobject]@{ShouldRun=$false;Disposition='SKIP_FINAL';Reason="Action was not selected before terminal status $terminal."}
+        return [pscustomobject]@{ShouldRun=$false;Disposition='SKIP_FINAL';Reason="Workflow control flow already completed with terminal status $terminal."}
     }
     if($next -eq $NodeId){return [pscustomobject]@{ShouldRun=$true;Disposition='RUN';Reason='Selected by control flow.'}}
     return [pscustomobject]@{ShouldRun=$false;Disposition='DEFER';Reason=$(if($next){"Control flow currently selected '$next'."}else{'Control flow has not selected an Action yet.'})}
@@ -477,6 +685,7 @@ function Complete-DynomaxControlFlowAction {
         $state.discoveryTargetReached=$true
         $state.discoveryBlockReason=$null
         $state.discoveryCompletedAtUtc=[DateTime]::UtcNow.ToString('o')
+        Finalize-DynomaxPendingSystemNodes -State $state
         Write-DynomaxJson -Value $state -Path $statePath
         return $state
     }
@@ -494,10 +703,12 @@ function Fail-DynomaxControlFlowAction {
     if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing.'}
     $state=Read-DynomaxJson -Path $statePath
     if(-(@($state.executedActionNodeIds) -contains $NodeId)){$state.executedActionNodeIds=@($state.executedActionNodeIds)+@($NodeId)}
+    Stop-DynomaxActiveForkFailFast -State $state -FailedNodeId $NodeId -FailureMessage "Fork failed fast because Action '$NodeId' failed."
     $state.nextActionNodeId=$null
     $state.terminalNodeId=$NodeId
     $state.terminalStatus='FAIL'
     Add-DynomaxControlFlowTransition -State $state -FromNodeId $NodeId -ToNodeId $NodeId -When 'Failure' -EdgeId '' -Event 'ActionFailed'
+    Finalize-DynomaxPendingSystemNodes -State $state
     Write-DynomaxJson -Value $state -Path $statePath
     return $state
 }

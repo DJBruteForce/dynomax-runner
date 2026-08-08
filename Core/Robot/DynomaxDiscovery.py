@@ -45,6 +45,15 @@ def _load_secret_values(context_path):
             text = str(value)
             if text and text not in result:
                 result.append(text)
+        for entry in (context.get("stepInputs") or {}).values():
+            step_values = (entry or {}).get("values") or {}
+            for key in {str(k) for k in ((entry or {}).get("secretKeys") or [])}:
+                value = step_values.get(key)
+                if value is None:
+                    continue
+                text = str(value)
+                if text and text not in result:
+                    result.append(text)
         return sorted(result, key=len, reverse=True)
     except Exception:
         return []

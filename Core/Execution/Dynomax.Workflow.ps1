@@ -423,13 +423,17 @@ function New-DynomaxRobotSuite {
     $runForward=[System.IO.Path]::GetFullPath($RunDirectory).Replace('\','/')
     $contextForward=[System.IO.Path]::GetFullPath($ContextPath).Replace('\','/')
     $psForward=[System.IO.Path]::GetFullPath($PowerShellPath).Replace('\','/')
+    $controlFlowConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'controlFlow' -DefaultValue $null
+    $controlFlowEnabled=$null -ne $controlFlowConfig
+    $containsMainStep=@($Steps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
+    $useControlFlowDriver=$controlFlowEnabled -and $containsMainStep
     $lines=New-Object System.Collections.Generic.List[string]
     $lines.Add('*** Settings ***')
     $lines.Add("Resource    $coreResource")
     foreach($resource in ($resourcePaths|Select-Object -Unique)){$lines.Add("Resource    $resource")}
     $lines.Add('Suite Setup    Start Dynomax Browser')
     $lines.Add('Suite Teardown    Complete Dynomax Browser Suite')
-    $lines.Add('Test Teardown    Persist Dynomax Robot Action Result')
+    if(-not $useControlFlowDriver){$lines.Add('Test Teardown    Persist Dynomax Robot Action Result')}
     $lines.Add('')
     $lines.Add('*** Variables ***')
     $lines.Add("`${DYNOMAX_ROOT}    $rootForward")
@@ -450,70 +454,179 @@ function New-DynomaxRobotSuite {
     $discoveryTargetNodeId=if($discoveryConfig){[string](Get-DynomaxPropertyValue -Object $discoveryConfig -Name 'targetNodeId' -DefaultValue '')}else{''}
     $lines.Add("`${DYNOMAX_DISCOVERY_ENABLED}    $discoveryEnabled")
     $lines.Add("`${DYNOMAX_DISCOVERY_TARGET_NODE_ID}    $discoveryTargetNodeId")
-    $controlFlowConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'controlFlow' -DefaultValue $null
-    $controlFlowEnabled=$null -ne $controlFlowConfig
     $lines.Add("`${DYNOMAX_CONTROL_FLOW_ENABLED}    $(if($controlFlowEnabled){'True'}else{'False'})")
+    $lines.Add("`${DYNOMAX_CONTROL_FLOW_TERMINAL}    False")
     $lines.Add("`${DYNOMAX_ACTION_METADATA_READY}    False")
     $lines.Add('')
     $lines.Add('*** Test Cases ***')
-    foreach($step in ($Steps|Sort-Object order)){
-        $definition=$actionDefinitions[[string][int]$step.order]
-        $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
-        $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
-        $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
-        $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
-        $resolvedVersion=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxResolvedActionVersion' -DefaultValue '')
-        $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
-        if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
-        $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
-        $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
-        $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
-        $lines.Add($name)
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
-        $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
-        $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
-        $sensitiveAction=$false
-        foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
-            $classification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
-            $secretFlag=[bool](Get-DynomaxPropertyValue -Object $input -Name 'secret' -DefaultValue $false)
-            if($secretFlag -or $classification -in @('Secret','Sensitive')){$sensitiveAction=$true;break}
+    if($useControlFlowDriver){
+        # A pre-unrolled bounded-control-flow schedule can contain hundreds or thousands of
+        # physical execution slots. Represent it as one Robot test with generated slot keywords
+        # so terminal PASS/FAIL/BLOCKED returns from the schedule immediately instead of forcing
+        # Robot to start every remaining physical test case merely to mark it skipped.
+        $lines.Add('Dynomax Workflow')
+        $lines.Add('    Execute Dynomax Control Flow Schedule')
+        $lines.Add('')
+        $lines.Add('*** Keywords ***')
+        $lines.Add('Execute Dynomax Control Flow Schedule')
+        foreach($scheduledStep in ($Steps|Sort-Object order)){
+            $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$scheduledStep.order)
+            $lines.Add("    $slotKeyword")
+            $lines.Add("    IF    `${DYNOMAX_CONTROL_FLOW_TERMINAL}")
+            $lines.Add('        RETURN')
+            $lines.Add('    END')
         }
-        $sensitiveText=if($sensitiveAction){'True'}else{'False'}
-        $lines.Add("    Set Test Variable    `${DYNOMAX_RESOLVED_ACTION_VERSION}    $resolvedVersion")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_WAIT_BEFORE_SECONDS}    $($policy.WaitBeforeSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    $($policy.AttemptTimeoutSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_ATTEMPTS}    $($policy.MaximumAttempts)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_DELAY_SECONDS}    $($policy.RetryDelaySeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_BACKOFF}    $($policy.Backoff)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    $($policy.MaximumRetryDelaySeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    $($policy.OverallTimeoutSeconds)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_ON_CSV}    $retryOnCsv")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
-        $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
-        if($controlFlowEnabled -and $cleanup -eq 'False'){
+        $lines.Add('')
+        foreach($step in ($Steps|Sort-Object order)){
+            $definition=$actionDefinitions[[string][int]$step.order]
+            $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
+            if($cleanup -eq 'True'){throw 'The control-flow Robot driver can execute Main steps only.'}
+            $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
+            $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
+            $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
+            $resolvedVersion=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxResolvedActionVersion' -DefaultValue '')
+            $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
+            if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
+            $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
+            $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
+            $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$step.order)
+            $lines.Add($slotKeyword)
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
+            $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
+            $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
+            $sensitiveAction=$false
+            foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
+                $classification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
+                $secretFlag=[bool](Get-DynomaxPropertyValue -Object $input -Name 'secret' -DefaultValue $false)
+                if($secretFlag -or $classification -in @('Secret','Sensitive')){$sensitiveAction=$true;break}
+            }
+            $sensitiveText=if($sensitiveAction){'True'}else{'False'}
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RESOLVED_ACTION_VERSION}    $resolvedVersion")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_WAIT_BEFORE_SECONDS}    $($policy.WaitBeforeSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    $($policy.AttemptTimeoutSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_ATTEMPTS}    $($policy.MaximumAttempts)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_DELAY_SECONDS}    $($policy.RetryDelaySeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_BACKOFF}    $($policy.Backoff)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    $($policy.MaximumRetryDelaySeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    $($policy.OverallTimeoutSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_ON_CSV}    $retryOnCsv")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
             $lines.Add("    `${control_flow_decision}=    Should Run Dynomax Control Flow Action    $workflowNodeId")
             $lines.Add("    IF    '`${control_flow_decision}' == 'DEFER'")
             $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add("        Skip    Action execution slot deferred by Workflow control flow.")
-            $lines.Add("    END")
+            $lines.Add('        RETURN')
+            $lines.Add('    END')
             $lines.Add("    IF    '`${control_flow_decision}' == 'SKIP_FINAL'")
-            $lines.Add("        Skip    Action was not selected by Workflow control flow.")
+            $lines.Add("        Set Suite Variable    `${DYNOMAX_CONTROL_FLOW_TERMINAL}    True")
+            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add('        RETURN')
+            $lines.Add('    END')
+            $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add('    TRY')
+            $lines.Add("        `${action_status}    `${action_message}=    Run Keyword And Ignore Error    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
+            $lines.Add('    FINALLY')
+            $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add('    END')
+            $lines.Add('    Persist Dynomax Explicit Robot Action Result    ${action_status}    ${action_message}')
+            $lines.Add("    IF    '`${action_status}' == 'FAIL'")
+            $lines.Add("        Fail Dynomax Control Flow Action    $workflowNodeId")
+            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add('        RETURN')
+            $lines.Add('    END')
+            # Step-local inputs were restored before downstream Condition/Fork/Loop evaluation.
+            $lines.Add("    `${advance_state}=    Advance Dynomax Control Flow After Action    $workflowNodeId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("    IF    '`${advance_state}' != 'CONTINUE'")
+            $lines.Add('        RETURN')
+            $lines.Add('    END')
+            $lines.Add('')
+        }
+    }
+    else{
+        foreach($step in ($Steps|Sort-Object order)){
+            $definition=$actionDefinitions[[string][int]$step.order]
+            $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
+            $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
+            $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
+            $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
+            $resolvedVersion=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxResolvedActionVersion' -DefaultValue '')
+            $actionVersionId=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
+            if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
+            $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
+            $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
+            $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
+            $lines.Add($name)
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
+            $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
+            $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
+            $sensitiveAction=$false
+            foreach($input in @((Get-DynomaxPropertyValue -Object $definition -Name 'inputs' -DefaultValue @()))){
+                $classification=[string](Get-DynomaxPropertyValue -Object $input -Name 'classification' -DefaultValue 'Normal')
+                $secretFlag=[bool](Get-DynomaxPropertyValue -Object $input -Name 'secret' -DefaultValue $false)
+                if($secretFlag -or $classification -in @('Secret','Sensitive')){$sensitiveAction=$true;break}
+            }
+            $sensitiveText=if($sensitiveAction){'True'}else{'False'}
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RESOLVED_ACTION_VERSION}    $resolvedVersion")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_WAIT_BEFORE_SECONDS}    $($policy.WaitBeforeSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    $($policy.AttemptTimeoutSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_ATTEMPTS}    $($policy.MaximumAttempts)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_DELAY_SECONDS}    $($policy.RetryDelaySeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_BACKOFF}    $($policy.Backoff)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    $($policy.MaximumRetryDelaySeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    $($policy.OverallTimeoutSeconds)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_ON_CSV}    $retryOnCsv")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
+            if($controlFlowEnabled -and $cleanup -eq 'False'){
+                # After terminal control flow is established, the remainder of a pre-unrolled Robot
+                # suite is a bookkeeping concern only. Skip it locally without launching another
+                # control-flow PowerShell process or per-slot persistence subprocess. Core bulk-fills
+                # the missing physical ActionRun rows after the Robot block returns.
+                $lines.Add("    IF    `${DYNOMAX_CONTROL_FLOW_TERMINAL}")
+                $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+                $lines.Add("        Skip    Workflow control flow already reached a terminal state.")
+                $lines.Add("    END")
+                $lines.Add("    `${control_flow_decision}=    Should Run Dynomax Control Flow Action    $workflowNodeId")
+                $lines.Add("    IF    '`${control_flow_decision}' == 'DEFER'")
+                $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+                $lines.Add("        Skip    Action execution slot deferred by Workflow control flow.")
+                $lines.Add("    END")
+                $lines.Add("    IF    '`${control_flow_decision}' == 'SKIP_FINAL'")
+                $lines.Add("        Skip    Action was not selected by Workflow control flow.")
+                $lines.Add("    END")
+            }
+            $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("    TRY")
+            $lines.Add("        Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
+            $lines.Add("    FINALLY")
+            $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
             $lines.Add("    END")
+            if($controlFlowEnabled -and $cleanup -eq 'False'){
+                # Restore the shared output context before Condition/Fork/Loop evaluation so
+                # step-local inputs cannot shadow an earlier output with the same context key.
+                $lines.Add("    Advance Dynomax Control Flow After Action    $workflowNodeId")
+            }
+            $lines.Add('')
         }
-        $lines.Add("    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
-        if($controlFlowEnabled -and $cleanup -eq 'False'){
-            $lines.Add("    Advance Dynomax Control Flow After Action    $workflowNodeId")
-        }
-        $lines.Add('')
     }
     $suitePath=Join-Path $RunDirectory 'generated-workflow.robot'
     [System.IO.File]::WriteAllLines($suitePath,$lines,(New-Object System.Text.UTF8Encoding($false)))

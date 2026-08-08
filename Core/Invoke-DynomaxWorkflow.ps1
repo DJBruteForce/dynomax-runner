@@ -60,7 +60,7 @@ $packageHash=Get-DynomaxSha256 -Path $workflowPath
 $tempRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.tempRuns
 $runDirectory=Ensure-DynomaxDirectory -Path (Join-Path $tempRoot ([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')))
 $contextPath=Join-Path $runDirectory 'context.json'
-$context=[ordered]@{schemaVersion=1;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber}}
+$context=[ordered]@{schemaVersion=1;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};stepInputs=[ordered]@{}}
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
@@ -73,6 +73,13 @@ if($ContextSeedPath){
     foreach($property in @($seedValues.PSObject.Properties)){
         if([string]::IsNullOrWhiteSpace([string]$property.Name)){throw 'Context seed contains an empty key.'}
         $context.values[[string]$property.Name]=$property.Value
+    }
+    $seedStepInputs=Get-DynomaxPropertyValue -Object $seed -Name 'stepInputs' -DefaultValue $null
+    if($null -ne $seedStepInputs){
+        foreach($property in @($seedStepInputs.PSObject.Properties)){
+            if([string]::IsNullOrWhiteSpace([string]$property.Name)){throw 'Context seed contains an empty step-input key.'}
+            $context.stepInputs[[string]$property.Name]=$property.Value
+        }
     }
 }
 Write-DynomaxJson -Value $context -Path $contextPath
@@ -121,6 +128,89 @@ $processHeartbeatSeconds=[int](Get-DynomaxPropertyValue -Object $config.logging 
 $timeout=[int](Get-DynomaxPropertyValue -Object $workflow -Name 'timeoutSeconds' -DefaultValue 0)
 $python=$null
 
+function Set-DynomaxDynamicContextProperty {
+    param([Parameter(Mandatory)]$Object,[Parameter(Mandatory)][string]$Name,$Value)
+    $property=$Object.PSObject.Properties[$Name]
+    if($null -eq $property){
+        $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
+    }else{
+        $property.Value=$Value
+    }
+}
+
+function Enter-DynomaxStepInputContext {
+    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
+    $context=Read-DynomaxJson -Path $ContextPath
+    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
+    if($null -ne $active){throw 'A Dynomax step-input scope is already active; the previous Action did not restore its context.'}
+    $stepInputs=Get-DynomaxPropertyValue -Object $context -Name 'stepInputs' -DefaultValue $null
+    if($null -eq $stepInputs){return $false}
+    $entryProperty=$stepInputs.PSObject.Properties[$StepId]
+    if($null -eq $entryProperty){return $false}
+    $entry=$entryProperty.Value
+    $stepValues=Get-DynomaxPropertyValue -Object $entry -Name 'values' -DefaultValue $null
+    if($null -eq $stepValues){return $false}
+
+    $secretLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){
+        if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}
+    }
+    $stepSecretLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $entry -Name 'secretKeys' -DefaultValue @())){
+        if(-not [string]::IsNullOrWhiteSpace([string]$key)){$stepSecretLookup[[string]$key]=$true}
+    }
+    $priorValues=[ordered]@{}
+    $priorSecretFlags=[ordered]@{}
+    foreach($property in @($stepValues.PSObject.Properties)){
+        $name=[string]$property.Name
+        $existing=$context.values.PSObject.Properties[$name]
+        $priorValues[$name]=[ordered]@{exists=($null -ne $existing);value=$(if($null -ne $existing){$existing.Value}else{$null})}
+        $priorSecretFlags[$name]=$secretLookup.ContainsKey($name)
+        Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value $property.Value
+        if($stepSecretLookup.ContainsKey($name)){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
+    }
+    $context.secretKeys=@($secretLookup.Keys|Sort-Object)
+    Set-DynomaxDynamicContextProperty -Object $context -Name 'activeStepInput' -Value ([pscustomobject][ordered]@{stepId=$StepId;priorValues=[pscustomobject]$priorValues;priorSecretFlags=[pscustomobject]$priorSecretFlags})
+    Write-DynomaxJson -Value $context -Path $ContextPath
+    return $true
+}
+
+function Exit-DynomaxStepInputContext {
+    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
+    $context=Read-DynomaxJson -Path $ContextPath
+    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
+    if($null -eq $active){return}
+    if(-not [string]::Equals([string](Get-DynomaxPropertyValue -Object $active -Name 'stepId' -DefaultValue ''),$StepId,[StringComparison]::Ordinal)){
+        throw 'The active Dynomax step-input scope belongs to a different execution slot.'
+    }
+    $secretLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){
+        if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}
+    }
+    $priorValues=Get-DynomaxPropertyValue -Object $active -Name 'priorValues' -DefaultValue $null
+    $priorSecretFlags=Get-DynomaxPropertyValue -Object $active -Name 'priorSecretFlags' -DefaultValue $null
+    if($null -ne $priorValues){
+        foreach($property in @($priorValues.PSObject.Properties)){
+            $name=[string]$property.Name
+            $previous=$property.Value
+            if([bool](Get-DynomaxPropertyValue -Object $previous -Name 'exists' -DefaultValue $false)){
+                Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $previous -Name 'value' -DefaultValue $null)
+            }else{
+                [void]$context.values.PSObject.Properties.Remove($name)
+            }
+            $wasSecret=$false
+            if($null -ne $priorSecretFlags){
+                $secretProperty=$priorSecretFlags.PSObject.Properties[$name]
+                if($null -ne $secretProperty){$wasSecret=[bool]$secretProperty.Value}
+            }
+            if($wasSecret){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
+        }
+    }
+    $context.secretKeys=@($secretLookup.Keys|Sort-Object)
+    [void]$context.PSObject.Properties.Remove('activeStepInput')
+    Write-DynomaxJson -Value $context -Path $ContextPath
+}
+
 function Invoke-DynomaxStepSequence {
     param([Parameter(Mandatory)][object[]]$Sequence)
     $index=0
@@ -135,26 +225,58 @@ function Invoke-DynomaxStepSequence {
                 if($candidateEngine -ne 'RobotBrowser'){break}
                 $block.Add($candidate);$index++
             }
-            $process=Invoke-DynomaxRobotBlock -DynomaxRoot $root -ProjectFolder $projectFolder -ProjectConfig $projectConfig -Workflow $workflow -Steps $block.ToArray() -RunId $runId -RunDirectory $runDirectory -ContextPath $contextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -PythonPath $python -TimeoutSeconds $timeout -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds
+            $blockSteps=$block.ToArray()
+            $process=Invoke-DynomaxRobotBlock -DynomaxRoot $root -ProjectFolder $projectFolder -ProjectConfig $projectConfig -Workflow $workflow -Steps $blockSteps -RunId $runId -RunDirectory $runDirectory -ContextPath $contextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -PythonPath $python -TimeoutSeconds $timeout -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds
             $outputXml=Join-Path $runDirectory 'robot-result\output.xml'
             if(-not(Test-Path $outputXml)){throw "Robot did not produce output.xml. Exit code: $($process.ExitCode). Error: $($process.StandardError)"}
+            if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+                if(Test-Path -LiteralPath $statePath -PathType Leaf){
+                    $state=Read-DynomaxJson -Path $statePath
+                    $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
+                    $containsMainStep=@($blockSteps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
+                    if($terminalStatus -and $containsMainStep){
+                        # Robot locally skips the remaining pre-unrolled physical tests after terminal
+                        # control flow without spawning persistence subprocesses. Fill every missing
+                        # main-sequence physical ActionRun row here, then stop scheduling this sequence.
+                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence)
+                        $index=$Sequence.Count
+                    }
+                }
+            }
         }
         elseif($engine -eq 'PowerShell'){
             $disposition='RUN'
             if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
                 $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
                 $decision=Get-DynomaxControlFlowDecision -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId
+                Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
                 $disposition=[string]$decision.Disposition
             }
             if($disposition -eq 'RUN'){
+                $stepInputsActivated=$false
+                $stepFailure=$null
                 try{
-                    [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
-                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-                        [void](Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId)
+                    $stepInputsActivated=[bool](Enter-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId))
+                    try{
+                        [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
+                    }catch{
+                        $stepFailure=$_
                     }
-                }catch{
-                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){[void](Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId)}
-                    throw
+                }finally{
+                    if($stepInputsActivated){Exit-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId)}
+                }
+                if($null -ne $stepFailure){
+                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                        [void](Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId)
+                        Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
+                    }
+                    throw $stepFailure
+                }
+                if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                    # Evaluate downstream control flow only after step-local inputs are restored.
+                    [void](Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId)
+                    Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
                 }
             }
             elseif($disposition -eq 'SKIP_FINAL'){
@@ -163,6 +285,19 @@ function Invoke-DynomaxStepSequence {
             }
             elseif($disposition -ne 'DEFER'){
                 throw "Unsupported control-flow disposition '$disposition' for '$logicalNodeId'."
+            }
+            if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+                if(Test-Path -LiteralPath $statePath -PathType Leaf){
+                    $state=Read-DynomaxJson -Path $statePath
+                    $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
+                    $isMainStep=-not [bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)
+                    if($terminalStatus -and $isMainStep){
+                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence)
+                        $index=$Sequence.Count
+                        continue
+                    }
+                }
             }
             $index++
         }
@@ -201,6 +336,7 @@ try{
 
         if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
             [void](Initialize-DynomaxControlFlowState -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory)
+            Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
         }
         try{Invoke-DynomaxStepSequence -Sequence $mainSteps}catch{$executionException=$_}
         $alwaysRunCleanup=[bool](Get-DynomaxPropertyValue -Object $workflow -Name 'alwaysRunCleanup' -DefaultValue $true)

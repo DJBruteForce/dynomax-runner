@@ -131,6 +131,51 @@ WHERE tr.RunId=@RunId;
     finally { $connection.Dispose() }
 }
 
+function Add-DynomaxMissingControlFlowActionRuns {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][object[]]$Steps,
+        [string]$Message = 'Physical execution slot was not selected before Workflow control flow terminated.'
+    )
+    if($Steps.Count -eq 0){return 0}
+    $connection=Open-DynomaxConnection -SqlConfig $SqlConfig
+    try{
+        $existingRows=Invoke-DynomaxSqlRows -Connection $connection -CommandText 'SELECT StepOrder FROM dmx.ActionRun WHERE RunId=@RunId;' -Parameters @{ '@RunId'=$RunId }
+        $existing=[System.Collections.Generic.HashSet[int]]::new()
+        foreach($row in @($existingRows)){[void]$existing.Add([int]$row.StepOrder)}
+        $insertedCount=0
+        foreach($step in @($Steps|Sort-Object order)){
+            $stepOrder=[int](Get-DynomaxPropertyValue -Object $step -Name 'order' -DefaultValue 0)
+            if($existing.Contains($stepOrder)){continue}
+            $actionKey=[string](Get-DynomaxPropertyValue -Object $step -Name 'actionId' -DefaultValue '')
+            $versionText=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
+            $actionVersionId=[Guid]::Empty
+            if([string]::IsNullOrWhiteSpace($actionKey) -or -not [Guid]::TryParse($versionText,[ref]$actionVersionId)){
+                throw "Cannot finalize skipped physical slot '$stepOrder' because its exact Action identity is incomplete."
+            }
+            $inserted=Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+INSERT INTO dmx.ActionRun(ActionRunId,RunId,StepOrder,ActionVersionId,ActionKey,Status,IsCleanup,StartedAtUtc,EndedAtUtc,Message,OutputJson)
+SELECT NEWID(),@RunId,@StepOrder,av.ActionVersionId,@ActionKey,N'SKIPPED',0,SYSUTCDATETIME(),SYSUTCDATETIME(),@Message,NULL
+FROM dmx.TestRun tr
+JOIN dmx.Action a ON a.ProjectId=tr.ProjectId AND a.ActionKey=@ActionKey
+JOIN dmx.ActionVersion av ON av.ActionId=a.ActionId AND av.ActionVersionId=@ActionVersionId
+WHERE tr.RunId=@RunId
+  AND NOT EXISTS(SELECT 1 FROM dmx.ActionRun ar WHERE ar.RunId=@RunId AND ar.StepOrder=@StepOrder);
+'@ -Parameters @{ '@RunId'=$RunId; '@StepOrder'=$stepOrder; '@ActionKey'=$actionKey; '@ActionVersionId'=$actionVersionId; '@Message'=$Message }
+            if([int]$inserted -eq 1){$insertedCount++;[void]$existing.Add($stepOrder)}
+            elseif(-$existing.Contains($stepOrder)){
+                $nowExists=[int](Invoke-DynomaxSqlScalar -Connection $connection -CommandText 'SELECT COUNT(*) FROM dmx.ActionRun WHERE RunId=@RunId AND StepOrder=@StepOrder;' -Parameters @{ '@RunId'=$RunId; '@StepOrder'=$stepOrder })
+                if($nowExists -ne 1){throw "Could not finalize skipped physical slot '$stepOrder' for Action '$actionKey'."}
+                [void]$existing.Add($stepOrder)
+            }
+        }
+        return $insertedCount
+    }
+    finally{$connection.Dispose()}
+}
+
 function Set-DynomaxContextValuesInSql {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$SqlConfig,[Parameter(Mandatory)][Guid]$RunId,[Parameter(Mandatory)]$Context)

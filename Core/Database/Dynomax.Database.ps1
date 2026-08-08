@@ -192,3 +192,44 @@ function Test-DynomaxBinarySqlParameter {
     $length = Invoke-DynomaxSqlScalar -Connection $Connection -CommandText 'SELECT DATALENGTH(@Payload);' -Parameters @{ '@Payload' = $payload }
     return ([int]$length -eq $payload.Length)
 }
+
+function Add-DynomaxRunEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$EventLevel,
+        [Parameter(Mandatory)][string]$EventType,
+        [Parameter(Mandatory)][string]$Message,
+        $Data = $null,
+        [Guid]$RunEventId = [Guid]::Empty
+    )
+
+    if ([string]::IsNullOrWhiteSpace($EventLevel)) { throw 'Run event level is required.' }
+    if ([string]::IsNullOrWhiteSpace($EventType)) { throw 'Run event type is required.' }
+    if ([string]::IsNullOrWhiteSpace($Message)) { throw 'Run event message is required.' }
+
+    $dataJson = if ($null -eq $Data) { $null } else { $Data | ConvertTo-Json -Depth 12 -Compress }
+    if ($RunEventId -eq [Guid]::Empty) { $RunEventId = [Guid]::NewGuid() }
+    $connection = $null
+    try {
+        $connection = Open-DynomaxConnection -SqlConfig $SqlConfig
+        [void](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+IF NOT EXISTS (SELECT 1 FROM dmx.RunEvent WHERE RunEventId=@RunEventId)
+BEGIN
+    INSERT INTO dmx.RunEvent(RunEventId,RunId,ActionRunId,EventLevel,EventType,Message,DataJson,CreatedAtUtc)
+    VALUES(@RunEventId,@RunId,NULL,@EventLevel,@EventType,@Message,@DataJson,SYSUTCDATETIME());
+END
+'@ -Parameters @{
+            '@RunEventId' = $RunEventId
+            '@RunId' = $RunId
+            '@EventLevel' = $EventLevel.Trim()
+            '@EventType' = $EventType.Trim()
+            '@Message' = $Message
+            '@DataJson' = $dataJson
+        })
+    }
+    finally {
+        if ($connection) { $connection.Dispose() }
+    }
+}

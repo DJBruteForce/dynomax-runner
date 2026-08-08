@@ -4,6 +4,7 @@ Library    OperatingSystem
 Library    Process
 Library    Collections
 Library    ${CURDIR}${/}DynomaxTimeout.py
+Library    ${CURDIR}${/}DynomaxContext.py
 Library    ${CURDIR}${/}DynomaxDiscovery.py
 
 *** Keywords ***
@@ -154,6 +155,8 @@ Assert Dynomax Discovery Target Reached
     ...    ${DYNOMAX_CONTEXT_PATH}
     ...    -RunDirectory
     ...    ${DYNOMAX_RUN_DIR}
+    ...    -RunId
+    ...    ${DYNOMAX_RUN_ID}
     ...    -NodeId
     ...    ${target_node}
     ...    stdout=PIPE
@@ -180,14 +183,21 @@ Fail Dynomax Control Flow Action
     ...    ${DYNOMAX_CONTEXT_PATH}
     ...    -RunDirectory
     ...    ${DYNOMAX_RUN_DIR}
+    ...    -RunId
+    ...    ${DYNOMAX_RUN_ID}
     ...    -NodeId
     ...    ${node_id}
     ...    stdout=PIPE
     ...    stderr=PIPE
     Should Be Equal As Integers    ${result.rc}    0    Control-flow failure notification failed: ${result.stderr}
+    Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
 
 Should Run Dynomax Control Flow Action
     [Arguments]    ${node_id}
+    ${terminal}=    Get Variable Value    \${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${False}
+    IF    ${terminal}
+        RETURN    SKIP_FINAL
+    END
     ${result}=    Run Process
     ...    ${DYNOMAX_POWERSHELL}
     ...    -NoLogo
@@ -206,6 +216,8 @@ Should Run Dynomax Control Flow Action
     ...    ${DYNOMAX_CONTEXT_PATH}
     ...    -RunDirectory
     ...    ${DYNOMAX_RUN_DIR}
+    ...    -RunId
+    ...    ${DYNOMAX_RUN_ID}
     ...    -NodeId
     ...    ${node_id}
     ...    stdout=PIPE
@@ -235,11 +247,19 @@ Advance Dynomax Control Flow After Action
     ...    ${DYNOMAX_CONTEXT_PATH}
     ...    -RunDirectory
     ...    ${DYNOMAX_RUN_DIR}
+    ...    -RunId
+    ...    ${DYNOMAX_RUN_ID}
     ...    -NodeId
     ...    ${node_id}
     ...    stdout=PIPE
     ...    stderr=PIPE
     Should Be Equal As Integers    ${result.rc}    0    Control-flow advance failed: ${result.stderr}
+    ${advance_state}=    Evaluate    str($result.stdout).strip().upper()
+    Should Match Regexp    ${advance_state}    ^(CONTINUE|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow advance state: ${advance_state}
+    IF    '${advance_state}' != 'CONTINUE'
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
+    END
+    RETURN    ${advance_state}
 
 Execute Dynomax Action With Policy
     [Arguments]    ${keyword_name}    ${is_cleanup}=False
@@ -510,6 +530,43 @@ Fill Dynomax Secret
     FINALLY
         Set Log Level    ${previous_log_level}
     END
+
+Persist Dynomax Explicit Robot Action Result
+    [Arguments]    ${robot_status}    ${robot_message}
+    ${message64}=    Evaluate    base64.b64encode(str($robot_message).encode('utf-8')).decode('ascii')    modules=base64
+    IF    '${robot_status}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}
+        ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
+        Run Keyword And Ignore Error    Take Screenshot    ${DYNOMAX_RUN_DIR}${/}screenshots${/}${DYNOMAX_STEP_ORDER}-${safe_name}.png
+    END
+    ${result}=    Run Process
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    -NoLogo
+    ...    -NoProfile
+    ...    -ExecutionPolicy
+    ...    Bypass
+    ...    -File
+    ...    ${DYNOMAX_PERSIST_SCRIPT}
+    ...    -DynomaxRoot
+    ...    ${DYNOMAX_ROOT}
+    ...    -RunId
+    ...    ${DYNOMAX_RUN_ID}
+    ...    -StepOrder
+    ...    ${DYNOMAX_STEP_ORDER}
+    ...    -ActionKey
+    ...    ${DYNOMAX_ACTION_ID}
+    ...    -ActionVersionId
+    ...    ${DYNOMAX_ACTION_VERSION_ID}
+    ...    -RobotStatus
+    ...    ${robot_status}
+    ...    -MessageBase64
+    ...    ${message64}
+    ...    -IsCleanup
+    ...    ${DYNOMAX_IS_CLEANUP}
+    ...    -ContextPath
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    stdout=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stdout.log
+    ...    stderr=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stderr.log
+    Should Be Equal As Integers    ${result.rc}    0    Dynomax could not persist action result.
 
 Persist Dynomax Robot Action Result
     ${metadata_ready}=    Get Variable Value    \${DYNOMAX_ACTION_METADATA_READY}    ${False}
