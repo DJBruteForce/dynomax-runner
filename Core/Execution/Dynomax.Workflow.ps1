@@ -49,6 +49,62 @@ function Resolve-DynomaxActionFolder {
     return $matches[0].Directory.FullName
 }
 
+function Assert-DynomaxBuiltInPackageSource {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Definition,
+        [Parameter(Mandatory)][string]$Folder,
+        [Parameter(Mandatory)][string]$DefinitionHash,
+        [Parameter(Mandatory)][string]$EntryPointHash
+    )
+    $origin=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'actionOrigin' -DefaultValue '')
+    if($origin -ne 'BuiltIn'){return}
+    $manifestPath=Join-Path $Folder 'BUILTIN_PACKAGE_MANIFEST.json'
+    if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw "Built-in Action package is missing BUILTIN_PACKAGE_MANIFEST.json: $Folder"}
+    $manifest=Read-DynomaxJson -Path $manifestPath
+    $runtimeKey=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'actionId' -DefaultValue '')
+    $canonicalKey=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'canonicalActionId' -DefaultValue '')
+    $canonicalDefinitionHash=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'canonicalDefinitionSha256' -DefaultValue '')
+    $contractVersion=[int](Get-DynomaxPropertyValue -Object $Definition -Name 'builtInContractVersion' -DefaultValue 0)
+    $requiredCore=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'requiredCoreVersion' -DefaultValue '')
+    $manifestRuntimeDefinitionHash=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeDefinitionSha256' -DefaultValue '')
+    # The manifest runtimeDefinitionSha256 is the source catalogue's indented canonical JSON hash.
+    # action.json is deliberately materialized in Core's compact canonical form, so those byte hashes are not interchangeable.
+    # Exact runtime definition bytes are verified immediately after fingerprinting against dmx.ActionVersion.DefinitionHash.
+    if([string](Get-DynomaxPropertyValue -Object $manifest -Name 'packageType' -DefaultValue '') -ne 'DynomaxBuiltInActionPackage' -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionOrigin' -DefaultValue '') -ne 'BuiltIn' -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionKey' -DefaultValue '') -cne $canonicalKey -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeActionKey' -DefaultValue '') -cne $runtimeKey -or
+       [int](Get-DynomaxPropertyValue -Object $manifest -Name 'contractVersion' -DefaultValue 0) -ne $contractVersion -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'definitionSha256' -DefaultValue '') -ine $canonicalDefinitionHash -or
+       $manifestRuntimeDefinitionHash -notmatch '^[0-9a-fA-F]{64}$' -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'entryPointSha256' -DefaultValue '') -ine $EntryPointHash -or
+       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'requiredCoreVersion' -DefaultValue '') -cne $requiredCore -or
+       -not $canonicalKey -or -not $canonicalDefinitionHash -or
+       @('1.0.15','1.0.16','1.0.17') -cnotcontains $requiredCore){
+        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest does not match its exact immutable definition/runtime identity."
+    }
+    if([bool](Get-DynomaxPropertyValue -Object $manifest -Name 'secretValuesIncluded' -DefaultValue $true)){
+        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest may not contain secret values."
+    }
+    $entryPoint=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'entryPoint' -DefaultValue '')
+    $manifestFiles=@((Get-DynomaxPropertyValue -Object $manifest -Name 'files' -DefaultValue @()))
+    if($manifestFiles.Count -lt 1 -or -not @($manifestFiles | Where-Object { [string](Get-DynomaxPropertyValue -Object $_ -Name 'path' -DefaultValue '') -ceq $entryPoint })){
+        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest does not include its exact entry point '$entryPoint'."
+    }
+    foreach($file in $manifestFiles){
+        $relative=[string](Get-DynomaxPropertyValue -Object $file -Name 'path' -DefaultValue '')
+        $expected=[string](Get-DynomaxPropertyValue -Object $file -Name 'sha256' -DefaultValue '')
+        if(-not $relative -or [IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[\\/])\.\.([\\/]|$)'){
+            throw "Built-in Action '$canonicalKey' v$contractVersion package manifest contains an unsafe file path."
+        }
+        $path=Join-Path $Folder $relative
+        if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' is missing."}
+        $actual=Get-DynomaxSha256 -Path $path
+        if(-not $expected -or $actual -ine $expected){throw "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' failed SHA-256 verification."}
+    }
+}
+
 function Get-DynomaxActionSourceFingerprint {
     [CmdletBinding()]
     param(
@@ -68,15 +124,18 @@ function Get-DynomaxActionSourceFingerprint {
     }
 
     $canonical = $definition | ConvertTo-Json -Depth 100 -Compress
+    $definitionHash=Get-DynomaxTextSha256 -Text $canonical
+    $implementationHash=Get-DynomaxSha256 -Path $entryPointPath
+    Assert-DynomaxBuiltInPackageSource -Definition $definition -Folder $ActionJsonFile.Directory.FullName -DefinitionHash $definitionHash -EntryPointHash $implementationHash
     return [pscustomobject]@{
         Folder = $ActionJsonFile.Directory.FullName
         SourceLocation = $SourceLocation
         Definition = $definition
         DefinitionPath = $ActionJsonFile.FullName
         EntryPointPath = $entryPointPath
-        DefinitionHash = Get-DynomaxTextSha256 -Text $canonical
+        DefinitionHash = $definitionHash
         DefinitionFileSha256 = Get-DynomaxSha256 -Path $ActionJsonFile.FullName
-        ImplementationHash = Get-DynomaxSha256 -Path $entryPointPath
+        ImplementationHash = $implementationHash
     }
 }
 
@@ -339,24 +398,24 @@ function Assert-DynomaxVersionPinnedSessionPlan {
             $session = [string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxSessionBehavior' -DefaultValue 'DoesNotUseBrowser')
 
             if ($section.Name -eq 'normal' -and [bool](Get-DynomaxPropertyValue -Object $step -Name 'continueOnFailure' -DefaultValue $false)) {
-                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Version-pinned workflows are fail-fast in Dynomax Core 1.0.11. Step '$key' cannot set continueOnFailure=true."
+                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Version-pinned workflows are fail-fast in Dynomax Core 1.0.16. Step '$key' cannot set continueOnFailure=true."
             }
 
             if ($engine -notin @('RobotBrowser','PowerShell')) {
                 Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Action '$key' uses unsupported engine '$engine'."
             }
             if ($engine -eq 'RobotBrowser') {
-                if ($session -notin @('RequiresNewBrowser','RequiresExistingBrowser','RequiresNewOrExistingBrowser')) {
+                if ($session -notin @('RequiresNewBrowser','RequiresExistingBrowser','RequiresNewOrExistingBrowser','DoesNotUseBrowser')) {
                     Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "RobotBrowser action '$key' has unsupported session behavior '$session'."
                 }
                 if ($robotVersionByActionKey.ContainsKey($key) -and [string]$robotVersionByActionKey[$key] -ne [string]$versionId) {
-                    Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) Robot block requests more than one version of action '$key'. Core 1.0.11 cannot load two resource versions with the same Robot keyword into one shared browser suite."
+                    Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) Robot block requests more than one version of action '$key'. Core 1.0.16 cannot load two resource versions with the same Robot keyword into one shared browser suite."
                 }
                 $robotVersionByActionKey[$key] = [string]$versionId
                 if (-not $insideRobotBlock) {
                     $robotBlockCount++
                     if ($robotBlockCount -gt 1) {
-                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) plan contains more than one Robot browser block. Dynomax Core 1.0.11 supports one contiguous Robot block per normal or cleanup section."
+                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) plan contains more than one Robot browser block. Dynomax Core 1.0.16 supports one contiguous Robot block per normal or cleanup section."
                     }
                     if ($session -eq 'RequiresExistingBrowser') {
                         Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Action '$key' requires an existing browser, but it starts the independent $($section.Name) Robot block."

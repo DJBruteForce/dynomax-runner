@@ -60,7 +60,7 @@ $packageHash=Get-DynomaxSha256 -Path $workflowPath
 $tempRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.tempRuns
 $runDirectory=Ensure-DynomaxDirectory -Path (Join-Path $tempRoot ([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')))
 $contextPath=Join-Path $runDirectory 'context.json'
-$context=[ordered]@{schemaVersion=1;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};stepInputs=[ordered]@{}}
+$context=[ordered]@{schemaVersion=1;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};stepInputs=[ordered]@{};runtimePolicy=[ordered]@{}}
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
@@ -80,6 +80,11 @@ if($ContextSeedPath){
             if([string]::IsNullOrWhiteSpace([string]$property.Name)){throw 'Context seed contains an empty step-input key.'}
             $context.stepInputs[[string]$property.Name]=$property.Value
         }
+    }
+    $seedRuntimePolicy=Get-DynomaxPropertyValue -Object $seed -Name 'runtimePolicy' -DefaultValue $null
+    if($null -ne $seedRuntimePolicy){
+        if($seedRuntimePolicy -isnot [System.Management.Automation.PSCustomObject]){throw 'Context seed runtimePolicy must be a JSON object.'}
+        $context.runtimePolicy=$seedRuntimePolicy
     }
 }
 Write-DynomaxJson -Value $context -Path $contextPath

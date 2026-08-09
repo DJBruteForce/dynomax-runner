@@ -304,6 +304,7 @@ function Get-DynomaxLoopState {
     }
     $created=[pscustomobject][ordered]@{
         nodeId=$nodeId
+        kind='Loop'
         startedAtUtc=[DateTime]::UtcNow.ToString('o')
         maximumIterations=[int](Get-DynomaxPropertyValue -Object $Node -Name 'maximumIterations' -DefaultValue 0)
         overallTimeoutSeconds=[int](Get-DynomaxPropertyValue -Object $Node -Name 'overallTimeoutSeconds' -DefaultValue 0)
@@ -328,6 +329,104 @@ function Fail-DynomaxLoop {
     Set-DynomaxSystemNodeState -State $State -NodeId ([string]$LoopState.nodeId) -Status 'FAIL' -Event 'LoopFailed' -Message "Bounded Loop failed closed: $Reason." -LoopIteration ([int]$LoopState.iterations) -StopReason $Reason
     Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$LoopState.nodeId) -ToNodeId ([string]$LoopState.nodeId) -When 'Failure' -EdgeId '' -Event 'LoopFailed' -LoopIteration ([int]$LoopState.iterations)
     Finalize-DynomaxPendingSystemNodes -State $State
+}
+
+function Get-DynomaxRepeatState {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$State,[Parameter(Mandatory)]$Node)
+    $nodeId=[string]$Node.nodeId
+    foreach($existing in @($State.loops)){
+        if([string]$existing.nodeId -eq $nodeId){return $existing}
+    }
+    $created=[pscustomobject][ordered]@{
+        nodeId=$nodeId
+        kind='Repeat'
+        startedAtUtc=[DateTime]::UtcNow.ToString('o')
+        maximumIterations=[int](Get-DynomaxPropertyValue -Object $Node -Name 'count' -DefaultValue 0)
+        overallTimeoutSeconds=[int](Get-DynomaxPropertyValue -Object $Node -Name 'overallTimeoutSeconds' -DefaultValue 0)
+        iterations=0
+        completed=$false
+        stopReason=$null
+        completedAtUtc=$null
+    }
+    $State.loops=@($State.loops)+@($created)
+    return $created
+}
+
+function Fail-DynomaxRepeat {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$State,[Parameter(Mandatory)]$RepeatState,[Parameter(Mandatory)][string]$Reason)
+    $RepeatState.completed=$true
+    $RepeatState.stopReason=$Reason
+    $RepeatState.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+    $State.nextActionNodeId=$null
+    $State.terminalNodeId=[string]$RepeatState.nodeId
+    $State.terminalStatus='FAIL'
+    Set-DynomaxSystemNodeState -State $State -NodeId ([string]$RepeatState.nodeId) -Status 'FAIL' -Event 'RepeatFailed' -Message "Repeat N Times failed closed: $Reason." -LoopIteration ([int]$RepeatState.iterations) -StopReason $Reason
+    Add-DynomaxControlFlowTransition -State $State -FromNodeId ([string]$RepeatState.nodeId) -ToNodeId ([string]$RepeatState.nodeId) -When 'Failure' -EdgeId '' -Event 'RepeatFailed' -LoopIteration ([int]$RepeatState.iterations)
+    Finalize-DynomaxPendingSystemNodes -State $State
+}
+
+function Get-DynomaxSwitchTarget {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Plan,[Parameter(Mandatory)]$Node,[Parameter(Mandatory)]$Context)
+    $nodeId=[string]$Node.nodeId
+    $binding=Get-DynomaxPropertyValue -Object $Node -Name 'value' -DefaultValue $null
+    if($null -eq $binding){throw "Switch '$nodeId' has no value binding."}
+    $value=Get-DynomaxControlFlowContextValue -Context $Context -Binding $binding
+    $candidate=if($null -eq $value){'null'}elseif($value -is [bool]){if([bool]$value){'true'}else{'false'}}else{[Convert]::ToString($value,[Globalization.CultureInfo]::InvariantCulture)}
+    $caseSensitive=[bool](Get-DynomaxPropertyValue -Object $Node -Name 'caseSensitive' -DefaultValue $true)
+    $comparison=if($caseSensitive){[StringComparison]::Ordinal}else{[StringComparison]::OrdinalIgnoreCase}
+    $branches=@(Get-DynomaxControlFlowOutgoing -Plan $Plan -NodeId $nodeId | Where-Object { [string]$_.when -eq 'Branch' })
+    $default=$null
+    foreach($edge in $branches){
+        $label=[string](Get-DynomaxPropertyValue -Object $edge -Name 'label' -DefaultValue '')
+        if([string]::Equals($label,'Default',[StringComparison]::OrdinalIgnoreCase)){$default=$edge;continue}
+        if([string]::Equals($label,$candidate,$comparison)){return $edge}
+    }
+    return $default
+}
+
+function Complete-DynomaxLoopJump {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Plan,[Parameter(Mandatory)]$State,[Parameter(Mandatory)]$Node,[Parameter(Mandatory)][ValidateSet('Break','Continue')]$Kind)
+    $nodeId=[string]$Node.nodeId
+    $edges=@(Get-DynomaxControlFlowOutgoing -Plan $Plan -NodeId $nodeId | Where-Object { [string]$_.when -eq 'Success' })
+    if($edges.Count -ne 1){throw "$Kind Loop '$nodeId' requires exactly one Success edge."}
+    $edge=$edges[0]
+    $targetId=[string]$edge.toNodeId
+    $active=@($State.loops | Where-Object { -not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'completed' -DefaultValue $false) })
+    [array]::Reverse($active)
+    $matched=$null
+    foreach($scope in $active){
+        $scopeNodeId=[string](Get-DynomaxPropertyValue -Object $scope -Name 'nodeId' -DefaultValue '')
+        if(-not $scopeNodeId){continue}
+        if($Kind -eq 'Break'){
+            $exit=@((Get-DynomaxControlFlowOutgoing -Plan $Plan -NodeId $scopeNodeId) | Where-Object { [string]$_.when -eq 'False' })
+            if($exit.Count -eq 1 -and [string]$exit[0].toNodeId -eq $targetId){$matched=$scope;break}
+            continue
+        }
+
+        $scopeNode=Get-DynomaxControlFlowNode -Plan $Plan -NodeId $scopeNodeId
+        if($null -eq $scopeNode){continue}
+        $scopeKind=[string](Get-DynomaxPropertyValue -Object $scope -Name 'kind' -DefaultValue '')
+        $expectedTarget=$scopeNodeId
+        if($scopeKind -eq 'Loop'){
+            $left=Get-DynomaxPropertyValue -Object $scopeNode -Name 'left' -DefaultValue $null
+            $expectedTarget=[string](Get-DynomaxPropertyValue -Object $left -Name 'sourceNodeId' -DefaultValue '')
+        }
+        if($expectedTarget -and $expectedTarget -eq $targetId){$matched=$scope;break}
+    }
+    if($null -eq $matched){throw "$Kind Loop '$nodeId' has no active enclosing bounded loop matching its validated jump target."}
+    if($Kind -eq 'Break'){
+        $matched.completed=$true
+        $matched.stopReason='Break'
+        $matched.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+        Set-DynomaxSystemNodeState -State $State -NodeId ([string]$matched.nodeId) -Status 'PASS' -Event 'LoopBroken' -Message 'The active bounded loop exited through Break Loop.' -LoopIteration ([int]$matched.iterations) -StopReason 'Break'
+    }
+    Set-DynomaxSystemNodeState -State $State -NodeId $nodeId -Status 'PASS' -Event $(if($Kind -eq 'Break'){'LoopBreak'}else{'LoopContinue'}) -Message $(if($Kind -eq 'Break'){'Break Loop selected the enclosing loop exit.'}else{'Continue Loop selected the enclosing loop next-iteration boundary.'})
+    Add-DynomaxControlFlowTransition -State $State -FromNodeId $nodeId -ToNodeId $targetId -When 'Success' -EdgeId ([string]$edge.edgeId) -Event $(if($Kind -eq 'Break'){'LoopBreak'}else{'LoopContinue'})
+    return $targetId
 }
 
 function Start-DynomaxFork {
@@ -513,6 +612,42 @@ function Move-DynomaxControlFlowToNextExecutable {
                 if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
                 continue
             }
+            'Switch' {
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'Running' -Event 'SwitchEvaluating' -Message 'Switch / Case is evaluating its configured typed value.'
+                $caseEdge=Get-DynomaxSwitchTarget -Plan $plan -Node $current -Context $Context
+                if($null -eq $caseEdge){throw "Switch '$currentId' matched no case and has no Default path."}
+                $targetId=[string]$caseEdge.toNodeId
+                if(-not $nodes.ContainsKey($targetId)){throw "Switch case edge '$([string]$caseEdge.edgeId)' targets missing node '$targetId'."}
+                Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When 'Branch' -EdgeId ([string]$caseEdge.edgeId) -Event 'SwitchCaseSelected' -BranchLabel ([string]$caseEdge.label)
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'SwitchCaseSelected' -Message "Switch selected case '$([string]$caseEdge.label)'." -BranchLabel ([string]$caseEdge.label)
+                $currentId=$targetId
+                if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                continue
+            }
+            'Assert' {
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'Running' -Event 'AssertEvaluating' -Message 'Assert is evaluating its configured typed operands.'
+                $result=[bool](Test-DynomaxCondition -Node $current -Context $Context)
+                if(-not $result){
+                    $classification=[string](Get-DynomaxPropertyValue -Object $current -Name 'classification' -DefaultValue 'ASSERTION_FAILED')
+                    $message=[string](Get-DynomaxPropertyValue -Object $current -Name 'message' -DefaultValue 'Assertion failed.')
+                    $State.nextActionNodeId=$null
+                    $State.terminalNodeId=$currentId
+                    $State.terminalStatus='FAIL'
+                    Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'FAIL' -Event 'AssertionFailed' -Message $(if($message){$message}else{'Assertion failed.'}) -StopReason $(if($classification){$classification}else{'ASSERTION_FAILED'})
+                    Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $currentId -When 'Failure' -EdgeId '' -ConditionResult $false -Operator ([string]$current.operator) -Event 'AssertionFailed'
+                    Finalize-DynomaxPendingSystemNodes -State $State
+                    return
+                }
+                $successEdges=@(Get-DynomaxControlFlowOutgoing -Plan $plan -NodeId $currentId | Where-Object { [string]$_.when -eq 'Success' })
+                if($successEdges.Count -ne 1){throw "Assert '$currentId' requires exactly one Success edge."}
+                $edge=$successEdges[0]
+                $targetId=[string]$edge.toNodeId
+                Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When 'Success' -EdgeId ([string]$edge.edgeId) -ConditionResult $true -Operator ([string]$current.operator) -Event 'AssertionPassed'
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'AssertionPassed' -Message 'Assert condition passed.'
+                $currentId=$targetId
+                if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                continue
+            }
             'Fork' {
                 Start-DynomaxFork -Plan $plan -State $State -ForkNode $current
                 $targetId=Start-DynomaxNextForkBranch -State $State
@@ -570,6 +705,54 @@ function Move-DynomaxControlFlowToNextExecutable {
                 if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
                 continue
             }
+            'Repeat' {
+                $repeatState=Get-DynomaxRepeatState -State $State -Node $current
+                if([string]((Get-DynomaxSystemNodeState -State $State -NodeId $currentId).status) -eq 'Pending'){
+                    Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'Running' -Event 'RepeatStarted' -Message 'Repeat N Times started.' -LoopIteration ([int]$repeatState.iterations)
+                }
+                $started=[DateTimeOffset]::Parse([string]$repeatState.startedAtUtc)
+                if((([DateTimeOffset]::UtcNow-$started).TotalSeconds) -ge [int]$repeatState.overallTimeoutSeconds){
+                    Fail-DynomaxRepeat -State $State -RepeatState $repeatState -Reason 'OverallTimeoutExceeded'
+                    return
+                }
+                if([int]$repeatState.iterations -ge [int]$repeatState.maximumIterations){
+                    $repeatState.completed=$true
+                    $repeatState.stopReason='CountCompleted'
+                    $repeatState.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+                    $exitEdges=@(Get-DynomaxControlFlowOutgoing -Plan $plan -NodeId $currentId | Where-Object { [string]$_.when -eq 'False' })
+                    if($exitEdges.Count -ne 1){throw "Repeat '$currentId' requires exactly one False exit edge."}
+                    $edge=$exitEdges[0]
+                    $targetId=[string]$edge.toNodeId
+                    Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When 'False' -EdgeId ([string]$edge.edgeId) -Event 'RepeatCompleted' -LoopIteration ([int]$repeatState.iterations)
+                    Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'PASS' -Event 'RepeatCompleted' -Message 'Repeat N Times completed its configured count.' -LoopIteration ([int]$repeatState.iterations) -StopReason 'CountCompleted'
+                    $currentId=$targetId
+                    if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                    continue
+                }
+                $repeatState.iterations=[int]$repeatState.iterations+1
+                $bodyEdges=@(Get-DynomaxControlFlowOutgoing -Plan $plan -NodeId $currentId | Where-Object { [string]$_.when -eq 'True' })
+                if($bodyEdges.Count -ne 1){throw "Repeat '$currentId' requires exactly one True body edge."}
+                $edge=$bodyEdges[0]
+                $targetId=[string]$edge.toNodeId
+                Add-DynomaxControlFlowTransition -State $State -FromNodeId $currentId -ToNodeId $targetId -When 'True' -EdgeId ([string]$edge.edgeId) -Event 'RepeatIterationStarted' -LoopIteration ([int]$repeatState.iterations)
+                $currentId=$targetId
+                if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                continue
+            }
+            'Break' {
+                $targetId=Complete-DynomaxLoopJump -Plan $plan -State $State -Node $current -Kind 'Break'
+                if(-not $nodes.ContainsKey($targetId)){throw "Break Loop '$currentId' targets missing node '$targetId'."}
+                $currentId=$targetId
+                if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                continue
+            }
+            'Continue' {
+                $targetId=Complete-DynomaxLoopJump -Plan $plan -State $State -Node $current -Kind 'Continue'
+                if(-not $nodes.ContainsKey($targetId)){throw "Continue Loop '$currentId' targets missing node '$targetId'."}
+                $currentId=$targetId
+                if(-not(Test-DynomaxDiscoveryAfterMove -Workflow $Workflow -State $State -CurrentNodeId $currentId)){return}
+                continue
+            }
             'Succeed' {
                 $State.nextActionNodeId=$null
                 $State.terminalNodeId=$currentId
@@ -606,7 +789,7 @@ function Initialize-DynomaxControlFlowState {
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $null}
     $plan=$Workflow.controlFlow
     $schema=[int](Get-DynomaxPropertyValue -Object $plan -Name 'schemaVersion' -DefaultValue 0)
-    if($schema -notin @(1,2)){throw "Unsupported controlFlow schemaVersion '$schema'."}
+    if($schema -notin @(1,2,3)){throw "Unsupported controlFlow schemaVersion '$schema'."}
     $startId=[string](Get-DynomaxPropertyValue -Object $plan -Name 'startNodeId' -DefaultValue '')
     if(-not $startId){throw 'controlFlow.startNodeId is required.'}
     $context=Read-DynomaxJson -Path $ContextPath
