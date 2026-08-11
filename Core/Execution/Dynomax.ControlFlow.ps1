@@ -105,8 +105,26 @@ function Get-DynomaxControlFlowContextValue {
     switch($kind){
         'Literal' { return Get-DynomaxPropertyValue -Object $Binding -Name 'value' -DefaultValue $null }
         'NodeOutput' {
+            $nodeId=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'nodeId' -DefaultValue '')
             $output=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'outputName' -DefaultValue '')
             if(-not $output){throw 'Control-flow NodeOutput binding has no outputName.'}
+            $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
+            $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
+            if($nodeId -and $null -ne $steps){
+                $matches=@()
+                foreach($stepProperty in @($steps.PSObject.Properties)){
+                    $step=$stepProperty.Value
+                    if([string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue '') -ne $nodeId){continue}
+                    $outputs=Get-DynomaxPropertyValue -Object $step -Name 'outputs' -DefaultValue $null
+                    $outputProperty=if($null -ne $outputs){$outputs.PSObject.Properties[$output]}else{$null}
+                    if($null -ne $outputProperty -and [bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'available' -DefaultValue $false)){
+                        $matches+=,[pscustomobject]@{executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1);capturedAtUtc=[string](Get-DynomaxPropertyValue -Object $step -Name 'capturedAtUtc' -DefaultValue '');value=(Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'value' -DefaultValue $null)}
+                    }
+                }
+                $selected=@($matches|Sort-Object executionSlot,capturedAtUtc -Descending|Select-Object -First 1)
+                if($selected.Count -eq 1){return $selected[0].value}
+            }
+            # Compatibility fallback for historical context seeds/publications that predate Run Data Pool capture.
             $values=Get-DynomaxPropertyValue -Object $Context -Name 'values' -DefaultValue $null
             if($null -eq $values){throw 'Runtime context has no values object.'}
             $property=$values.PSObject.Properties[$output]
@@ -260,7 +278,8 @@ function Sync-DynomaxControlFlowRunEvents {
     param(
         [Parameter(Mandatory)]$SqlConfig,
         [Parameter(Mandatory)][Guid]$RunId,
-        [Parameter(Mandatory)][string]$RunDirectory
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [System.Data.SqlClient.SqlConnection]$Connection
     )
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
     if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){return}
@@ -277,7 +296,7 @@ function Sync-DynomaxControlFlowRunEvents {
         if(-not $message){$message="$nodeType '$nodeId' -> $status ($event)."}
         $level=if($status -eq 'FAIL'){'Error'}elseif($status -eq 'SKIPPED'){'Info'}else{'Info'}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'SystemNodeState' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel $level -EventType 'ControlFlow.SystemNodeState' -Message $message -Data $item -RunEventId $eventId
+        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel $level -EventType 'ControlFlow.SystemNodeState' -Message $message -Data $item -RunEventId $eventId -Connection $Connection
     }
     $transitions=@((Get-DynomaxPropertyValue -Object $state -Name 'transitions' -DefaultValue @()))
     $transitionCursor=[int](Get-DynomaxPropertyValue -Object $state -Name 'persistedTransitionCount' -DefaultValue 0)
@@ -288,7 +307,7 @@ function Sync-DynomaxControlFlowRunEvents {
         $event=[string](Get-DynomaxPropertyValue -Object $item -Name 'event' -DefaultValue '')
         $message=if($event){"Control-flow transition '$event': '$from' -> '$to'."}else{"Control-flow transition: '$from' -> '$to'."}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'Transition' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'ControlFlow.Transition' -Message $message -Data $item -RunEventId $eventId
+        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'ControlFlow.Transition' -Message $message -Data $item -RunEventId $eventId -Connection $Connection
     }
     $state.persistedSystemNodeEventCount=$systemEvents.Count
     $state.persistedTransitionCount=$transitions.Count

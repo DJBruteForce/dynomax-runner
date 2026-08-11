@@ -202,7 +202,8 @@ function Add-DynomaxRunEvent {
         [Parameter(Mandatory)][string]$EventType,
         [Parameter(Mandatory)][string]$Message,
         $Data = $null,
-        [Guid]$RunEventId = [Guid]::Empty
+        [Guid]$RunEventId = [Guid]::Empty,
+        [System.Data.SqlClient.SqlConnection]$Connection
     )
 
     if ([string]::IsNullOrWhiteSpace($EventLevel)) { throw 'Run event level is required.' }
@@ -211,10 +212,11 @@ function Add-DynomaxRunEvent {
 
     $dataJson = if ($null -eq $Data) { $null } else { $Data | ConvertTo-Json -Depth 12 -Compress }
     if ($RunEventId -eq [Guid]::Empty) { $RunEventId = [Guid]::NewGuid() }
-    $connection = $null
+    $ownsConnection = $null -eq $Connection
+    $activeConnection = $Connection
     try {
-        $connection = Open-DynomaxConnection -SqlConfig $SqlConfig
-        [void](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+        if($ownsConnection){$activeConnection = Open-DynomaxConnection -SqlConfig $SqlConfig}
+        [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
 IF NOT EXISTS (SELECT 1 FROM dmx.RunEvent WHERE RunEventId=@RunEventId)
 BEGIN
     INSERT INTO dmx.RunEvent(RunEventId,RunId,ActionRunId,EventLevel,EventType,Message,DataJson,CreatedAtUtc)
@@ -230,6 +232,6 @@ END
         })
     }
     finally {
-        if ($connection) { $connection.Dispose() }
+        if ($ownsConnection -and $activeConnection) { $activeConnection.Dispose() }
     }
 }

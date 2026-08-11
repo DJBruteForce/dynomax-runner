@@ -27,7 +27,8 @@ function Invoke-DynomaxProcess {
         [switch]$StreamOutput,
         [switch]$ShowCommand,
         [int]$HeartbeatSeconds = 15,
-        [string]$DisplayName
+        [string]$DisplayName,
+        [scriptblock]$HeartbeatCallback
     )
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -107,8 +108,11 @@ function Invoke-DynomaxProcess {
                 break
             }
 
-            if ($StreamOutput -and $HeartbeatSeconds -gt 0 -and ([DateTime]::UtcNow - $lastHeartbeat).TotalSeconds -ge $HeartbeatSeconds -and -not $process.HasExited) {
-                Write-Host ("[Dynomax] RUNNING {0}; PID {1}; elapsed {2}." -f $label, $process.Id, (Format-DynomaxElapsed $stopwatch.Elapsed)) -ForegroundColor DarkGray
+            if ($HeartbeatSeconds -gt 0 -and ([DateTime]::UtcNow - $lastHeartbeat).TotalSeconds -ge $HeartbeatSeconds -and -not $process.HasExited) {
+                if($StreamOutput){Write-Host ("[Dynomax] RUNNING {0}; PID {1}; elapsed {2}." -f $label, $process.Id, (Format-DynomaxElapsed $stopwatch.Elapsed)) -ForegroundColor DarkGray}
+                if($null -ne $HeartbeatCallback){
+                    try{& $HeartbeatCallback $label $process.Id ([int][Math]::Floor($stopwatch.Elapsed.TotalSeconds))}catch{Write-Warning ("Dynomax live heartbeat persistence failed: {0}" -f $_.Exception.Message)}
+                }
                 $lastHeartbeat = [DateTime]::UtcNow
             }
 

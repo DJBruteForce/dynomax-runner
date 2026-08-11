@@ -1,5 +1,100 @@
 Set-StrictMode -Version Latest
 
+$script:DynomaxBuiltInCoreContractPolicy = $null
+
+function Get-DynomaxBuiltInCoreContractPolicy {
+    [CmdletBinding()]
+    param()
+
+    if ($null -ne $script:DynomaxBuiltInCoreContractPolicy) {
+        return $script:DynomaxBuiltInCoreContractPolicy
+    }
+
+    $manifestPath = Join-Path $PSScriptRoot 'BUILTIN_CORE_CONTRACTS.json'
+    $legacySupported = @('1.0.15','1.0.16','1.0.17')
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        $script:DynomaxBuiltInCoreContractPolicy = [pscustomobject]@{
+            ManifestPath = $manifestPath
+            InstalledCoreVersion = '1.0.18'
+            SupportedRequiredCoreVersions = $legacySupported
+            LegacyFallback = $true
+        }
+        return $script:DynomaxBuiltInCoreContractPolicy
+    }
+
+    try {
+        $policy = Read-DynomaxJson -Path $manifestPath
+        $schemaVersion = [int](Get-DynomaxPropertyValue -Object $policy -Name 'schemaVersion' -DefaultValue 0)
+        $declaredCoreVersion = [string](Get-DynomaxPropertyValue -Object $policy -Name 'coreVersion' -DefaultValue '')
+        $versions = @((Get-DynomaxPropertyValue -Object $policy -Name 'supportedRequiredCoreVersions' -DefaultValue @()) |
+            ForEach-Object { [string]$_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique)
+        $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $versionPath = Join-Path $root 'VERSION.txt'
+        $installedCoreVersion = if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
+            ([string](Get-Content -LiteralPath $versionPath -Raw)).Trim()
+        } else { '' }
+        if ($schemaVersion -ne 1 -or -not $declaredCoreVersion -or $versions.Count -lt 1 -or
+            -not $installedCoreVersion -or $declaredCoreVersion -cne $installedCoreVersion) {
+            throw 'The Built-in Core contract policy does not match the installed Dynomax Core identity.'
+        }
+        $script:DynomaxBuiltInCoreContractPolicy = [pscustomobject]@{
+            ManifestPath = $manifestPath
+            InstalledCoreVersion = $installedCoreVersion
+            SupportedRequiredCoreVersions = $versions
+            LegacyFallback = $false
+        }
+        return $script:DynomaxBuiltInCoreContractPolicy
+    }
+    catch {
+        $exception = New-Object System.InvalidOperationException('Dynomax Core Built-in contract policy is invalid.', $_.Exception)
+        $exception.Data['DynomaxErrorCode'] = 'CORE_BUILTIN_CONTRACT_POLICY_INVALID'
+        $exception.Data['DynomaxArtifactType'] = 'CoreContractPolicy'
+        $exception.Data['DynomaxArtifactPath'] = 'Core/Execution/BUILTIN_CORE_CONTRACTS.json'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the exact validated Dynomax Core package before executing Built-in Actions.'
+        throw $exception
+    }
+}
+
+function New-DynomaxBuiltInClosureException {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Code,
+        [Parameter(Mandatory)][string]$ActionKey,
+        [Parameter(Mandatory)][int]$ContractVersion,
+        [Parameter(Mandatory)][string]$ArtifactType,
+        [Parameter(Mandatory)][string]$Message,
+        [string]$ArtifactPath,
+        [string]$RequiredCoreVersion,
+        [string]$InstalledCoreVersion,
+        [string]$ExpectedDefinitionSha256,
+        [string]$ActualDefinitionSha256,
+        [string]$ExpectedEntryPointSha256,
+        [string]$ActualEntryPointSha256,
+        [string]$ExpectedValue,
+        [string]$ActualValue,
+        [string]$CorrectiveAction = 'Reinstall the exact immutable Built-in package/Core combination or repair the publication from authoritative source bytes.'
+    )
+
+    $exception = New-Object System.InvalidOperationException($Message)
+    $exception.Data['DynomaxErrorCode'] = $Code
+    $exception.Data['DynomaxArtifactType'] = $ArtifactType
+    if ($ArtifactPath) { $exception.Data['DynomaxArtifactPath'] = $ArtifactPath }
+    $exception.Data['DynomaxBuiltInActionKey'] = $ActionKey
+    $exception.Data['DynomaxBuiltInContractVersion'] = [string]$ContractVersion
+    if ($RequiredCoreVersion) { $exception.Data['DynomaxRequiredCoreVersion'] = $RequiredCoreVersion }
+    if ($InstalledCoreVersion) { $exception.Data['DynomaxInstalledCoreVersion'] = $InstalledCoreVersion }
+    if ($ExpectedDefinitionSha256) { $exception.Data['DynomaxExpectedDefinitionSha256'] = $ExpectedDefinitionSha256 }
+    if ($ActualDefinitionSha256) { $exception.Data['DynomaxActualDefinitionSha256'] = $ActualDefinitionSha256 }
+    if ($ExpectedEntryPointSha256) { $exception.Data['DynomaxExpectedEntryPointSha256'] = $ExpectedEntryPointSha256 }
+    if ($ActualEntryPointSha256) { $exception.Data['DynomaxActualEntryPointSha256'] = $ActualEntryPointSha256 }
+    if ($ExpectedValue) { $exception.Data['DynomaxExpectedValue'] = $ExpectedValue }
+    if ($ActualValue) { $exception.Data['DynomaxActualValue'] = $ActualValue }
+    $exception.Data['DynomaxCorrectiveAction'] = $CorrectiveAction
+    return $exception
+}
+
 function New-DynomaxExecutionPlanException {
     [CmdletBinding()]
     param(
@@ -7,7 +102,8 @@ function New-DynomaxExecutionPlanException {
         [Parameter(Mandatory)][int]$StepOrder,
         [Parameter(Mandatory)][string]$ActionKey,
         [Parameter(Mandatory)][string]$Message,
-        [Guid]$ActionVersionId = [Guid]::Empty
+        [Guid]$ActionVersionId = [Guid]::Empty,
+        [hashtable]$Metadata
     )
 
     $exception = New-Object System.InvalidOperationException($Message)
@@ -16,6 +112,11 @@ function New-DynomaxExecutionPlanException {
     $exception.Data['DynomaxActionKey'] = $ActionKey
     if ($ActionVersionId -ne [Guid]::Empty) {
         $exception.Data['DynomaxActionVersionId'] = [string]$ActionVersionId
+    }
+    if ($null -ne $Metadata) {
+        foreach ($item in $Metadata.GetEnumerator()) {
+            if ($null -ne $item.Value) { $exception.Data[[string]$item.Key] = [string]$item.Value }
+        }
     }
     return $exception
 }
@@ -27,10 +128,11 @@ function Throw-DynomaxExecutionPlanIssue {
         [Parameter(Mandatory)][int]$StepOrder,
         [Parameter(Mandatory)][string]$ActionKey,
         [Parameter(Mandatory)][string]$Message,
-        [Guid]$ActionVersionId = [Guid]::Empty
+        [Guid]$ActionVersionId = [Guid]::Empty,
+        [hashtable]$Metadata
     )
 
-    throw (New-DynomaxExecutionPlanException -Classification $Classification -StepOrder $StepOrder -ActionKey $ActionKey -Message $Message -ActionVersionId $ActionVersionId)
+    throw (New-DynomaxExecutionPlanException -Classification $Classification -StepOrder $StepOrder -ActionKey $ActionKey -Message $Message -ActionVersionId $ActionVersionId -Metadata $Metadata)
 }
 
 function Resolve-DynomaxActionFolder {
@@ -59,49 +161,68 @@ function Assert-DynomaxBuiltInPackageSource {
     )
     $origin=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'actionOrigin' -DefaultValue '')
     if($origin -ne 'BuiltIn'){return}
-    $manifestPath=Join-Path $Folder 'BUILTIN_PACKAGE_MANIFEST.json'
-    if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw "Built-in Action package is missing BUILTIN_PACKAGE_MANIFEST.json: $Folder"}
-    $manifest=Read-DynomaxJson -Path $manifestPath
     $runtimeKey=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'actionId' -DefaultValue '')
     $canonicalKey=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'canonicalActionId' -DefaultValue '')
     $canonicalDefinitionHash=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'canonicalDefinitionSha256' -DefaultValue '')
     $contractVersion=[int](Get-DynomaxPropertyValue -Object $Definition -Name 'builtInContractVersion' -DefaultValue 0)
     $requiredCore=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'requiredCoreVersion' -DefaultValue '')
+    $entryPoint=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'entryPoint' -DefaultValue '')
+    $manifestRelativePath='BUILTIN_PACKAGE_MANIFEST.json'
+    $manifestPath=Join-Path $Folder $manifestRelativePath
+    if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_MANIFEST_MISSING' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageManifest' -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -Message "Built-in Action '$canonicalKey' v$contractVersion package manifest is missing." -CorrectiveAction 'Re-materialize the exact immutable Built-in package from the source-owned catalogue before running it.')
+    }
+    $manifest=Read-DynomaxJson -Path $manifestPath
+    $checks=@(
+        @{Code='BUILTIN_MANIFEST_TYPE_MISMATCH';Name='packageType';Expected='DynomaxBuiltInActionPackage';Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'packageType' -DefaultValue '');Type='PackageManifest'},
+        @{Code='BUILTIN_MANIFEST_ORIGIN_MISMATCH';Name='actionOrigin';Expected='BuiltIn';Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionOrigin' -DefaultValue '');Type='PackageManifest'},
+        @{Code='BUILTIN_MANIFEST_ACTION_KEY_MISMATCH';Name='actionKey';Expected=$canonicalKey;Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionKey' -DefaultValue '');Type='ActionIdentity'},
+        @{Code='BUILTIN_MANIFEST_RUNTIME_KEY_MISMATCH';Name='runtimeActionKey';Expected=$runtimeKey;Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeActionKey' -DefaultValue '');Type='ActionIdentity'},
+        @{Code='BUILTIN_MANIFEST_VERSION_MISMATCH';Name='contractVersion';Expected=[string]$contractVersion;Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'contractVersion' -DefaultValue 0);Type='ActionIdentity'},
+        @{Code='BUILTIN_REQUIRED_CORE_MISMATCH';Name='requiredCoreVersion';Expected=$requiredCore;Actual=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'requiredCoreVersion' -DefaultValue '');Type='CoreContract'}
+    )
+    foreach($check in $checks){
+        if([string]$check.Expected -cne [string]$check.Actual){
+            throw (New-DynomaxBuiltInClosureException -Code $check.Code -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType $check.Type -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -ExpectedValue ([string]$check.Expected) -ActualValue ([string]$check.Actual) -Message "Built-in Action '$canonicalKey' v$contractVersion package manifest field '$($check.Name)' does not match its exact immutable identity.")
+        }
+    }
+    $manifestDefinitionHash=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'definitionSha256' -DefaultValue '')
+    if(-not $canonicalKey -or -not $canonicalDefinitionHash -or $manifestDefinitionHash -ine $canonicalDefinitionHash){
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_DEFINITION_HASH_MISMATCH' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'Definition' -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -ExpectedDefinitionSha256 $canonicalDefinitionHash -ActualDefinitionSha256 $manifestDefinitionHash -Message "Built-in Action '$canonicalKey' v$contractVersion definition hash does not match its exact immutable package manifest.")
+    }
     $manifestRuntimeDefinitionHash=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeDefinitionSha256' -DefaultValue '')
-    # The manifest runtimeDefinitionSha256 is the source catalogue's indented canonical JSON hash.
-    # action.json is deliberately materialized in Core's compact canonical form, so those byte hashes are not interchangeable.
-    # Exact runtime definition bytes are verified immediately after fingerprinting against dmx.ActionVersion.DefinitionHash.
-    if([string](Get-DynomaxPropertyValue -Object $manifest -Name 'packageType' -DefaultValue '') -ne 'DynomaxBuiltInActionPackage' -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionOrigin' -DefaultValue '') -ne 'BuiltIn' -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'actionKey' -DefaultValue '') -cne $canonicalKey -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeActionKey' -DefaultValue '') -cne $runtimeKey -or
-       [int](Get-DynomaxPropertyValue -Object $manifest -Name 'contractVersion' -DefaultValue 0) -ne $contractVersion -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'definitionSha256' -DefaultValue '') -ine $canonicalDefinitionHash -or
-       $manifestRuntimeDefinitionHash -notmatch '^[0-9a-fA-F]{64}$' -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'entryPointSha256' -DefaultValue '') -ine $EntryPointHash -or
-       [string](Get-DynomaxPropertyValue -Object $manifest -Name 'requiredCoreVersion' -DefaultValue '') -cne $requiredCore -or
-       -not $canonicalKey -or -not $canonicalDefinitionHash -or
-       @('1.0.15','1.0.16','1.0.17') -cnotcontains $requiredCore){
-        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest does not match its exact immutable definition/runtime identity."
+    if($manifestRuntimeDefinitionHash -notmatch '^[0-9a-fA-F]{64}$'){
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_RUNTIME_DEFINITION_HASH_INVALID' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'RuntimeDefinition' -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -ActualValue $manifestRuntimeDefinitionHash -Message "Built-in Action '$canonicalKey' v$contractVersion runtime-definition hash is missing or invalid.")
+    }
+    $manifestEntryPointHash=[string](Get-DynomaxPropertyValue -Object $manifest -Name 'entryPointSha256' -DefaultValue '')
+    if($manifestEntryPointHash -ine $EntryPointHash){
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_ENTRYPOINT_HASH_MISMATCH' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'EntryPoint' -ArtifactPath $entryPoint -RequiredCoreVersion $requiredCore -ExpectedEntryPointSha256 $manifestEntryPointHash -ActualEntryPointSha256 $EntryPointHash -Message "Built-in Action '$canonicalKey' v$contractVersion entry-point hash does not match its exact immutable package manifest.")
+    }
+    $corePolicy=Get-DynomaxBuiltInCoreContractPolicy
+    if(@($corePolicy.SupportedRequiredCoreVersions) -cnotcontains $requiredCore){
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_CORE_CONTRACT_UNSUPPORTED' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'CoreContract' -ArtifactPath 'Core/Execution/BUILTIN_CORE_CONTRACTS.json' -RequiredCoreVersion $requiredCore -InstalledCoreVersion ([string]$corePolicy.InstalledCoreVersion) -ExpectedValue $requiredCore -ActualValue (@($corePolicy.SupportedRequiredCoreVersions) -join ',') -Message "Installed Dynomax Core '$($corePolicy.InstalledCoreVersion)' does not advertise support for Built-in Action '$canonicalKey' v$contractVersion required Core contract '$requiredCore'." -CorrectiveAction "Install a validated Dynomax Core package whose Built-in contract policy includes '$requiredCore'; do not weaken immutable Action/package checks.")
     }
     if([bool](Get-DynomaxPropertyValue -Object $manifest -Name 'secretValuesIncluded' -DefaultValue $true)){
-        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest may not contain secret values."
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_MANIFEST_SECRET_POLICY_INVALID' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageManifest' -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -Message "Built-in Action '$canonicalKey' v$contractVersion package manifest may not contain secret values.")
     }
-    $entryPoint=[string](Get-DynomaxPropertyValue -Object $Definition -Name 'entryPoint' -DefaultValue '')
     $manifestFiles=@((Get-DynomaxPropertyValue -Object $manifest -Name 'files' -DefaultValue @()))
     if($manifestFiles.Count -lt 1 -or -not @($manifestFiles | Where-Object { [string](Get-DynomaxPropertyValue -Object $_ -Name 'path' -DefaultValue '') -ceq $entryPoint })){
-        throw "Built-in Action '$canonicalKey' v$contractVersion package manifest does not include its exact entry point '$entryPoint'."
+        throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_ENTRYPOINT_MANIFEST_MISSING' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageManifest' -ArtifactPath $manifestRelativePath -RequiredCoreVersion $requiredCore -Message "Built-in Action '$canonicalKey' v$contractVersion package manifest does not include its exact entry point '$entryPoint'.")
     }
     foreach($file in $manifestFiles){
         $relative=[string](Get-DynomaxPropertyValue -Object $file -Name 'path' -DefaultValue '')
         $expected=[string](Get-DynomaxPropertyValue -Object $file -Name 'sha256' -DefaultValue '')
         if(-not $relative -or [IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[\\/])\.\.([\\/]|$)'){
-            throw "Built-in Action '$canonicalKey' v$contractVersion package manifest contains an unsafe file path."
+            throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_PACKAGE_PATH_UNSAFE' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageFile' -ArtifactPath $relative -RequiredCoreVersion $requiredCore -Message "Built-in Action '$canonicalKey' v$contractVersion package manifest contains an unsafe file path.")
         }
         $path=Join-Path $Folder $relative
-        if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' is missing."}
+        if(-not(Test-Path -LiteralPath $path -PathType Leaf)){
+            throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_PACKAGE_FILE_MISSING' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageFile' -ArtifactPath $relative -RequiredCoreVersion $requiredCore -ExpectedValue $expected -ActualValue 'missing' -Message "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' is missing.")
+        }
         $actual=Get-DynomaxSha256 -Path $path
-        if(-not $expected -or $actual -ine $expected){throw "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' failed SHA-256 verification."}
+        if(-not $expected -or $actual -ine $expected){
+            throw (New-DynomaxBuiltInClosureException -Code 'BUILTIN_PACKAGE_FILE_HASH_MISMATCH' -ActionKey $canonicalKey -ContractVersion $contractVersion -ArtifactType 'PackageFile' -ArtifactPath $relative -RequiredCoreVersion $requiredCore -ExpectedValue $expected -ActualValue $actual -Message "Built-in Action '$canonicalKey' v$contractVersion package file '$relative' failed SHA-256 verification.")
+        }
     }
 }
 
@@ -145,7 +266,9 @@ function Get-DynomaxActionSourceCandidates {
         [Parameter(Mandatory)][string]$ProjectFolder,
         [Parameter(Mandatory)][string]$ActionKey,
         [Parameter(Mandatory)][int]$StepOrder,
-        [string]$WorkflowDirectory
+        [string]$WorkflowDirectory,
+        [string]$WorkflowNodeId,
+        [Nullable[int]]$ActionVersionNumber
     )
 
     $candidates = New-Object System.Collections.Generic.List[object]
@@ -170,8 +293,19 @@ function Get-DynomaxActionSourceCandidates {
                 $candidates.Add((Get-DynomaxActionSourceFingerprint -ActionJsonFile $file -SourceLocation $location.Name))
             }
             catch {
-                $message = "Action source '$($file.FullName)' could not be fingerprinted: $($_.Exception.Message)"
-                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $StepOrder -ActionKey $ActionKey -Message $message
+                $metadata=@{}
+                foreach($key in @($_.Exception.Data.Keys)){
+                    $name=[string]$key
+                    if($name.StartsWith('Dynomax',[System.StringComparison]::Ordinal) -and $null -ne $_.Exception.Data[$key]){
+                        $metadata[$name]=[string]$_.Exception.Data[$key]
+                    }
+                }
+                if($WorkflowNodeId){$metadata['DynomaxWorkflowNodeId']=$WorkflowNodeId}
+                if($null -ne $ActionVersionNumber){$metadata['DynomaxActionVersionNumber']=[string]$ActionVersionNumber}
+                $safeSource="[$($location.Name)]/$($file.Directory.Name)/action.json"
+                $metadata['DynomaxArtifactSource']=$safeSource
+                $message = "Action source '$safeSource' could not be fingerprinted: $($_.Exception.Message)"
+                Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $StepOrder -ActionKey $ActionKey -Message $message -Metadata $metadata
             }
         }
     }
@@ -204,7 +338,8 @@ function Resolve-DynomaxActionExecutionSource {
     }
 
     if ($hasRequestedVersion) {
-        $candidates = @(Get-DynomaxActionSourceCandidates -ProjectFolder $ProjectFolder -ActionKey $actionKey -StepOrder $stepOrder -WorkflowDirectory $WorkflowDirectory)
+        $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'workflowNodeId' -DefaultValue $actionKey)
+        $candidates = @(Get-DynomaxActionSourceCandidates -ProjectFolder $ProjectFolder -ActionKey $actionKey -StepOrder $stepOrder -WorkflowDirectory $WorkflowDirectory -WorkflowNodeId $workflowNodeId -ActionVersionNumber $requestedVersion)
         $payloadMatches = @($candidates | Where-Object {
             $_.SourceLocation -eq 'Payload' -and
             $_.DefinitionHash -ieq $catalogue.DefinitionHash -and
@@ -548,6 +683,10 @@ function New-DynomaxRobotSuite {
             if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
             $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
             $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
+            $executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1)
+            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true)}})
+            $outputSpecsJson=ConvertTo-Json -InputObject $outputSpecs -Depth 10 -Compress
+            $outputSpecsB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($outputSpecsJson))
             $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$step.order)
             $lines.Add($slotKeyword)
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
@@ -555,6 +694,8 @@ function New-DynomaxRobotSuite {
             $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
             $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
             $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_EXECUTION_SLOT}    $executionSlot")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_OUTPUT_SPECS_B64}    $outputSpecsB64")
             $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
             $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
@@ -591,9 +732,11 @@ function New-DynomaxRobotSuite {
             $lines.Add('        RETURN')
             $lines.Add('    END')
             $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("    Prepare Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
             $lines.Add('    TRY')
             $lines.Add("        `${action_status}    `${action_message}=    Run Keyword And Ignore Error    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
             $lines.Add('    FINALLY')
+            $lines.Add("        Capture Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    $workflowNodeId    $executionSlot    $($step.actionId)    `${DYNOMAX_OUTPUT_SPECS_B64}")
             $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
             $lines.Add('    END')
             $lines.Add('    Persist Dynomax Explicit Robot Action Result    ${action_status}    ${action_message}')
@@ -623,6 +766,10 @@ function New-DynomaxRobotSuite {
             if(-not $actionVersionId){throw "Action '$($step.actionId)' has no preflight action-version ID."}
             $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
             $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
+            $executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1)
+            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true)}})
+            $outputSpecsJson=ConvertTo-Json -InputObject $outputSpecs -Depth 10 -Compress
+            $outputSpecsB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($outputSpecsJson))
             $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
             $lines.Add($name)
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
@@ -630,6 +777,8 @@ function New-DynomaxRobotSuite {
             $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
             $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
             $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_EXECUTION_SLOT}    $executionSlot")
+            $lines.Add("    Set Test Variable    `${DYNOMAX_OUTPUT_SPECS_B64}    $outputSpecsB64")
             $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
             $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
@@ -674,9 +823,11 @@ function New-DynomaxRobotSuite {
                 $lines.Add("    END")
             }
             $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("    Prepare Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
             $lines.Add("    TRY")
             $lines.Add("        Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
             $lines.Add("    FINALLY")
+            $lines.Add("        Capture Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    $workflowNodeId    $executionSlot    $($step.actionId)    `${DYNOMAX_OUTPUT_SPECS_B64}")
             $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
             $lines.Add("    END")
             if($controlFlowEnabled -and $cleanup -eq 'False'){
@@ -704,7 +855,8 @@ function Invoke-DynomaxRobotBlock {
     $suite=New-DynomaxRobotSuite -DynomaxRoot $DynomaxRoot -ProjectFolder $ProjectFolder -ProjectConfig $ProjectConfig -Workflow $Workflow -Steps $Steps -RunId $RunId -RunDirectory $RunDirectory -ContextPath $ContextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $PowerShellPath
     $resultDir=Ensure-DynomaxDirectory -Path (Join-Path $RunDirectory 'robot-result')
     $args=@('-B','-m','robot','--outputdir',$resultDir,'--output','output.xml','--log','log.html','--report','report.html',$suite)
-    return Invoke-DynomaxProcess -FilePath $PythonPath -Arguments $args -WorkingDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds -ConsoleLogPath (Join-Path $RunDirectory 'robot-console.log') -Environment @{ 'PYTHONDONTWRITEBYTECODE'='1' } -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName 'Robot workflow'
+    $heartbeat={param($label,$processId,$elapsedSeconds) Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.Heartbeat' -Message ("$label is still running; elapsed ${elapsedSeconds}s.") -Data ([ordered]@{process='Robot';processId=$processId;elapsedSeconds=$elapsedSeconds})}
+    return Invoke-DynomaxProcess -FilePath $PythonPath -Arguments $args -WorkingDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds -ConsoleLogPath (Join-Path $RunDirectory 'robot-console.log') -Environment @{ 'PYTHONDONTWRITEBYTECODE'='1' } -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName 'Robot workflow' -HeartbeatCallback $heartbeat
 }
 
 function Resolve-DynomaxExternalActionResult {
@@ -759,6 +911,30 @@ function Invoke-DynomaxPowerShellAction {
     $actionVersionId=[Guid]$actionVersionIdText
     $stepId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'stepId' -DefaultValue ("step-{0}" -f $Step.order))
     $actionVersion=[int](Get-DynomaxPropertyValue -Object $Step -Name 'DynomaxResolvedActionVersion' -DefaultValue (Get-DynomaxPropertyValue -Object $Step -Name 'actionVersion' -DefaultValue 0))
+    # Clear declared output keys before this physical Action executes so a prior step's flat-context
+    # value cannot be mistaken for this step's output. The active input scope retains the baseline.
+    $prepareContext=Read-DynomaxJson -Path $ContextPath
+    $activeOutputScope=Get-DynomaxPropertyValue -Object $prepareContext -Name 'activeStepInput' -DefaultValue $null
+    if($null -eq $activeOutputScope){
+        $activeOutputScope=[pscustomobject][ordered]@{stepId=$stepId;priorValues=[pscustomobject][ordered]@{};priorSecretFlags=[pscustomobject][ordered]@{}}
+        $prepareContext | Add-Member -NotePropertyName 'activeStepInput' -NotePropertyValue $activeOutputScope
+    }
+    $priorOutputValues=[ordered]@{};$priorOutputSecretFlags=[ordered]@{}
+    $prepareSecretLookup=@{};foreach($key in @(Get-DynomaxPropertyValue -Object $prepareContext -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$prepareSecretLookup[[string]$key]=$true}}
+    foreach($outputDefinition in @((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @()))){
+        $outputName=[string](Get-DynomaxPropertyValue -Object $outputDefinition -Name 'name' -DefaultValue '')
+        if([string]::IsNullOrWhiteSpace($outputName)){continue}
+        $existingOutput=$prepareContext.values.PSObject.Properties[$outputName]
+        $priorOutputValues[$outputName]=[ordered]@{exists=($null -ne $existingOutput);value=$(if($null -ne $existingOutput){$existingOutput.Value}else{$null})}
+        $priorOutputSecretFlags[$outputName]=$prepareSecretLookup.ContainsKey($outputName)
+        $activePriorValues=Get-DynomaxPropertyValue -Object $activeOutputScope -Name 'priorValues' -DefaultValue $null
+        $isAlsoInput=$null -ne $activePriorValues -and $null -ne $activePriorValues.PSObject.Properties[$outputName]
+        if(-not $isAlsoInput){[void]$prepareContext.values.PSObject.Properties.Remove($outputName);[void]$prepareSecretLookup.Remove($outputName)}
+    }
+    $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputValues' -NotePropertyValue ([pscustomobject]$priorOutputValues)
+    $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputSecretFlags' -NotePropertyValue ([pscustomobject]$priorOutputSecretFlags)
+    $prepareContext.secretKeys=@($prepareSecretLookup.Keys|Sort-Object)
+    Write-DynomaxJson -Value $prepareContext -Path $ContextPath
     $overallWatch=[System.Diagnostics.Stopwatch]::StartNew()
     if($policy.WaitBeforeSeconds -gt 0){Start-Sleep -Seconds $policy.WaitBeforeSeconds}
 
@@ -779,7 +955,8 @@ function Invoke-DynomaxPowerShellAction {
         $timedOut=$false
         $process=$null
         try{
-            $process=Invoke-DynomaxProcess -FilePath $PowerShellPath -Arguments $args -WorkingDirectory $folder -TimeoutSeconds $attemptTimeout -ConsoleLogPath $attemptConsolePath -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName ("PowerShell action {0} attempt {1}" -f $Step.actionId,$attempt)
+            $heartbeat={param($label,$processId,$elapsedSeconds) Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.Heartbeat' -Message ("Action '$($Step.actionId)' attempt $attempt is still running; elapsed ${elapsedSeconds}s.") -Data ([ordered]@{process='PowerShellAction';stepOrder=[int]$Step.order;stepId=$stepId;actionKey=[string]$Step.actionId;attempt=$attempt;processId=$processId;elapsedSeconds=$elapsedSeconds})}
+            $process=Invoke-DynomaxProcess -FilePath $PowerShellPath -Arguments $args -WorkingDirectory $folder -TimeoutSeconds $attemptTimeout -ConsoleLogPath $attemptConsolePath -StreamOutput:$StreamOutput -ShowCommand:$ShowCommand -HeartbeatSeconds $HeartbeatSeconds -DisplayName ("PowerShell action {0} attempt {1}" -f $Step.actionId,$attempt) -HeartbeatCallback $heartbeat
             $lastProcess=$process
             $attemptResult=Resolve-DynomaxExternalActionResult -ProcessResult $process -OutputPath $attemptOutputPath -IsCleanup:$isCleanup
         }
@@ -821,7 +998,24 @@ function Invoke-DynomaxPowerShellAction {
     $overallWatch.Stop()
     if($null -eq $finalResult){$finalResult=[pscustomobject]@{Status=$(if($isCleanup){'CLEANUP_FAILED'}else{'ERROR'});Message='Action execution ended without a final result.';OutputJson=$null}}
     $persistedMessage=if($isSensitiveAction -and $finalResult.Status -notin @('PASS','SKIPPED')){'Sensitive Action failed; detailed message suppressed.'}else{$finalResult.Message}
-    $persistedOutput=if($isSensitiveAction -and $finalResult.Status -notin @('PASS','SKIPPED')){$null}else{$finalResult.OutputJson}
+    $context=Read-DynomaxJson -Path $ContextPath
+    $outputObject=$null
+    if(-not [string]::IsNullOrWhiteSpace([string]$finalResult.OutputJson)){try{$outputObject=([string]$finalResult.OutputJson|ConvertFrom-Json)}catch{}}
+    $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'workflowNodeId' -DefaultValue $stepId)
+    $executionSlot=[int](Get-DynomaxPropertyValue -Object $Step -Name 'executionSlot' -DefaultValue 1)
+    $outputDefinitions=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @()))
+    $poolStep=Set-DynomaxRunDataPoolStepOutputs -Context $context -StepId $stepId -WorkflowNodeId $workflowNodeId -ExecutionSlot $executionSlot -ActionKey ([string]$Step.actionId) -OutputDefinitions $outputDefinitions -OutputObject $outputObject
+    $safePersisted=[ordered]@{}
+    $poolOutputs=Get-DynomaxPropertyValue -Object $poolStep -Name 'outputs' -DefaultValue $null
+    if($null -ne $poolOutputs){foreach($property in @($poolOutputs.PSObject.Properties)){
+        $entry=$property.Value
+        if([bool](Get-DynomaxPropertyValue -Object $entry -Name 'available' -DefaultValue $false) -and [string](Get-DynomaxPropertyValue -Object $entry -Name 'classification' -DefaultValue 'Normal') -eq 'Normal' -and [bool](Get-DynomaxPropertyValue -Object $entry -Name 'persistInResult' -DefaultValue $true)){
+            $safePersisted[[string]$property.Name]=Get-DynomaxPropertyValue -Object $entry -Name 'value' -DefaultValue $null
+        }
+    }}
+    $persistedOutput=if($safePersisted.Count -gt 0){$safePersisted|ConvertTo-Json -Depth 50 -Compress}else{$null}
+    if($isSensitiveAction -and $finalResult.Status -notin @('PASS','SKIPPED')){$persistedOutput=$null}
+    Write-DynomaxJson -Value $context -Path $ContextPath
     Add-DynomaxActionRun -SqlConfig $SqlConfig -RunId $RunId -StepOrder ([int]$Step.order) -ActionKey ([string]$Step.actionId) -ActionVersionId $actionVersionId -Status $finalResult.Status -Message $persistedMessage -OutputJson $persistedOutput -IsCleanup:$isCleanup
     return $lastProcess
 }

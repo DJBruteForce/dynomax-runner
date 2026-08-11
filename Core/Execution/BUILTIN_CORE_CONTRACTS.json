@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.0.18",
+  "supportedRequiredCoreVersions": [
+    "1.0.15",
+    "1.0.16",
+    "1.0.17",
+    "1.0.18"
+  ]
+}

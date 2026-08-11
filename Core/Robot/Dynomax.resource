@@ -6,6 +6,7 @@ Library    Collections
 Library    ${CURDIR}${/}DynomaxTimeout.py
 Library    ${CURDIR}${/}DynomaxContext.py
 Library    ${CURDIR}${/}DynomaxDiscovery.py
+Library    ${CURDIR}${/}DynomaxRuntimeBridge.py
 
 *** Keywords ***
 Start Dynomax Browser
@@ -37,6 +38,7 @@ Complete Dynomax Browser Suite
     ELSE
         Stop Dynomax Browser
     END
+    Run Keyword And Ignore Error    Shutdown Dynomax Runtime Bridge
 
 Finalize Dynomax Discovery Evidence
     ${discovery_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}discovery
@@ -137,59 +139,13 @@ Capture Dynomax Discovery Evidence
 
 Assert Dynomax Discovery Target Reached
     ${target_node}=    Get Variable Value    \${DYNOMAX_DISCOVERY_TARGET_NODE_ID}    ${EMPTY}
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
-    ...    -Mode
-    ...    AssertDiscoveryTarget
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -WorkflowPath
-    ...    ${DYNOMAX_WORKFLOW_PATH}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -NodeId
-    ...    ${target_node}
-    ...    stdout=PIPE
-    ...    stderr=PIPE
-    Should Be Equal As Integers    ${result.rc}    0    ${result.stderr}
+    ${result}=    Dynomax Host Control Flow    AssertDiscoveryTarget    ${target_node}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
+    Should Be Equal    ${result}    OK    Discovery target assertion failed.
 
 Fail Dynomax Control Flow Action
     [Arguments]    ${node_id}
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
-    ...    -Mode
-    ...    FailAction
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -WorkflowPath
-    ...    ${DYNOMAX_WORKFLOW_PATH}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -NodeId
-    ...    ${node_id}
-    ...    stdout=PIPE
-    ...    stderr=PIPE
-    Should Be Equal As Integers    ${result.rc}    0    Control-flow failure notification failed: ${result.stderr}
+    ${result}=    Dynomax Host Control Flow    FailAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
+    Should Be Equal    ${result}    OK    Control-flow failure notification failed.
     Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
 
 Should Run Dynomax Control Flow Action
@@ -198,63 +154,15 @@ Should Run Dynomax Control Flow Action
     IF    ${terminal}
         RETURN    SKIP_FINAL
     END
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
-    ...    -Mode
-    ...    BeforeAction
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -WorkflowPath
-    ...    ${DYNOMAX_WORKFLOW_PATH}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -NodeId
-    ...    ${node_id}
-    ...    stdout=PIPE
-    ...    stderr=PIPE
-    Should Be Equal As Integers    ${result.rc}    0    Control-flow decision failed: ${result.stderr}
-    ${decision}=    Evaluate    str($result.stdout).strip().upper()
+    ${decision}=    Dynomax Host Control Flow    BeforeAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
+    ${decision}=    Evaluate    str($decision).strip().upper()
     Should Match Regexp    ${decision}    ^(RUN|DEFER|SKIP_FINAL)$    Unexpected control-flow decision: ${decision}
     RETURN    ${decision}
 
 Advance Dynomax Control Flow After Action
     [Arguments]    ${node_id}
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_CONTROL_FLOW_SCRIPT}
-    ...    -Mode
-    ...    AfterAction
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -WorkflowPath
-    ...    ${DYNOMAX_WORKFLOW_PATH}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -NodeId
-    ...    ${node_id}
-    ...    stdout=PIPE
-    ...    stderr=PIPE
-    Should Be Equal As Integers    ${result.rc}    0    Control-flow advance failed: ${result.stderr}
-    ${advance_state}=    Evaluate    str($result.stdout).strip().upper()
+    ${advance_state}=    Dynomax Host Control Flow    AfterAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
+    ${advance_state}=    Evaluate    str($advance_state).strip().upper()
     Should Match Regexp    ${advance_state}    ^(CONTINUE|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow advance state: ${advance_state}
     IF    '${advance_state}' != 'CONTINUE'
         Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
@@ -283,6 +191,7 @@ Execute Dynomax Action With Policy
         ${effective_timeout}=    Evaluate    max(1, min(int($DYNOMAX_ATTEMPT_TIMEOUT_SECONDS), int($remaining_before_attempt)))
         ${attempt_started}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
         ${png_snapshot}=    Capture Dynomax Png Snapshot
+        ${actual_action_started}=    Evaluate    time.perf_counter()    modules=time
         IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
             ${previous_log_level}=    Set Log Level    NONE
             TRY
@@ -293,6 +202,7 @@ Execute Dynomax Action With Policy
         ELSE
             ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
         END
+        ${actual_action_duration_ms}=    Evaluate    (time.perf_counter() - float($actual_action_started)) * 1000.0    modules=time
         ${attempt_ended}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
         ${is_last_numbered_attempt}=    Evaluate    int($attempt) >= int($DYNOMAX_MAXIMUM_ATTEMPTS)
         ${proposed_delay}=    Calculate Dynomax Retry Delay    ${attempt}
@@ -314,6 +224,7 @@ Execute Dynomax Action With Policy
         ...    ${is_cleanup}
         ...    ${timed_out}
         ...    ${declared_classification}
+        ...    ${actual_action_duration_ms}
         IF    not ${recorder_ok}
             ${recorder_diagnostic}=    Evaluate    ('stdout=' + str($record_stdout) + '; stderr=' + str($record_stderr))[:4000]
             Log    Dynomax attempt recorder failed. ${recorder_diagnostic}    ERROR
@@ -348,83 +259,36 @@ Execute Dynomax Action With Policy
     Fail    Action execution ended without a final result.
 
 Invoke Dynomax Attempt Recorder
-    [Arguments]    ${attempt}    ${attempt_started}    ${attempt_ended}    ${attempt_status}    ${message64}    ${proposed_delay}    ${attempt_wait}    ${forced_final}    ${is_cleanup}    ${timed_out}    ${declared_classification}
-    ${attempt_recorder_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}attempt-recorder${/}${DYNOMAX_STEP_ORDER}${/}${attempt}
-    Create Directory    ${attempt_recorder_dir}
-    ${attempt_recorder_stdout}=    Set Variable    ${attempt_recorder_dir}${/}stdout.log
-    ${attempt_recorder_stderr}=    Set Variable    ${attempt_recorder_dir}${/}stderr.log
-    ${invoke_status}    ${record_or_error}=    Run Keyword And Ignore Error    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_ATTEMPT_RECORDER_SCRIPT}
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -RunDirectory
-    ...    ${DYNOMAX_RUN_DIR}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -StepOrder
-    ...    ${DYNOMAX_STEP_ORDER}
-    ...    -StepId
-    ...    ${DYNOMAX_STEP_ID}
-    ...    -ActionKey
-    ...    ${DYNOMAX_ACTION_ID}
-    ...    -ActionVersion
-    ...    ${DYNOMAX_RESOLVED_ACTION_VERSION}
-    ...    -ActionVersionId
-    ...    ${DYNOMAX_ACTION_VERSION_ID}
-    ...    -AttemptNumber
+    [Arguments]    ${attempt}    ${attempt_started}    ${attempt_ended}    ${attempt_status}    ${message64}    ${proposed_delay}    ${attempt_wait}    ${forced_final}    ${is_cleanup}    ${timed_out}    ${declared_classification}    ${actual_action_duration_ms}
+    ${recorder_ok}    ${record_data}    ${record_stdout}    ${record_stderr}=    Dynomax Host Record Attempt
     ...    ${attempt}
-    ...    -StartedAtUtc
     ...    ${attempt_started}
-    ...    -EndedAtUtc
     ...    ${attempt_ended}
-    ...    -Status
     ...    ${attempt_status}
-    ...    -MessageBase64
     ...    ${message64}
-    ...    -RetryOnCsv
-    ...    ${DYNOMAX_RETRY_ON_CSV}
-    ...    -WaitBeforeExecutionSeconds
-    ...    ${attempt_wait}
-    ...    -DelayBeforeNextAttemptSeconds
     ...    ${proposed_delay}
-    ...    -BrowserSessionDecision
-    ...    ${DYNOMAX_BROWSER_SESSION_RETRY_MODE}
-    ...    -EvidencePolicy
-    ...    ${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}
-    ...    -IsFinalAttempt
+    ...    ${attempt_wait}
     ...    ${forced_final}
-    ...    -IsCleanup
     ...    ${is_cleanup}
-    ...    -TimedOut
     ...    ${timed_out}
-    ...    -SensitiveAction
-    ...    ${DYNOMAX_SENSITIVE_ACTION}
-    ...    -DeclaredClassification
     ...    ${declared_classification}
-    ...    stdout=${attempt_recorder_stdout}
-    ...    stderr=${attempt_recorder_stderr}
-    ${record_stdout}=    Read Dynomax Optional Text File    ${attempt_recorder_stdout}
-    ${record_stderr}=    Read Dynomax Optional Text File    ${attempt_recorder_stderr}
-    IF    '${invoke_status}' != 'PASS'
-        ${record_stderr}=    Evaluate    (str($record_stderr) + '; invocation=' + str($record_or_error))[:4000]
-        RETURN    ${False}    ${None}    ${record_stdout}    ${record_stderr}
-    END
-    ${record}=    Set Variable    ${record_or_error}
-    ${json_status}    ${record_data_or_error}=    Run Keyword And Ignore Error    Evaluate    json.loads($record_stdout)    modules=json
-    ${exit_ok}=    Evaluate    int($record.rc) == 0
-    IF    not ${exit_ok} or '${json_status}' != 'PASS'
-        IF    '${json_status}' != 'PASS'
-            ${record_stderr}=    Evaluate    (str($record_stderr) + '; json=' + str($record_data_or_error))[:4000]
-        END
-        RETURN    ${False}    ${None}    ${record_stdout}    ${record_stderr}
-    END
-    RETURN    ${True}    ${record_data_or_error}    ${record_stdout}    ${record_stderr}
+    ...    ${actual_action_duration_ms}
+    ...    ${DYNOMAX_POWERSHELL}
+    ...    ${DYNOMAX_ROOT}
+    ...    ${DYNOMAX_WORKFLOW_PATH}
+    ...    ${DYNOMAX_CONTEXT_PATH}
+    ...    ${DYNOMAX_RUN_DIR}
+    ...    ${DYNOMAX_RUN_ID}
+    ...    ${DYNOMAX_STEP_ORDER}
+    ...    ${DYNOMAX_STEP_ID}
+    ...    ${DYNOMAX_ACTION_ID}
+    ...    ${DYNOMAX_RESOLVED_ACTION_VERSION}
+    ...    ${DYNOMAX_ACTION_VERSION_ID}
+    ...    ${DYNOMAX_RETRY_ON_CSV}
+    ...    ${DYNOMAX_BROWSER_SESSION_RETRY_MODE}
+    ...    ${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}
+    ...    ${DYNOMAX_SENSITIVE_ACTION}
+    RETURN    ${recorder_ok}    ${record_data}    ${record_stdout}    ${record_stderr}
 
 Read Dynomax Optional Text File
     [Arguments]    ${path}
@@ -538,35 +402,7 @@ Persist Dynomax Explicit Robot Action Result
         ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
         Run Keyword And Ignore Error    Take Screenshot    ${DYNOMAX_RUN_DIR}${/}screenshots${/}${DYNOMAX_STEP_ORDER}-${safe_name}.png
     END
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_PERSIST_SCRIPT}
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -StepOrder
-    ...    ${DYNOMAX_STEP_ORDER}
-    ...    -ActionKey
-    ...    ${DYNOMAX_ACTION_ID}
-    ...    -ActionVersionId
-    ...    ${DYNOMAX_ACTION_VERSION_ID}
-    ...    -RobotStatus
-    ...    ${robot_status}
-    ...    -MessageBase64
-    ...    ${message64}
-    ...    -IsCleanup
-    ...    ${DYNOMAX_IS_CLEANUP}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    stdout=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stdout.log
-    ...    stderr=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stderr.log
-    Should Be Equal As Integers    ${result.rc}    0    Dynomax could not persist action result.
+    Dynomax Host Persist Action Result    ${robot_status}    ${message64}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}    ${DYNOMAX_STEP_ORDER}    ${DYNOMAX_STEP_ID}    ${DYNOMAX_ACTION_ID}    ${DYNOMAX_ACTION_VERSION_ID}    ${DYNOMAX_IS_CLEANUP}
 
 Persist Dynomax Robot Action Result
     ${metadata_ready}=    Get Variable Value    \${DYNOMAX_ACTION_METADATA_READY}    ${False}
@@ -584,32 +420,4 @@ Persist Dynomax Robot Action Result
         ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
         Run Keyword And Ignore Error    Take Screenshot    ${DYNOMAX_RUN_DIR}${/}screenshots${/}${DYNOMAX_STEP_ORDER}-${safe_name}.png
     END
-    ${result}=    Run Process
-    ...    ${DYNOMAX_POWERSHELL}
-    ...    -NoLogo
-    ...    -NoProfile
-    ...    -ExecutionPolicy
-    ...    Bypass
-    ...    -File
-    ...    ${DYNOMAX_PERSIST_SCRIPT}
-    ...    -DynomaxRoot
-    ...    ${DYNOMAX_ROOT}
-    ...    -RunId
-    ...    ${DYNOMAX_RUN_ID}
-    ...    -StepOrder
-    ...    ${DYNOMAX_STEP_ORDER}
-    ...    -ActionKey
-    ...    ${DYNOMAX_ACTION_ID}
-    ...    -ActionVersionId
-    ...    ${DYNOMAX_ACTION_VERSION_ID}
-    ...    -RobotStatus
-    ...    ${TEST_STATUS}
-    ...    -MessageBase64
-    ...    ${message64}
-    ...    -IsCleanup
-    ...    ${DYNOMAX_IS_CLEANUP}
-    ...    -ContextPath
-    ...    ${DYNOMAX_CONTEXT_PATH}
-    ...    stdout=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stdout.log
-    ...    stderr=${DYNOMAX_RUN_DIR}${/}persist-${DYNOMAX_STEP_ORDER}.stderr.log
-    Should Be Equal As Integers    ${result.rc}    0    Dynomax could not persist action result.
+    Dynomax Host Persist Action Result    ${TEST_STATUS}    ${message64}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}    ${DYNOMAX_STEP_ORDER}    ${DYNOMAX_STEP_ID}    ${DYNOMAX_ACTION_ID}    ${DYNOMAX_ACTION_VERSION_ID}    ${DYNOMAX_IS_CLEANUP}
