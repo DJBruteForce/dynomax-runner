@@ -100,10 +100,33 @@ function Stop-DynomaxDiscoveryForUnreachableTarget {
 
 function Get-DynomaxControlFlowContextValue {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)]$Binding)
+    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)]$Binding,[string]$NodePath)
     $kind=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'kind' -DefaultValue '')
     switch($kind){
         'Literal' { return Get-DynomaxPropertyValue -Object $Binding -Name 'value' -DefaultValue $null }
+        'RuntimeValue' {
+            $name=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'name' -DefaultValue '')
+            if(-not $name){throw 'Control-flow RuntimeValue binding has no name.'}
+            switch($name){
+                'CurrentUtc' { return [DateTime]::UtcNow.ToString('o') }
+                'AttemptNumber' {
+                    $runtimeValues=Get-DynomaxPropertyValue -Object $Context -Name 'runtimeValues' -DefaultValue $null
+                    $attempt=if($null -ne $runtimeValues){Get-DynomaxPropertyValue -Object $runtimeValues -Name 'AttemptNumber' -DefaultValue 1}else{1}
+                    return [int][Math]::Max(1,[int]$attempt)
+                }
+                'NodePath' {
+                    if([string]::IsNullOrWhiteSpace($NodePath)){throw 'Control-flow RuntimeValue NodePath is unavailable.'}
+                    return $NodePath
+                }
+                default {
+                    $runtimeValues=Get-DynomaxPropertyValue -Object $Context -Name 'runtimeValues' -DefaultValue $null
+                    if($null -eq $runtimeValues){throw "RuntimeValue '$name' is unavailable because runtimeValues is missing from the Run context."}
+                    $property=$runtimeValues.PSObject.Properties[$name]
+                    if($null -eq $property -or $null -eq $property.Value -or [string]::IsNullOrWhiteSpace([string]$property.Value)){throw "RuntimeValue '$name' is unavailable for this Run."}
+                    return $property.Value
+                }
+            }
+        }
         'NodeOutput' {
             $nodeId=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'nodeId' -DefaultValue '')
             $output=[string](Get-DynomaxPropertyValue -Object $Binding -Name 'outputName' -DefaultValue '')
@@ -141,9 +164,10 @@ function Test-DynomaxCondition {
     $operator=[string](Get-DynomaxPropertyValue -Object $Node -Name 'operator' -DefaultValue '')
     $leftBinding=Get-DynomaxPropertyValue -Object $Node -Name 'left' -DefaultValue $null
     if($null -eq $leftBinding){throw "Control-flow node '$([string]$Node.nodeId)' has no left binding."}
-    $left=Get-DynomaxControlFlowContextValue -Context $Context -Binding $leftBinding
+    $nodePath=[string](Get-DynomaxPropertyValue -Object $Node -Name 'nodeId' -DefaultValue '')
+    $left=Get-DynomaxControlFlowContextValue -Context $Context -Binding $leftBinding -NodePath $nodePath
     $rightBinding=Get-DynomaxPropertyValue -Object $Node -Name 'right' -DefaultValue $null
-    $right=if($null -eq $rightBinding){$null}else{Get-DynomaxControlFlowContextValue -Context $Context -Binding $rightBinding}
+    $right=if($null -eq $rightBinding){$null}else{Get-DynomaxControlFlowContextValue -Context $Context -Binding $rightBinding -NodePath $nodePath}
     switch($operator){
         'Equals' { return $left -eq $right }
         'NotEquals' { return $left -ne $right }
@@ -392,7 +416,7 @@ function Get-DynomaxSwitchTarget {
     $nodeId=[string]$Node.nodeId
     $binding=Get-DynomaxPropertyValue -Object $Node -Name 'value' -DefaultValue $null
     if($null -eq $binding){throw "Switch '$nodeId' has no value binding."}
-    $value=Get-DynomaxControlFlowContextValue -Context $Context -Binding $binding
+    $value=Get-DynomaxControlFlowContextValue -Context $Context -Binding $binding -NodePath $nodeId
     $candidate=if($null -eq $value){'null'}elseif($value -is [bool]){if([bool]$value){'true'}else{'false'}}else{[Convert]::ToString($value,[Globalization.CultureInfo]::InvariantCulture)}
     $caseSensitive=[bool](Get-DynomaxPropertyValue -Object $Node -Name 'caseSensitive' -DefaultValue $true)
     $comparison=if($caseSensitive){[StringComparison]::Ordinal}else{[StringComparison]::OrdinalIgnoreCase}

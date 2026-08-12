@@ -15,7 +15,7 @@ function Get-DynomaxBuiltInCoreContractPolicy {
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         $script:DynomaxBuiltInCoreContractPolicy = [pscustomobject]@{
             ManifestPath = $manifestPath
-            InstalledCoreVersion = '1.0.18'
+            InstalledCoreVersion = '1.0.19'
             SupportedRequiredCoreVersions = $legacySupported
             LegacyFallback = $true
         }
@@ -941,6 +941,7 @@ function Invoke-DynomaxPowerShellAction {
     $finalResult=$null
     $lastProcess=$null
     for($attempt=1;$attempt -le $policy.MaximumAttempts;$attempt++){
+        [void](Refresh-DynomaxRuntimeStepInputContext -ContextPath $ContextPath -StepId $stepId -AttemptNumber $attempt)
         $remaining=[Math]::Floor($policy.OverallTimeoutSeconds-$overallWatch.Elapsed.TotalSeconds)
         if($remaining -le 0){
             $finalResult=[pscustomobject]@{Status=$(if($isCleanup){'CLEANUP_FAILED'}else{'ERROR'});Message='Overall execution timeout expired before the next attempt could start.';OutputJson=$null}

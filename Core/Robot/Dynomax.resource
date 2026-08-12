@@ -182,6 +182,7 @@ Execute Dynomax Action With Policy
     ${maximum_plus_one}=    Evaluate    int($DYNOMAX_MAXIMUM_ATTEMPTS) + 1
     FOR    ${attempt}    IN RANGE    1    ${maximum_plus_one}
         Set Test Variable    ${DYNOMAX_ATTEMPT_NUMBER}    ${attempt}
+        Refresh Dynomax Runtime Step Inputs    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_STEP_ID}    ${attempt}
         Set Dynomax Context Value    currentClassification.${DYNOMAX_ACTION_ID}    ${None}
         ${elapsed_before_attempt}=    Evaluate    time.time() - $workflow_started    modules=time
         ${remaining_before_attempt}=    Evaluate    int($DYNOMAX_OVERALL_TIMEOUT_SECONDS) - int($elapsed_before_attempt)

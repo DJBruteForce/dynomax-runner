@@ -54,6 +54,24 @@ def _resolve_step_output(context: Dict[str, Any], source_step_id: str, output_na
     return output.get("value")
 
 
+def _resolve_runtime_value(context: Dict[str, Any], entry: Dict[str, Any], name: str, attempt_number: int) -> Any:
+    key = str(name or "")
+    if key == "CurrentUtc":
+        return datetime.now(timezone.utc).isoformat()
+    if key == "AttemptNumber":
+        return max(1, int(attempt_number))
+    if key == "NodePath":
+        node_path = str(entry.get("nodePath") or "")
+        if not node_path:
+            raise RuntimeError("RuntimeValue NodePath is unavailable for this Action step.")
+        return node_path
+    runtime_values = context.get("runtimeValues") or {}
+    value = runtime_values.get(key)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise RuntimeError(f"RuntimeValue '{key}' is unavailable for this Run.")
+    return value
+
+
 def activate_step_inputs(context_path: str, step_id: str) -> None:
     context = _load(context_path)
     if context.get("activeStepInput") is not None:
@@ -67,14 +85,23 @@ def activate_step_inputs(context_path: str, step_id: str) -> None:
     current_secret_keys = {str(value) for value in (context.get("secretKeys") or [])}
     step_values = dict(entry.get("values") or {})
     for binding in entry.get("deferredBindings") or []:
-        if str(binding.get("kind") or "") != "StepOutput":
-            continue
+        kind = str(binding.get("kind") or "")
         input_name = str(binding.get("inputName") or "")
-        source_step_id = str(binding.get("sourceStepId") or "")
-        source_output_name = str(binding.get("sourceOutputName") or "")
-        if not input_name or not source_step_id or not source_output_name:
-            raise RuntimeError("A Dynomax step-output binding is incomplete.")
-        step_values[input_name] = _resolve_step_output(context, source_step_id, source_output_name)
+        if not input_name:
+            raise RuntimeError("A Dynomax deferred binding has no inputName.")
+        if kind == "StepOutput":
+            source_step_id = str(binding.get("sourceStepId") or "")
+            source_output_name = str(binding.get("sourceOutputName") or "")
+            if not source_step_id or not source_output_name:
+                raise RuntimeError("A Dynomax step-output binding is incomplete.")
+            step_values[input_name] = _resolve_step_output(context, source_step_id, source_output_name)
+        elif kind == "RuntimeValue":
+            name = str(binding.get("name") or "")
+            if not name:
+                raise RuntimeError("A Dynomax runtime-value binding is incomplete.")
+            step_values[input_name] = _resolve_runtime_value(context, entry, name, 1)
+        else:
+            raise RuntimeError(f"Deferred Dynomax binding kind '{kind}' is not supported by this Core release.")
 
     step_secret_keys = {str(value) for value in (entry.get("secretKeys") or [])}
     prior_values: Dict[str, Any] = {}
@@ -96,6 +123,34 @@ def activate_step_inputs(context_path: str, step_id: str) -> None:
         "priorSecretFlags": prior_secret_flags,
     }
     _save(context_path, context)
+
+
+def refresh_runtime_step_inputs(context_path: str, step_id: str, attempt_number: int) -> None:
+    context = _load(context_path)
+    active = context.get("activeStepInput")
+    if active is None:
+        return
+    if str(active.get("stepId") or "") != str(step_id):
+        raise RuntimeError("The active Dynomax step-input scope belongs to a different execution slot.")
+    entry = (context.get("stepInputs") or {}).get(str(step_id))
+    if not entry:
+        return
+    values = context.setdefault("values", {})
+    changed = False
+    for binding in entry.get("deferredBindings") or []:
+        if str(binding.get("kind") or "") != "RuntimeValue":
+            continue
+        input_name = str(binding.get("inputName") or "")
+        name = str(binding.get("name") or "")
+        if not input_name or not name:
+            raise RuntimeError("A Dynomax runtime-value binding is incomplete.")
+        values[input_name] = _resolve_runtime_value(context, entry, name, int(attempt_number))
+        changed = True
+    if changed:
+        runtime_values = context.setdefault("runtimeValues", {})
+        runtime_values["AttemptNumber"] = max(1, int(attempt_number))
+        runtime_values["CurrentUtc"] = datetime.now(timezone.utc).isoformat()
+        _save(context_path, context)
 
 
 def prepare_step_outputs(context_path: str, step_id: str, output_specs_b64: str) -> None:
@@ -206,6 +261,10 @@ class DynomaxContext:
     @keyword("Activate Dynomax Step Inputs")
     def activate_dynomax_step_inputs(self, context_path: str, step_id: str) -> None:
         activate_step_inputs(str(context_path), str(step_id))
+
+    @keyword("Refresh Dynomax Runtime Step Inputs")
+    def refresh_dynomax_runtime_step_inputs(self, context_path: str, step_id: str, attempt_number: int) -> None:
+        refresh_runtime_step_inputs(str(context_path), str(step_id), int(attempt_number))
 
     @keyword("Prepare Dynomax Step Outputs")
     def prepare_dynomax_step_outputs(self, context_path: str, step_id: str, output_specs_b64: str) -> None:

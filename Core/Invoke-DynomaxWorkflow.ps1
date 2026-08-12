@@ -60,7 +60,7 @@ $packageHash=Get-DynomaxSha256 -Path $workflowPath
 $tempRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.tempRuns
 $runDirectory=Ensure-DynomaxDirectory -Path (Join-Path $tempRoot ([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')))
 $contextPath=Join-Path $runDirectory 'context.json'
-$context=[ordered]@{schemaVersion=2;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimePolicy=[ordered]@{}}
+$context=[ordered]@{schemaVersion=2;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{}}
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
@@ -83,6 +83,13 @@ if($ContextSeedPath){
     }
     $seedRunDataPool=Get-DynomaxPropertyValue -Object $seed -Name 'runDataPool' -DefaultValue $null
     if($null -ne $seedRunDataPool){$context.runDataPool=$seedRunDataPool}
+    $seedRuntimeValues=Get-DynomaxPropertyValue -Object $seed -Name 'runtimeValues' -DefaultValue $null
+    if($null -ne $seedRuntimeValues){
+        foreach($property in @($seedRuntimeValues.PSObject.Properties)){
+            if([string]::IsNullOrWhiteSpace([string]$property.Name)){throw 'Context seed contains an empty runtime-value key.'}
+            $context.runtimeValues[[string]$property.Name]=$property.Value
+        }
+    }
     $seedRuntimePolicy=Get-DynomaxPropertyValue -Object $seed -Name 'runtimePolicy' -DefaultValue $null
     if($null -ne $seedRuntimePolicy){
         if($seedRuntimePolicy -isnot [System.Management.Automation.PSCustomObject]){throw 'Context seed runtimePolicy must be a JSON object.'}
@@ -92,6 +99,8 @@ if($ContextSeedPath){
 Write-DynomaxJson -Value $context -Path $contextPath
 $runId=New-DynomaxTestRun -SqlConfig $sqlConfig -ProjectKey ([string]$workflow.projectKey) -WorkflowKey ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -EnvironmentKey ([string]$workflow.environment) -WorkingDirectory $runDirectory -PackageHash $packageHash
 $context.values.runId=[string]$runId
+$context.runtimeValues['RunId']=[string]$runId
+$context.runtimeValues['EnvironmentKey']=[string]$workflow.environment
 Write-DynomaxJson -Value $context -Path $contextPath
 
 $allSteps=@($workflow.steps|Sort-Object order)
@@ -101,6 +110,8 @@ $outerRunRequestId=$null
 $runRequestCandidate=Split-Path -Leaf (Split-Path -Parent $WorkflowDirectory)
 $parsedOuterRunRequestId=[Guid]::Empty
 if([Guid]::TryParse([string]$runRequestCandidate,[ref]$parsedOuterRunRequestId)){$outerRunRequestId=[string]$parsedOuterRunRequestId}
+$context.runtimeValues['OperationId']=if($outerRunRequestId){$outerRunRequestId}else{[string]$runId}
+Write-DynomaxJson -Value $context -Path $contextPath
 $preflightSummary=[ordered]@{
     schemaVersion=2
     status='PASS'
@@ -203,6 +214,56 @@ function Set-DynomaxDynamicContextProperty {
     }
 }
 
+function Get-DynomaxRuntimeStepValue {
+    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)]$StepInput,[Parameter(Mandatory)][string]$Name,[int]$AttemptNumber=1)
+    switch($Name){
+        'CurrentUtc' { return [DateTime]::UtcNow.ToString('o') }
+        'AttemptNumber' { return [int][Math]::Max(1,$AttemptNumber) }
+        'NodePath' {
+            $nodePath=[string](Get-DynomaxPropertyValue -Object $StepInput -Name 'nodePath' -DefaultValue '')
+            if([string]::IsNullOrWhiteSpace($nodePath)){throw 'RuntimeValue NodePath is unavailable for this Action step.'}
+            return $nodePath
+        }
+        default {
+            $runtimeValues=Get-DynomaxPropertyValue -Object $Context -Name 'runtimeValues' -DefaultValue $null
+            if($null -eq $runtimeValues){throw "RuntimeValue '$Name' is unavailable because runtimeValues is missing from the Run context."}
+            $property=$runtimeValues.PSObject.Properties[$Name]
+            if($null -eq $property -or $null -eq $property.Value -or [string]::IsNullOrWhiteSpace([string]$property.Value)){throw "RuntimeValue '$Name' is unavailable for this Run."}
+            return $property.Value
+        }
+    }
+}
+
+function Refresh-DynomaxRuntimeStepInputContext {
+    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId,[Parameter(Mandatory)][int]$AttemptNumber)
+    $context=Read-DynomaxJson -Path $ContextPath
+    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
+    if($null -eq $active){return $false}
+    if(-not [string]::Equals([string](Get-DynomaxPropertyValue -Object $active -Name 'stepId' -DefaultValue ''),$StepId,[StringComparison]::Ordinal)){throw 'The active Dynomax step-input scope belongs to a different execution slot.'}
+    $stepInputs=Get-DynomaxPropertyValue -Object $context -Name 'stepInputs' -DefaultValue $null
+    $entryProperty=if($null -ne $stepInputs){$stepInputs.PSObject.Properties[$StepId]}else{$null}
+    if($null -eq $entryProperty){return $false}
+    $entry=$entryProperty.Value
+    $changed=$false
+    foreach($binding in @(Get-DynomaxPropertyValue -Object $entry -Name 'deferredBindings' -DefaultValue @())){
+        if([string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '') -ne 'RuntimeValue'){continue}
+        $inputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'inputName' -DefaultValue '')
+        $name=[string](Get-DynomaxPropertyValue -Object $binding -Name 'name' -DefaultValue '')
+        if(-not $inputName -or -not $name){throw 'A Dynomax runtime-value binding is incomplete.'}
+        Set-DynomaxDynamicContextProperty -Object $context.values -Name $inputName -Value (Get-DynomaxRuntimeStepValue -Context $context -StepInput $entry -Name $name -AttemptNumber $AttemptNumber)
+        $changed=$true
+    }
+    if($changed){
+        $runtimeValues=Get-DynomaxPropertyValue -Object $context -Name 'runtimeValues' -DefaultValue $null
+        if($null -ne $runtimeValues){
+            Set-DynomaxDynamicContextProperty -Object $runtimeValues -Name 'AttemptNumber' -Value ([int][Math]::Max(1,$AttemptNumber))
+            Set-DynomaxDynamicContextProperty -Object $runtimeValues -Name 'CurrentUtc' -Value ([DateTime]::UtcNow.ToString('o'))
+        }
+        Write-DynomaxJson -Value $context -Path $ContextPath
+    }
+    return $changed
+}
+
 function Get-DynomaxRunDataPoolOutputValue {
     param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][string]$SourceStepId,[Parameter(Mandatory)][string]$OutputName)
     $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
@@ -231,12 +292,21 @@ function Enter-DynomaxStepInputContext {
     $resolvedValues=[ordered]@{}
     if($null -ne $stepValues){foreach($property in @($stepValues.PSObject.Properties)){$resolvedValues[[string]$property.Name]=$property.Value}}
     foreach($binding in @(Get-DynomaxPropertyValue -Object $entry -Name 'deferredBindings' -DefaultValue @())){
-        if([string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '') -ne 'StepOutput'){continue}
+        $kind=[string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '')
         $inputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'inputName' -DefaultValue '')
-        $sourceStepId=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceStepId' -DefaultValue '')
-        $sourceOutputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceOutputName' -DefaultValue '')
-        if(-not $inputName -or -not $sourceStepId -or -not $sourceOutputName){throw 'A Dynomax step-output binding is incomplete.'}
-        $resolvedValues[$inputName]=Get-DynomaxRunDataPoolOutputValue -Context $context -SourceStepId $sourceStepId -OutputName $sourceOutputName
+        if(-not $inputName){throw 'A Dynomax deferred binding has no inputName.'}
+        if($kind -eq 'StepOutput'){
+            $sourceStepId=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceStepId' -DefaultValue '')
+            $sourceOutputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceOutputName' -DefaultValue '')
+            if(-not $sourceStepId -or -not $sourceOutputName){throw 'A Dynomax step-output binding is incomplete.'}
+            $resolvedValues[$inputName]=Get-DynomaxRunDataPoolOutputValue -Context $context -SourceStepId $sourceStepId -OutputName $sourceOutputName
+        }elseif($kind -eq 'RuntimeValue'){
+            $name=[string](Get-DynomaxPropertyValue -Object $binding -Name 'name' -DefaultValue '')
+            if(-not $name){throw 'A Dynomax runtime-value binding is incomplete.'}
+            $resolvedValues[$inputName]=Get-DynomaxRuntimeStepValue -Context $context -StepInput $entry -Name $name -AttemptNumber 1
+        }else{
+            throw "Deferred Dynomax binding kind '$kind' is not supported by this Core release."
+        }
     }
     if($resolvedValues.Count -eq 0){return $false}
 
