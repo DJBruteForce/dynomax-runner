@@ -1,0 +1,10 @@
+﻿{
+  "Enabled": true,
+  "MinimumLevel": "Trace",
+  "AgentLogAccessEnabled": true,
+  "AgentDatabaseInspectionEnabled": true,
+  "ExpiresAtUtc": "2026-08-17T14:59:49.1804439Z",
+  "RetentionHours": 72,
+  "DefaultEntryLimit": 250,
+  "MaximumEntryLimit": 2000
+}

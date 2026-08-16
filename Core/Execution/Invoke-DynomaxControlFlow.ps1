@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('BeforeAction','AfterAction','FailAction','AssertDiscoveryTarget')][string]$Mode,
+    [Parameter(Mandatory)][ValidateSet('BeforeAction','AfterAction','ReuseAction','FailAction','AssertDiscoveryTarget')][string]$Mode,
     [Parameter(Mandatory)][string]$DynomaxRoot,
     [Parameter(Mandatory)][string]$WorkflowPath,
     [Parameter(Mandatory)][string]$ContextPath,

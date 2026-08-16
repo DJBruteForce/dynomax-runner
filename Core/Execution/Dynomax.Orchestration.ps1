@@ -19,33 +19,43 @@ function ConvertTo-DynomaxOrchestrationBoolean {
 function Invoke-DynomaxControlFlowOperation {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet('BeforeAction','AfterAction','FailAction','AssertDiscoveryTarget')][string]$Mode,
+        [Parameter(Mandatory)][ValidateSet('BeforeAction','AfterAction','ReuseAction','FailAction','AssertDiscoveryTarget')][string]$Mode,
         [Parameter(Mandatory)]$Workflow,
         [Parameter(Mandatory)][string]$ContextPath,
         [Parameter(Mandatory)][string]$RunDirectory,
         [Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)][string]$NodeId,
         [Parameter(Mandatory)]$SqlConfig,
-        [System.Data.SqlClient.SqlConnection]$Connection
+        [System.Data.SqlClient.SqlConnection]$Connection,
+        $State=$null,
+        [switch]$SkipStateWrite,
+        [switch]$SkipEventSync
     )
 
     if($Mode -eq 'BeforeAction'){
-        $decision=Get-DynomaxControlFlowDecision -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId
-        Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection
+        $decision=Get-DynomaxControlFlowDecision -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId -State $State
         return ([string]$decision.Disposition).ToUpperInvariant()
     }
     if($Mode -eq 'FailAction'){
-        [void](Fail-DynomaxControlFlowAction -Workflow $Workflow -RunDirectory $RunDirectory -NodeId $NodeId)
-        Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection
+        $state=Fail-DynomaxControlFlowAction -Workflow $Workflow -RunDirectory $RunDirectory -NodeId $NodeId -DeferStateWrite -State $State
+        if(-not $SkipEventSync){
+            [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection -State $state -SkipStateWrite:$SkipStateWrite)
+        }
         return 'OK'
     }
     if($Mode -eq 'AssertDiscoveryTarget'){
-        [void](Assert-DynomaxDiscoveryTargetReached -Workflow $Workflow -RunDirectory $RunDirectory)
+        [void](Assert-DynomaxDiscoveryTargetReached -Workflow $Workflow -RunDirectory $RunDirectory -State $State)
         return 'OK'
     }
 
-    $state=Complete-DynomaxControlFlowAction -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId
-    Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection
+    $reused=$Mode -eq 'ReuseAction'
+    $state=Complete-DynomaxControlFlowAction -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId -Reused:$reused -DeferStateWrite -State $State
+    if($reused){
+        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Continuation.Reused' -Message "Physical Action visit '$NodeId' was reused from the immutable continuation plan; it was not executed in this Run." -Data ([ordered]@{workflowNodeId=$NodeId;executionKind='Reused';executed=$false}) -Connection $Connection
+    }
+    if(-not $SkipEventSync){
+        [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection -State $state -SkipStateWrite:$SkipStateWrite)
+    }
     $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
     if($terminalStatus){return ('TERMINAL_{0}' -f $terminalStatus.ToUpperInvariant())}
     return 'CONTINUE'
@@ -95,6 +105,25 @@ function Invoke-DynomaxAttemptRecordOperation {
     return [ordered]@{ classification=$classification; retryable=[bool]$retryable; evidenceRetained=[bool]$evidenceRetained; timedOut=[bool]$timedOutValue; record=$record }
 }
 
+function Invoke-DynomaxActionStartOperation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][int]$StepOrder,
+        [Parameter(Mandatory)][string]$StepId,
+        [Parameter(Mandatory)][string]$ActionKey,
+        [Parameter(Mandatory)][Guid]$ActionVersionId,
+        [Parameter(Mandatory)][object]$IsCleanup,
+        [Parameter(Mandatory)]$SqlConfig,
+        [System.Data.SqlClient.SqlConnection]$Connection
+    )
+    $cleanup=ConvertTo-DynomaxOrchestrationBoolean -Value $IsCleanup -ParameterName 'IsCleanup'
+    $stream=if($cleanup){'CleanupActionStarted'}else{'MainActionStarted'}
+    $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream $stream -Sequence $StepOrder
+    Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.ActionStarted' -Message "Action '$ActionKey' started." -Data ([ordered]@{stepOrder=$StepOrder;stepId=$StepId;actionKey=$ActionKey;actionVersionId=$ActionVersionId.ToString('D');isCleanup=$cleanup}) -RunEventId $eventId -Connection $Connection
+    return [ordered]@{status='RUNNING';stepOrder=$StepOrder;stepId=$StepId;actionKey=$ActionKey}
+}
+
 function Invoke-DynomaxActionResultPersistenceOperation {
     [CmdletBinding()]
     param(
@@ -142,6 +171,6 @@ function Invoke-DynomaxActionResultPersistenceOperation {
         if(-not ($context.values.PSObject.Properties.Name -contains 'workflowBlocked')){Add-Member -InputObject $context.values -NotePropertyName 'workflowBlocked' -NotePropertyValue $true}else{$context.values.workflowBlocked=$true}
         Write-DynomaxJson -Value $context -Path $ContextPath
     }
-    Set-DynomaxContextValuesInSql -SqlConfig $SqlConfig -RunId $RunId -Context $context -Connection $Connection -PersistedContextCache $PersistedContextCache
+    Set-DynomaxContextStepInSql -SqlConfig $SqlConfig -RunId $RunId -Context $context -StepId $StepId -Connection $Connection -PersistedContextCache $PersistedContextCache
     return [ordered]@{status=$status;stepOrder=$StepOrder;stepId=$StepId;actionKey=$ActionKey}
 }

@@ -229,6 +229,25 @@ class DynomaxRuntimeBridge:
                 pass
             return False, None, "", error
 
+    def dynomax_host_mark_action_running(
+        self, powershell, dynomax_root, workflow_path, context_path,
+        run_directory, run_id, step_order, step_id, action_key,
+        action_version_id, is_cleanup
+    ):
+        with self._lock:
+            self._start_host(powershell, dynomax_root, workflow_path, context_path, run_directory, run_id)
+            started = time.perf_counter()
+            result = self._send_request("MarkActionRunning", {
+                "stepOrder": int(step_order),
+                "stepId": str(step_id),
+                "actionKey": str(action_key),
+                "actionVersionId": str(action_version_id),
+                "isCleanup": self._to_bool(is_cleanup, "isCleanup"),
+            })
+            self._metric("actionStarted", (time.perf_counter() - started) * 1000.0,
+                         step_order=step_order, step_id=step_id, action_key=action_key)
+            return result
+
     def dynomax_host_persist_action_result(
         self, robot_status, message_base64, powershell, dynomax_root, workflow_path,
         context_path, run_directory, run_id, step_order, step_id, action_key,

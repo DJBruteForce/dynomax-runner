@@ -23,7 +23,12 @@ Start Dynomax Browser
     New Page    about:blank
 
 Stop Dynomax Browser
-    Run Keyword And Ignore Error    Close Browser
+    ${close_status}    ${close_message}    ${close_timed_out}=    Run Dynomax Keyword With Timeout    Close Browser    10s
+    IF    ${close_timed_out}
+        Log    Browser shutdown exceeded the bounded 10-second teardown window. Dynomax is continuing Result finalization.    WARN
+    ELSE IF    '${close_status}' != 'PASS'
+        Log    Browser session was already unavailable during teardown. Dynomax is continuing Result finalization.    WARN
+    END
 
 Complete Dynomax Browser Suite
     ${discovery_enabled}=    Get Variable Value    \${DYNOMAX_DISCOVERY_ENABLED}    ${False}
@@ -169,6 +174,100 @@ Advance Dynomax Control Flow After Action
     END
     RETURN    ${advance_state}
 
+Get Dynomax Continuation Decision
+    [Arguments]    ${context_path}    ${step_id}
+    ${decision}=    Resolve Dynomax Continuation Decision    ${context_path}    ${step_id}
+    RETURN    ${decision}
+
+Execute Dynomax Scheduled Slot
+    [Arguments]    ${action_id}    ${step_order}    ${step_id}    ${workflow_node_id}    ${execution_slot}    ${output_specs_b64}    ${is_cleanup}    ${continue_on_failure}    ${action_version_id}    ${requested_version}    ${resolved_version}    ${wait_before_seconds}    ${attempt_timeout_seconds}    ${maximum_attempts}    ${retry_delay_seconds}    ${backoff}    ${maximum_retry_delay_seconds}    ${overall_timeout_seconds}    ${retry_on_csv}    ${evidence_policy}    ${browser_session_retry_mode}    ${sensitive_action}    ${action_keyword}
+    Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+    Set Test Variable    ${DYNOMAX_ACTION_ID}    ${action_id}
+    Set Test Variable    ${DYNOMAX_STEP_ORDER}    ${step_order}
+    Set Test Variable    ${DYNOMAX_STEP_ID}    ${step_id}
+    Set Test Variable    ${DYNOMAX_WORKFLOW_NODE_ID}    ${workflow_node_id}
+    Set Test Variable    ${DYNOMAX_EXECUTION_SLOT}    ${execution_slot}
+    Set Test Variable    ${DYNOMAX_OUTPUT_SPECS_B64}    ${output_specs_b64}
+    Set Test Variable    ${DYNOMAX_IS_CLEANUP}    ${is_cleanup}
+    Set Test Variable    ${DYNOMAX_CONTINUE_ON_FAILURE}    ${continue_on_failure}
+    Set Test Variable    ${DYNOMAX_ACTION_VERSION_ID}    ${action_version_id}
+    Set Test Variable    ${DYNOMAX_REQUESTED_ACTION_VERSION}    ${requested_version}
+    Set Test Variable    ${DYNOMAX_RESOLVED_ACTION_VERSION}    ${resolved_version}
+    Set Test Variable    ${DYNOMAX_WAIT_BEFORE_SECONDS}    ${wait_before_seconds}
+    Set Test Variable    ${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    ${attempt_timeout_seconds}
+    Set Test Variable    ${DYNOMAX_MAXIMUM_ATTEMPTS}    ${maximum_attempts}
+    Set Test Variable    ${DYNOMAX_RETRY_DELAY_SECONDS}    ${retry_delay_seconds}
+    Set Test Variable    ${DYNOMAX_BACKOFF}    ${backoff}
+    Set Test Variable    ${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    ${maximum_retry_delay_seconds}
+    Set Test Variable    ${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    ${overall_timeout_seconds}
+    Set Test Variable    ${DYNOMAX_RETRY_ON_CSV}    ${retry_on_csv}
+    Set Test Variable    ${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    ${evidence_policy}
+    Set Test Variable    ${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    ${browser_session_retry_mode}
+    Set Test Variable    ${DYNOMAX_SENSITIVE_ACTION}    ${sensitive_action}
+    Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    True
+    IF    ${is_cleanup}
+        ${cleanup_stop_requested}=    Get Variable Value    \${DYNOMAX_CLEANUP_STOP_REQUESTED}    ${False}
+        IF    ${cleanup_stop_requested}
+            Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+            RETURN
+        END
+    ELSE
+        ${control_flow_decision}=    Should Run Dynomax Control Flow Action    ${workflow_node_id}
+        IF    '${control_flow_decision}' == 'DEFER'
+            Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+            RETURN
+        END
+        IF    '${control_flow_decision}' == 'SKIP_FINAL'
+            Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    True
+            Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+            RETURN
+        END
+    END
+    ${continuation_decision}=    Get Dynomax Continuation Decision    ${DYNOMAX_CONTEXT_PATH}    ${step_id}
+    IF    '${continuation_decision}' == 'BLOCKED'
+        Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+        Fail    Continuation is blocked at physical step '${step_id}'. Inspect the immutable continuation plan for the safety reason.
+    END
+    IF    '${continuation_decision}' == 'REUSE'
+        IF    not ${is_cleanup}
+            Advance Dynomax Control Flow After Reused Action    ${workflow_node_id}
+        END
+        Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+        RETURN
+    END
+    Begin Dynomax Step Scope    ${DYNOMAX_CONTEXT_PATH}    ${step_id}    ${DYNOMAX_OUTPUT_SPECS_B64}
+    Mark Dynomax Action Running
+    TRY
+        ${action_status}    ${action_message}=    Run Keyword And Ignore Error    Execute Dynomax Action With Policy    ${action_keyword}    ${is_cleanup}
+    FINALLY
+        Complete Dynomax Step Scope    ${DYNOMAX_CONTEXT_PATH}    ${step_id}    ${workflow_node_id}    ${execution_slot}    ${action_id}    ${DYNOMAX_OUTPUT_SPECS_B64}
+    END
+    Persist Dynomax Explicit Robot Action Result    ${action_status}    ${action_message}
+    IF    ${is_cleanup}
+        Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+        RETURN
+    END
+    IF    '${action_status}' == 'FAIL'
+        Fail Dynomax Control Flow Action    ${workflow_node_id}
+        Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+        RETURN
+    END
+    ${advance_state}=    Advance Dynomax Control Flow After Action    ${workflow_node_id}
+    Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+    IF    '${advance_state}' != 'CONTINUE'
+        RETURN
+    END
+
+Advance Dynomax Control Flow After Reused Action
+    [Arguments]    ${node_id}
+    ${advance_state}=    Dynomax Host Control Flow    ReuseAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
+    ${advance_state}=    Evaluate    str($advance_state).strip().upper()
+    Should Match Regexp    ${advance_state}    ^(CONTINUE|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow reuse advance state: ${advance_state}
+    IF    '${advance_state}' != 'CONTINUE'
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
+    END
+    RETURN    ${advance_state}
+
 Execute Dynomax Action With Policy
     [Arguments]    ${keyword_name}    ${is_cleanup}=False
     ${blocked}=    Get Dynomax Context Value    workflowBlocked    ${False}
@@ -193,15 +292,22 @@ Execute Dynomax Action With Policy
         ${attempt_started}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
         ${png_snapshot}=    Capture Dynomax Png Snapshot
         ${actual_action_started}=    Evaluate    time.perf_counter()    modules=time
-        IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
-            ${previous_log_level}=    Set Log Level    NONE
-            TRY
+        ${semantic_timeout}=    Get Dynomax Context Value    timeoutSeconds    ${EMPTY}
+        Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
+        ${previous_browser_timeout}=    Set Browser Timeout    ${effective_timeout}s    scope=Test
+        TRY
+            IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
+                ${previous_log_level}=    Set Log Level    NONE
+                TRY
+                    ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
+                FINALLY
+                    Set Log Level    ${previous_log_level}
+                END
+            ELSE
                 ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
-            FINALLY
-                Set Log Level    ${previous_log_level}
             END
-        ELSE
-            ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
+        FINALLY
+            Set Browser Timeout    ${previous_browser_timeout}    scope=Test
         END
         ${actual_action_duration_ms}=    Evaluate    (time.perf_counter() - float($actual_action_started)) * 1000.0    modules=time
         ${attempt_ended}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
@@ -346,26 +452,21 @@ Execute Dynomax Action Keyword
     Run Keyword    ${keyword_name}
 
 Get Dynomax Context
-    ${text}=    Get File    ${DYNOMAX_CONTEXT_PATH}
-    ${context}=    Evaluate    json.loads($text)    modules=json
+    ${context}=    Read Dynomax Context    ${DYNOMAX_CONTEXT_PATH}
     RETURN    ${context}
 
 Save Dynomax Context
     [Arguments]    ${context}
-    ${text}=    Evaluate    json.dumps($context, indent=2, default=str)    modules=json
-    Create File    ${DYNOMAX_CONTEXT_PATH}    ${text}
+    Write Dynomax Context    ${DYNOMAX_CONTEXT_PATH}    ${context}
 
 Get Dynomax Context Value
     [Arguments]    ${name}    ${default}=${None}
-    ${context}=    Get Dynomax Context
-    ${value}=    Evaluate    $context.get('values', {}).get($name, $default)
+    ${value}=    Read Dynomax Context Value    ${DYNOMAX_CONTEXT_PATH}    ${name}    ${default}
     RETURN    ${value}
 
 Set Dynomax Context Value
     [Arguments]    ${name}    ${value}
-    ${context}=    Get Dynomax Context
-    Evaluate    $context.setdefault('values', {}).__setitem__($name, $value)
-    Save Dynomax Context    ${context}
+    Write Dynomax Context Value    ${DYNOMAX_CONTEXT_PATH}    ${name}    ${value}
 
 Set Dynomax Action Classification
     [Arguments]    ${classification}
@@ -396,8 +497,18 @@ Fill Dynomax Secret
         Set Log Level    ${previous_log_level}
     END
 
+Mark Dynomax Action Running
+    Dynomax Host Mark Action Running    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}    ${DYNOMAX_STEP_ORDER}    ${DYNOMAX_STEP_ID}    ${DYNOMAX_ACTION_ID}    ${DYNOMAX_ACTION_VERSION_ID}    ${DYNOMAX_IS_CLEANUP}
+
 Persist Dynomax Explicit Robot Action Result
     [Arguments]    ${robot_status}    ${robot_message}
+    ${is_cleanup}=    Get Variable Value    \${DYNOMAX_IS_CLEANUP}    ${False}
+    IF    ${is_cleanup} and '${robot_status}' == 'FAIL'
+        ${continue_on_failure}=    Get Variable Value    \${DYNOMAX_CONTINUE_ON_FAILURE}    ${False}
+        IF    not ${continue_on_failure}
+            Set Suite Variable    ${DYNOMAX_CLEANUP_STOP_REQUESTED}    ${True}
+        END
+    END
     ${message64}=    Evaluate    base64.b64encode(str($robot_message).encode('utf-8')).decode('ascii')    modules=base64
     IF    '${robot_status}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}
         ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
@@ -408,6 +519,10 @@ Persist Dynomax Explicit Robot Action Result
 Persist Dynomax Robot Action Result
     ${metadata_ready}=    Get Variable Value    \${DYNOMAX_ACTION_METADATA_READY}    ${False}
     IF    not ${metadata_ready}
+        ${control_flow_enabled}=    Get Variable Value    \${DYNOMAX_CONTROL_FLOW_ENABLED}    ${False}
+        IF    ${control_flow_enabled}
+            RETURN
+        END
         Log    Dynomax Action metadata was not initialized; result persistence was skipped so the runtime failure is classified as ERROR.    WARN
         RETURN
     END
@@ -415,6 +530,12 @@ Persist Dynomax Robot Action Result
     ${is_cleanup}=    Get Variable Value    \${DYNOMAX_IS_CLEANUP}    ${False}
     IF    ${control_flow_enabled} and not ${is_cleanup} and '${TEST_STATUS}' == 'FAIL'
         Fail Dynomax Control Flow Action    ${DYNOMAX_WORKFLOW_NODE_ID}
+    END
+    IF    ${is_cleanup} and '${TEST_STATUS}' == 'FAIL'
+        ${continue_on_failure}=    Get Variable Value    \${DYNOMAX_CONTINUE_ON_FAILURE}    ${False}
+        IF    not ${continue_on_failure}
+            Set Suite Variable    ${DYNOMAX_CLEANUP_STOP_REQUESTED}    ${True}
+        END
     END
     ${message64}=    Evaluate    base64.b64encode($TEST_MESSAGE.encode('utf-8')).decode('ascii')    modules=base64
     IF    '${TEST_STATUS}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}

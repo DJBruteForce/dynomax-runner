@@ -5,6 +5,7 @@ param(
     [string]$RuntimeProjectFolder,
     [string]$ContextSeedPath,
     [string]$RunContractPath,
+    [string]$CoreDiagnosticPath,
     [switch]$SuppressClipboard
 )
 Set-StrictMode -Version Latest
@@ -22,6 +23,113 @@ $root=$current
 . (Join-Path $root 'Core\Execution\Dynomax.ExecutionPolicy.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.ControlFlow.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.Workflow.ps1')
+
+
+function ConvertTo-DynomaxBoundedDiagnosticMessage {
+    param([object]$ErrorRecord,[int]$MaximumLength=2000)
+    $message='Unknown Core finalization failure.'
+    if($null -ne $ErrorRecord){
+        if($ErrorRecord -is [System.Management.Automation.ErrorRecord]){$message=[string]$ErrorRecord.Exception.Message}
+        elseif($ErrorRecord.PSObject.Properties['Exception']){$message=[string]$ErrorRecord.Exception.Message}
+        else{$message=[string]$ErrorRecord}
+    }
+    $message=($message -replace '[\r\n\t]+',' ').Trim()
+    if($message.Length -gt $MaximumLength){$message=$message.Substring(0,$MaximumLength)}
+    return $message
+}
+
+function Write-DynomaxRunContractAtomic {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$ProjectKey,
+        [Parameter(Mandatory)][string]$WorkflowId,
+        [Parameter(Mandatory)][Guid]$WorkflowVersionId,
+        [Parameter(Mandatory)][string]$Status,
+        [Parameter(Mandatory)][string]$LogicalStatus,
+        [Parameter(Mandatory)][string]$FinalizationStatus,
+        [Parameter(Mandatory)][string]$FinalizationStep,
+        [AllowNull()][string]$ResultZipPath,
+        [AllowNull()][string]$FailureCode,
+        [AllowNull()][string]$FailureMessage
+    )
+    $resolved=[System.IO.Path]::GetFullPath($Path)
+    $parent=Split-Path -Parent $resolved
+    if($parent){[System.IO.Directory]::CreateDirectory($parent)|Out-Null}
+    $contract=[ordered]@{
+        schemaVersion=2
+        runId=[string]$RunId
+        projectKey=$ProjectKey
+        workflowId=$WorkflowId
+        workflowVersionId=[string]$WorkflowVersionId
+        status=$Status
+        logicalStatus=$LogicalStatus
+        finalizationStatus=$FinalizationStatus
+        finalizationStep=$FinalizationStep
+        resultZipPath=$(if($ResultZipPath){$ResultZipPath}else{$null})
+        failureCode=$(if($FailureCode){$FailureCode}else{$null})
+        failureMessage=$(if($FailureMessage){$FailureMessage}else{$null})
+        updatedAtUtc=[DateTime]::UtcNow.ToString('o')
+        completedAtUtc=$(if($FinalizationStatus -in @('Completed','Recovered','Failed')){[DateTime]::UtcNow.ToString('o')}else{$null})
+    }
+    $temporary=$resolved+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
+    try{
+        Write-DynomaxJson -Value $contract -Path $temporary
+        Move-Item -LiteralPath $temporary -Destination $resolved -Force
+    }
+    finally{
+        if(Test-Path -LiteralPath $temporary -PathType Leaf){Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue}
+    }
+}
+
+function Test-DynomaxSqlEvidenceCandidate {
+    param(
+        [Parameter(Mandatory)][System.IO.FileInfo]$File,
+        [Parameter(Mandatory)][string]$RunDirectory
+    )
+    if($File.Name -eq 'context.json'){return $false}
+    if($File.Length -le 0 -and $File.Extension -match '^\.(log|txt)$'){return $false}
+    if($File.Extension -notmatch '^\.(xml|html?|log|png|jpe?g|json|jsonl|md|txt)$'){return $false}
+    $relative=((Get-DynomaxRelativePath -BasePath $RunDirectory -TargetPath $File.FullName) -replace '\\','/').TrimStart('/')
+    if($relative.StartsWith('attempt-recorder/',[System.StringComparison]::OrdinalIgnoreCase)){return $false}
+    if($relative.StartsWith('robot-result/',[System.StringComparison]::OrdinalIgnoreCase)){
+        if($relative -match '(?i)/(log|report)\.html$'){return $false}
+        return $relative -match '(?i)/(output\.xml|playwright-log\.txt)$' -or $File.Extension -match '^\.(png|jpe?g)$'
+    }
+    if($relative.StartsWith('screenshots/',[System.StringComparison]::OrdinalIgnoreCase) -or
+       $relative.StartsWith('discovery/',[System.StringComparison]::OrdinalIgnoreCase) -or
+       $relative.StartsWith('attempt-evidence/',[System.StringComparison]::OrdinalIgnoreCase) -or
+       $relative.StartsWith('project-export/',[System.StringComparison]::OrdinalIgnoreCase)){
+        return $true
+    }
+    return $relative -match '(?i)^(preflight\.json|core-diagnostics\.jsonl|control-flow-state\.json|orchestration-performance\.jsonl|execution-attempts\.jsonl|robot-console\.log|runtime-control-flow\.json|discovery-[^/]+\.json)$'
+}
+
+function Copy-DynomaxRobotResultEvidence {
+    param(
+        [Parameter(Mandatory)][string]$RobotResultDirectory,
+        [Parameter(Mandatory)][string]$DestinationDirectory,
+        [Parameter(Mandatory)][string]$LogicalStatus
+    )
+    if(-not(Test-Path -LiteralPath $RobotResultDirectory -PathType Container)){return 0}
+    Ensure-DynomaxDirectory -Path $DestinationDirectory|Out-Null
+    $names=New-Object System.Collections.Generic.List[string]
+    $names.Add('output.xml')
+    $names.Add('playwright-log.txt')
+    if($LogicalStatus -ne 'PASS'){
+        $names.Add('log.html')
+        $names.Add('report.html')
+    }
+    $copied=0
+    foreach($name in $names){
+        $source=Join-Path $RobotResultDirectory $name
+        if((Test-Path -LiteralPath $source -PathType Leaf) -and ((Get-Item -LiteralPath $source).Length -gt 0)){
+            Copy-Item -LiteralPath $source -Destination (Join-Path $DestinationDirectory $name) -Force
+            $copied++
+        }
+    }
+    return $copied
+}
 
 if(-not $DynomaxConfigPath){$DynomaxConfigPath=Join-Path $root 'dynomax.json'}
 $config=Read-DynomaxJson -Path $DynomaxConfigPath
@@ -60,12 +168,52 @@ $packageHash=Get-DynomaxSha256 -Path $workflowPath
 $tempRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.tempRuns
 $runDirectory=Ensure-DynomaxDirectory -Path (Join-Path $tempRoot ([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')))
 $contextPath=Join-Path $runDirectory 'context.json'
-$context=[ordered]@{schemaVersion=2;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{}}
+$coreDiagnosticInternalPath=Join-Path $runDirectory 'core-diagnostics.jsonl'
+$coreDiagnosticHandoffPath=$null
+if(-not [string]::IsNullOrWhiteSpace([string]$CoreDiagnosticPath)){$coreDiagnosticHandoffPath=[System.IO.Path]::GetFullPath($CoreDiagnosticPath)}
+$coreDiagnosticPaths=[System.Collections.Generic.List[string]]::new()
+$coreDiagnosticPaths.Add($coreDiagnosticInternalPath)
+if($coreDiagnosticHandoffPath -and -not [string]::Equals($coreDiagnosticHandoffPath,$coreDiagnosticInternalPath,[System.StringComparison]::OrdinalIgnoreCase)){$coreDiagnosticPaths.Add($coreDiagnosticHandoffPath)}
+$coreRunRequestId=$null
+$runRequestCandidateForDiagnostics=Split-Path -Leaf (Split-Path -Parent $WorkflowDirectory)
+$parsedRunRequestForDiagnostics=[Guid]::Empty
+if([Guid]::TryParse([string]$runRequestCandidateForDiagnostics,[ref]$parsedRunRequestForDiagnostics)){$coreRunRequestId=[string]$parsedRunRequestForDiagnostics}
+function Write-DynomaxCoreDiagnostic {
+    param(
+        [Parameter(Mandatory)][string]$Level,
+        [Parameter(Mandatory)][string]$Stage,
+        [Parameter(Mandatory)][string]$Message,
+        [AllowNull()][Guid]$CoreRunId
+    )
+    try{
+        $safe=(ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $Message -MaximumLength 4000)
+        $entry=[ordered]@{
+            timestampUtc=[DateTime]::UtcNow.ToString('o')
+            level=$Level
+            component='Core'
+            stage=$Stage
+            message=$safe
+            runRequestId=$coreRunRequestId
+            coreRunId=$(if($CoreRunId -and $CoreRunId -ne [Guid]::Empty){[string]$CoreRunId}else{$null})
+            workflowKey=[string]$workflow.workflowId
+        }
+        $line=$entry|ConvertTo-Json -Depth 8 -Compress
+        foreach($diagnosticPath in $coreDiagnosticPaths){
+            try{
+                $diagnosticParent=Split-Path -Parent $diagnosticPath
+                if($diagnosticParent){[System.IO.Directory]::CreateDirectory($diagnosticParent)|Out-Null}
+                [System.IO.File]::AppendAllText($diagnosticPath,$line+[Environment]::NewLine,[System.Text.UTF8Encoding]::new($false))
+            }catch{}
+        }
+    }catch{}
+}
+Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'Startup' -Message 'Dynomax Core workflow startup began.' -CoreRunId ([Guid]::Empty)
+$context=[ordered]@{schemaVersion=3;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{};continuation=$null}
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
     $seed=Read-DynomaxJson -Path $resolvedSeedPath
-    $seedSchema=[int](Get-DynomaxPropertyValue -Object $seed -Name 'schemaVersion' -DefaultValue 0); if($seedSchema -notin @(1,2)){throw 'Context seed schemaVersion must be 1 or 2.'}
+    $seedSchema=[int](Get-DynomaxPropertyValue -Object $seed -Name 'schemaVersion' -DefaultValue 0); if($seedSchema -notin @(1,2,3)){throw 'Context seed schemaVersion must be 1, 2 or 3.'}
     $seedValues=Get-DynomaxPropertyValue -Object $seed -Name 'values' -DefaultValue $null
     if($null -eq $seedValues){throw 'Context seed values are required.'}
     $seedSecretKeys=@(Get-DynomaxPropertyValue -Object $seed -Name 'secretKeys' -DefaultValue @())
@@ -95,9 +243,21 @@ if($ContextSeedPath){
         if($seedRuntimePolicy -isnot [System.Management.Automation.PSCustomObject]){throw 'Context seed runtimePolicy must be a JSON object.'}
         $context.runtimePolicy=$seedRuntimePolicy
     }
+    $seedContinuation=Get-DynomaxPropertyValue -Object $seed -Name 'continuation' -DefaultValue $null
+    if($null -ne $seedContinuation){
+        if($seedSchema -ne 3 -or $seedContinuation -isnot [System.Management.Automation.PSCustomObject]){throw 'Continuation context requires context seed schemaVersion 3 and a JSON object.'}
+        $context.continuation=$seedContinuation
+    }
 }
 Write-DynomaxJson -Value $context -Path $contextPath
 $runId=New-DynomaxTestRun -SqlConfig $sqlConfig -ProjectKey ([string]$workflow.projectKey) -WorkflowKey ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -EnvironmentKey ([string]$workflow.environment) -WorkingDirectory $runDirectory -PackageHash $packageHash
+Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'TestRunCreated' -Message 'Internal Core TestRun was created.' -CoreRunId $runId
+$directPersistedContextCache=@{}
+if($RunContractPath){
+    try{
+        Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'RUNNING' -LogicalStatus 'RUNNING' -FinalizationStatus 'NotStarted' -FinalizationStep 'NotStarted' -ResultZipPath $null -FailureCode $null -FailureMessage $null
+    }catch{Write-Warning ("Initial run-contract checkpoint failed: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
+}
 $context.values.runId=[string]$runId
 $context.runtimeValues['RunId']=[string]$runId
 $context.runtimeValues['EnvironmentKey']=[string]$workflow.environment
@@ -112,6 +272,26 @@ $parsedOuterRunRequestId=[Guid]::Empty
 if([Guid]::TryParse([string]$runRequestCandidate,[ref]$parsedOuterRunRequestId)){$outerRunRequestId=[string]$parsedOuterRunRequestId}
 $context.runtimeValues['OperationId']=if($outerRunRequestId){$outerRunRequestId}else{[string]$runId}
 Write-DynomaxJson -Value $context -Path $contextPath
+$initialContext=Read-DynomaxJson -Path $contextPath
+try{
+    Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage 'InitialContextPersistence' -Message 'Persisting initial Run context.' -CoreRunId $runId
+    Set-DynomaxContextValuesInSql -SqlConfig $sqlConfig -RunId $runId -Context $initialContext -PersistedContextCache $directPersistedContextCache
+    if($directPersistedContextCache.ContainsKey('__dynomax.contextBatchDisabled')){
+        Write-DynomaxCoreDiagnostic -Level 'Warning' -Stage 'InitialContextPersistence' -Message ('Optimized context batch failed; deterministic per-key fallback is active. '+[string]$directPersistedContextCache['__dynomax.contextBatchDisabled']) -CoreRunId $runId
+    }else{
+        Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage 'InitialContextPersistence' -Message 'Initial Run context persisted with optimized batch path.' -CoreRunId $runId
+    }
+}
+catch{
+    $startupMessage=ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_
+    Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'InitialContextPersistence' -Message $startupMessage -CoreRunId $runId
+    if($RunContractPath){
+        try{
+            Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'ERROR' -LogicalStatus 'ERROR' -FinalizationStatus 'Failed' -FinalizationStep 'InitialContextPersistence' -ResultZipPath $null -FailureCode 'CORE_CONTEXT_INITIALIZATION_FAILED' -FailureMessage $startupMessage
+        }catch{Write-Warning ("Startup failure run-contract checkpoint failed: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
+    }
+    throw
+}
 $preflightSummary=[ordered]@{
     schemaVersion=2
     status='PASS'
@@ -142,7 +322,9 @@ $preflightSummary=[ordered]@{
     message='Exact workflow and action-version preflight passed.'
     checkedAtUtc=[DateTime]::UtcNow.ToString('o')
 }
+Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage 'Preflight' -Message 'Workflow and Action-version preflight began.' -CoreRunId $runId
 try{
+    Assert-DynomaxCoreRuntimeContract -DynomaxRoot $root
     $duplicateOrders=@($allSteps|Group-Object order|Where-Object{$_.Count -gt 1})
     if($duplicateOrders.Count -gt 0){
         $duplicateStep=@($duplicateOrders[0].Group)[0]
@@ -160,6 +342,7 @@ try{
 }
 catch{
     $preflightException=$_
+    Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Preflight' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId
     $classification='ERROR'
     $stepOrder=if($_.Exception.Data.Contains('DynomaxStepOrder')){[int]$_.Exception.Data['DynomaxStepOrder']}else{0}
     $actionKey=if($_.Exception.Data.Contains('DynomaxActionKey')){[string]$_.Exception.Data['DynomaxActionKey']}else{'workflow.preflight'}
@@ -212,6 +395,22 @@ function Set-DynomaxDynamicContextProperty {
     }else{
         $property.Value=$Value
     }
+}
+
+function Get-DynomaxContinuationDecision {
+    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
+    $continuationContext=Read-DynomaxJson -Path $ContextPath
+    $continuation=Get-DynomaxPropertyValue -Object $continuationContext -Name 'continuation' -DefaultValue $null
+    if($null -eq $continuation){return 'EXECUTE'}
+    $plan=Get-DynomaxPropertyValue -Object $continuation -Name 'plan' -DefaultValue $null
+    if($null -eq $plan){throw 'Continuation context has no immutable plan.'}
+    $matches=@((Get-DynomaxPropertyValue -Object $plan -Name 'items' -DefaultValue @())|Where-Object{
+        [string](Get-DynomaxPropertyValue -Object $_ -Name 'targetStepId' -DefaultValue '') -ceq $StepId
+    })
+    if($matches.Count -ne 1){throw "Continuation plan has no unique decision for physical step '$StepId'."}
+    $decision=([string](Get-DynomaxPropertyValue -Object $matches[0] -Name 'decision' -DefaultValue '')).ToUpperInvariant()
+    if($decision -notin @('EXECUTE','REUSE','RERUNCONTEXT','INVALIDATED','BLOCKED')){throw "Continuation plan decision '$decision' is invalid."}
+    return $decision
 }
 
 function Get-DynomaxRuntimeStepValue {
@@ -362,13 +561,13 @@ function Exit-DynomaxStepInputContext {
 }
 
 function Invoke-DynomaxStepSequence {
-    param([Parameter(Mandatory)][object[]]$Sequence)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Sequence)
     $index=0
     while($index -lt $Sequence.Count){
         $step=$Sequence[$index]
         $engine=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxEngine' -DefaultValue '')
         if($engine -eq 'RobotBrowser'){
-            $block=New-Object System.Collections.Generic.List[object]
+            $block=[System.Collections.Generic.List[object]]::new()
             while($index -lt $Sequence.Count){
                 $candidate=$Sequence[$index]
                 $candidateEngine=[string](Get-DynomaxPropertyValue -Object $candidate -Name 'DynomaxEngine' -DefaultValue '')
@@ -389,7 +588,7 @@ function Invoke-DynomaxStepSequence {
                         # Robot locally skips the remaining pre-unrolled physical tests after terminal
                         # control flow without spawning persistence subprocesses. Fill every missing
                         # main-sequence physical ActionRun row here, then stop scheduling this sequence.
-                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence)
+                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence -ContextPath $contextPath)
                         $index=$Sequence.Count
                     }
                 }
@@ -397,13 +596,25 @@ function Invoke-DynomaxStepSequence {
         }
         elseif($engine -eq 'PowerShell'){
             $disposition='RUN'
+            $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
             if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-                $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
                 $decision=Get-DynomaxControlFlowDecision -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId
-                Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
                 $disposition=[string]$decision.Disposition
             }
             if($disposition -eq 'RUN'){
+                $continuationDecision=Get-DynomaxContinuationDecision -ContextPath $contextPath -StepId ([string]$step.stepId)
+                if($continuationDecision -eq 'BLOCKED'){
+                    throw "Continuation is blocked at physical step '$([string]$step.stepId)'. Inspect the immutable continuation plan for the safety reason."
+                }
+                if($continuationDecision -eq 'REUSE'){
+                    Add-DynomaxRunEvent -SqlConfig $sqlConfig -RunId $runId -EventLevel 'Info' -EventType 'Continuation.Reused' -Message "Physical step '$([string]$step.stepId)' was reused from the source Run; no Action executed." -Data ([ordered]@{stepId=[string]$step.stepId;workflowNodeId=$logicalNodeId;actionKey=[string]$step.actionId;executionKind='Reused';executed=$false})
+                    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                        $reuseState=Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId -Reused -DeferStateWrite
+                        [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $reuseState)
+                    }
+                    $postReuseContext=Read-DynomaxJson -Path $contextPath
+                    Set-DynomaxContextStepInSql -SqlConfig $sqlConfig -RunId $runId -Context $postReuseContext -StepId ([string]$step.stepId) -PersistedContextCache $directPersistedContextCache
+                }else{
                 $stepInputsActivated=$false
                 $stepFailure=$null
                 try{
@@ -416,19 +627,20 @@ function Invoke-DynomaxStepSequence {
                 }finally{
                     if($stepInputsActivated){Exit-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId)}
                     $postStepContext=Read-DynomaxJson -Path $contextPath
-                    Set-DynomaxContextValuesInSql -SqlConfig $sqlConfig -RunId $runId -Context $postStepContext
+                    Set-DynomaxContextStepInSql -SqlConfig $sqlConfig -RunId $runId -Context $postStepContext -StepId ([string]$step.stepId) -PersistedContextCache $directPersistedContextCache
                 }
                 if($null -ne $stepFailure){
                     if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-                        [void](Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId)
-                        Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
+                        $failureState=Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
+                        [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $failureState)
                     }
                     throw $stepFailure
                 }
                 if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
                     # Evaluate downstream control flow only after step-local inputs are restored.
-                    [void](Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId)
-                    Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
+                    $completionState=Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
+                    [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $completionState)
+                }
                 }
             }
             elseif($disposition -eq 'SKIP_FINAL'){
@@ -445,7 +657,7 @@ function Invoke-DynomaxStepSequence {
                     $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
                     $isMainStep=-not [bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)
                     if($terminalStatus -and $isMainStep){
-                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence)
+                        [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence -ContextPath $contextPath)
                         $index=$Sequence.Count
                         continue
                     }
@@ -457,6 +669,59 @@ function Invoke-DynomaxStepSequence {
     }
 }
 
+
+function Test-DynomaxPreservedCleanupBrowserSessionEligible {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$MainSteps,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$CleanupSteps
+    )
+    if($MainSteps.Count -eq 0 -or $CleanupSteps.Count -eq 0){return $false}
+    $combined=@($MainSteps)+@($CleanupSteps)
+    foreach($step in $combined){
+        if([string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxEngine' -DefaultValue '') -ne 'RobotBrowser'){return $false}
+    }
+    # RequiresNewBrowser on any Cleanup step is an explicit isolation request. Otherwise the
+    # existing Main browser/context remains authoritative through Cleanup.
+    foreach($step in $CleanupSteps){
+        if([string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxSessionBehavior' -DefaultValue 'DoesNotUseBrowser') -eq 'RequiresNewBrowser'){return $false}
+    }
+    return $true
+}
+
+function Invoke-DynomaxPreservedBrowserMainAndCleanup {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$MainSteps,
+        [Parameter(Mandatory)][object[]]$CleanupSteps
+    )
+    $combined=@($MainSteps)+@($CleanupSteps)
+    Add-DynomaxRunEvent -SqlConfig $sqlConfig -RunId $runId -EventLevel 'Info' -EventType 'Runtime.CleanupBrowserSessionPreserved' -Message 'Cleanup will continue in the existing Main Robot browser/context.' -Data ([ordered]@{mode='Preserve';mainStepCount=$MainSteps.Count;cleanupStepCount=$CleanupSteps.Count})
+    $process=Invoke-DynomaxRobotBlock -DynomaxRoot $root -ProjectFolder $projectFolder -ProjectConfig $projectConfig -Workflow $workflow -Steps $combined -RunId $runId -RunDirectory $runDirectory -ContextPath $contextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -PythonPath $python -TimeoutSeconds $timeout -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds -PreserveCleanupBrowserSession:$true
+    $outputXml=Join-Path $runDirectory 'robot-result\output.xml'
+    if(-not(Test-Path $outputXml)){throw "Robot did not produce output.xml. Exit code: $($process.ExitCode). Error: $($process.StandardError)"}
+    if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+        $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+        if(Test-Path -LiteralPath $statePath -PathType Leaf){
+            $state=Read-DynomaxJson -Path $statePath
+            $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
+            if($terminalStatus){
+                # Main control-flow terminalization and StopCleanup are bookkeeping boundaries, not
+                # executable Actions. Fill the remaining immutable physical-slot evidence in bounded
+                # SQL batches after Robot returns instead of making Robot visit every unused slot.
+                [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $MainSteps -ContextPath $contextPath -IsCleanup:$false)
+                $connection=Open-DynomaxConnection -SqlConfig $sqlConfig
+                try{
+                    $cleanupFailureCount=[int](Invoke-DynomaxSqlScalar -Connection $connection -CommandText "SELECT COUNT(*) FROM dmx.ActionRun WHERE RunId=@RunId AND IsCleanup=1 AND Status=N'CLEANUP_FAILED';" -Parameters @{ '@RunId'=$runId })
+                }finally{$connection.Dispose()}
+                if($cleanupFailureCount -gt 0){
+                    [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $CleanupSteps -ContextPath $contextPath -Message 'Cleanup stopped after the first failed Cleanup Action because continueOnFailure is false.' -IsCleanup:$true)
+                }
+            }
+        }
+    }
+}
+
 $mainSteps=@($allSteps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)})
 $cleanupSteps=@($allSteps|Where-Object{[bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}|Sort-Object order -Descending)
 $overall='ERROR'
@@ -464,6 +729,7 @@ $executionException=$null
 $cleanupException=$null
 $resultZipPath=$null
 
+Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'Execution' -Message 'Workflow execution phase began.' -CoreRunId $runId
 try{
     if($preflightException){
         $classification=[string]$preflightSummary.classification
@@ -490,10 +756,16 @@ try{
             [void](Initialize-DynomaxControlFlowState -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory)
             Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
         }
-        try{Invoke-DynomaxStepSequence -Sequence $mainSteps}catch{$executionException=$_}
         $alwaysRunCleanup=[bool](Get-DynomaxPropertyValue -Object $workflow -Name 'alwaysRunCleanup' -DefaultValue $true)
-        if($alwaysRunCleanup -and $cleanupSteps.Count -gt 0){
-            try{Invoke-DynomaxStepSequence -Sequence $cleanupSteps}catch{$cleanupException=$_}
+        $preserveCleanupBrowserSession=$alwaysRunCleanup -and (Test-DynomaxPreservedCleanupBrowserSessionEligible -MainSteps $mainSteps -CleanupSteps $cleanupSteps)
+        if($preserveCleanupBrowserSession){
+            try{Invoke-DynomaxPreservedBrowserMainAndCleanup -MainSteps $mainSteps -CleanupSteps $cleanupSteps}catch{$executionException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Main' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
+        }
+        else{
+            try{Invoke-DynomaxStepSequence -Sequence $mainSteps}catch{$executionException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Main' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
+            if($alwaysRunCleanup -and $cleanupSteps.Count -gt 0){
+                try{Invoke-DynomaxStepSequence -Sequence $cleanupSteps}catch{$cleanupException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Cleanup' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
+            }
         }
         $overall=Get-DynomaxOverallStatus -SqlConfig $sqlConfig -RunId $runId
         if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
@@ -514,26 +786,68 @@ try{
         Complete-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -Status $overall -Summary $message
     }
 }
+catch{
+    $executionException=$_
+    $overall='ERROR'
+    $executionMessage=ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_
+    Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Unhandled' -Message $executionMessage -CoreRunId $runId
+    try{
+        Complete-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -Status $overall -Summary ("Workflow execution failed before normal Action completion: {0}" -f $executionMessage)
+    }catch{
+        Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Persistence' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId
+    }
+}
 finally{
-    if(Test-Path $contextPath){try{$finalContext=Read-DynomaxJson -Path $contextPath;Set-DynomaxContextValuesInSql -SqlConfig $sqlConfig -RunId $runId -Context $finalContext}catch{Write-Warning $_.Exception.Message}}
+    $logicalStatus=[string]$overall
+    $finalizationStatus='Running'
+    $finalizationStep='Starting'
+    $finalizationFailureCode=$null
+    $finalizationFailureMessage=$null
+    function Set-DynomaxFinalizationStep {
+        param([Parameter(Mandatory)][string]$Step)
+        $script:finalizationStep=$Step
+        Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage ('Finalization.'+$Step) -Message ('Result finalization entered step '+$Step+'.') -CoreRunId $runId
+        if($RunContractPath){
+            try{
+                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'RUNNING' -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $Step -ResultZipPath $null -FailureCode $null -FailureMessage $null
+            }catch{Write-Warning ("Finalization run-contract checkpoint failed at '{0}': {1}" -f $Step,(ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
+        }
+    }
+    Set-DynomaxFinalizationStep -Step 'Starting'
+    try{
+        Set-DynomaxFinalizationStep -Step 'FinalContextCheckpoint'
+        if(Test-Path $contextPath){try{$finalContext=Read-DynomaxJson -Path $contextPath;Set-DynomaxContextValuesInSql -SqlConfig $sqlConfig -RunId $runId -Context $finalContext -PersistedContextCache $directPersistedContextCache}catch{Write-Warning $_.Exception.Message}}
 
+    Set-DynomaxFinalizationStep -Step 'SqlEvidenceIngestion'
     $artifactIngestionSucceeded=$true
     $max=[long]$config.execution.maximumSqlArtifactBytes
-    $evidencePatterns='\.(xml|html?|log|png|jpe?g|json|md|txt)$'
-    Get-ChildItem -LiteralPath $runDirectory -File -Recurse -ErrorAction SilentlyContinue |
-        Where-Object{$_.Name -ne 'context.json' -and $_.Extension -match $evidencePatterns} |
-        ForEach-Object{
-            try{[void](Add-DynomaxArtifact -SqlConfig $sqlConfig -RunId $runId -ArtifactType 'RunEvidence' -Path $_.FullName -MaximumBytes $max)}
-            catch{$artifactIngestionSucceeded=$false;Write-Warning ("Artifact ingestion failed for '{0}': {1}" -f $_.FullName,$_.Exception.Message)}
+    $artifactConnection=$null
+    $artifactContentCache=@{}
+    try{
+        $artifactConnection=Open-DynomaxConnection -SqlConfig $sqlConfig
+        foreach($evidenceFile in Get-ChildItem -LiteralPath $runDirectory -File -Recurse -ErrorAction SilentlyContinue){
+            if(-not(Test-DynomaxSqlEvidenceCandidate -File $evidenceFile -RunDirectory $runDirectory)){continue}
+            try{
+                [void](Add-DynomaxArtifact -SqlConfig $sqlConfig -RunId $runId -ArtifactType 'RunEvidence' -Path $evidenceFile.FullName -MaximumBytes $max -Connection $artifactConnection -ContentIdCache $artifactContentCache)
+            }
+            catch{
+                $artifactIngestionSucceeded=$false
+                Write-Warning ("Artifact ingestion failed for '{0}': {1}" -f $evidenceFile.FullName,$_.Exception.Message)
+            }
         }
+    }
+    finally{if($null -ne $artifactConnection){$artifactConnection.Dispose()}}
 
+    Set-DynomaxFinalizationStep -Step 'PrepareExportStaging'
     $exportRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.exports
     Ensure-DynomaxDirectory -Path $exportRoot|Out-Null
     $stagingRoot=Ensure-DynomaxDirectory -Path (Join-Path $exportRoot ('.staging\'+[string]$runId))
     if(Test-Path $stagingRoot){Get-ChildItem -LiteralPath $stagingRoot -Force -ErrorAction SilentlyContinue|Remove-Item -Recurse -Force -ErrorAction SilentlyContinue}
 
+    Set-DynomaxFinalizationStep -Step 'ExportRunSummary'
     try{[void](Export-DynomaxRunSummary -SqlConfig $sqlConfig -RunId $runId -OutputDirectory $stagingRoot)}catch{$artifactIngestionSucceeded=$false;Write-Warning $_.Exception.Message}
 
+    Set-DynomaxFinalizationStep -Step 'CopyEvidence'
     $projectExport=Join-Path $runDirectory 'project-export'
     if(Test-Path -LiteralPath $projectExport -PathType Container){
         Copy-Item -LiteralPath $projectExport -Destination (Join-Path $stagingRoot 'ProjectFindings') -Recurse -Force
@@ -541,9 +855,21 @@ finally{
 
     $testEvidence=Ensure-DynomaxDirectory -Path (Join-Path $stagingRoot 'TestEvidence')
     $robotResult=Join-Path $runDirectory 'robot-result'
-    if(Test-Path $robotResult){Copy-Item -LiteralPath $robotResult -Destination (Join-Path $testEvidence 'Robot') -Recurse -Force}
-    foreach($file in Get-ChildItem -LiteralPath $runDirectory -File -ErrorAction SilentlyContinue | Where-Object{$_.Name -match '^(preflight\.json|control-flow-state\.json|orchestration-performance\.jsonl|robot-console\.log|generated-workflow\.robot|action-.*\.(json|log)|persist-.*\.(log|txt))$'}){
-        Copy-Item -LiteralPath $file.FullName -Destination $testEvidence -Force
+    [void](Copy-DynomaxRobotResultEvidence -RobotResultDirectory $robotResult -DestinationDirectory (Join-Path $testEvidence 'Robot') -LogicalStatus $logicalStatus)
+    $rootEvidenceNames=@(
+        'preflight.json',
+        'core-diagnostics.jsonl',
+        'control-flow-state.json',
+        'orchestration-performance.jsonl',
+        'execution-attempts.jsonl',
+        'robot-console.log'
+    )
+    if($logicalStatus -ne 'PASS'){$rootEvidenceNames+=@('generated-workflow.robot')}
+    foreach($name in $rootEvidenceNames){
+        $source=Join-Path $runDirectory $name
+        if((Test-Path -LiteralPath $source -PathType Leaf) -and ((Get-Item -LiteralPath $source).Length -gt 0)){
+            Copy-Item -LiteralPath $source -Destination (Join-Path $testEvidence $name) -Force
+        }
     }
     $screenshots=Join-Path $runDirectory 'screenshots'
     if(Test-Path $screenshots){Copy-Item -LiteralPath $screenshots -Destination (Join-Path $testEvidence 'Screenshots') -Recurse -Force}
@@ -553,21 +879,31 @@ finally{
     if(Test-Path $attemptEvidence){Copy-Item -LiteralPath $attemptEvidence -Destination (Join-Path $testEvidence 'Attempts') -Recurse -Force}
     [void](Copy-DynomaxAttemptRecorderEvidence -RunDirectory $runDirectory -TestEvidenceDirectory $testEvidence)
 
+    Set-DynomaxFinalizationStep -Step 'CopyDefinitions'
     $definitions=Ensure-DynomaxDirectory -Path (Join-Path $stagingRoot 'Definitions')
     $projectDefinitionDir=Ensure-DynomaxDirectory -Path (Join-Path $definitions 'Project')
     Copy-Item -LiteralPath $projectConfigPath -Destination (Join-Path $projectDefinitionDir 'project.json') -Force
     $workflowDefinitionDir=Ensure-DynomaxDirectory -Path (Join-Path $definitions 'Workflow')
     Copy-Item -LiteralPath $workflowPath -Destination (Join-Path $workflowDefinitionDir 'workflow.json') -Force
     $manifestActions=@()
+    $copiedActionDefinitions=@{}
     foreach($step in $allSteps){
         $planKey=[string][int]$step.order
         $requested=Get-DynomaxPropertyValue -Object $step -Name 'actionVersion' -DefaultValue $null
         if($stepPlans.ContainsKey($planKey)){
             $plan=$stepPlans[$planKey]
-            $safe=([string]$step.actionId -replace '[^A-Za-z0-9_.-]','_')
-            $actionDestination=Join-Path $definitions ("Actions\{0:D6}-{1}" -f [int]$step.order,$safe)
-            Ensure-DynomaxDirectory -Path $actionDestination|Out-Null
-            foreach($sourceFile in Get-ChildItem -LiteralPath $plan.Folder -File){Copy-Item -LiteralPath $sourceFile.FullName -Destination (Join-Path $actionDestination $sourceFile.Name) -Force}
+            $versionKey=[string]$plan.ActionVersionId
+            $definitionRelativePath=$null
+            if(-not $copiedActionDefinitions.ContainsKey($versionKey)){
+                $safe=([string]$step.actionId -replace '[^A-Za-z0-9_.-]','_')
+                $shortVersionId=([string]$plan.ActionVersionId -replace '-','').Substring(0,12)
+                $definitionRelativePath=("Actions/{0}-v{1}-{2}" -f $safe,[int]$plan.ResolvedActionVersion,$shortVersionId)
+                $actionDestination=Join-Path $definitions ($definitionRelativePath -replace '/','\')
+                Ensure-DynomaxDirectory -Path $actionDestination|Out-Null
+                foreach($sourceFile in Get-ChildItem -LiteralPath $plan.Folder -File){Copy-Item -LiteralPath $sourceFile.FullName -Destination (Join-Path $actionDestination $sourceFile.Name) -Force}
+                $copiedActionDefinitions[$versionKey]=$definitionRelativePath
+            }
+            else{$definitionRelativePath=[string]$copiedActionDefinitions[$versionKey]}
             $manifestActions += [ordered]@{
                 order=[int]$step.order
                 actionId=[string]$step.actionId
@@ -575,6 +911,7 @@ finally{
                 requestedActionVersion=$(if($null -eq $plan.RequestedActionVersion){$null}else{[int]$plan.RequestedActionVersion})
                 resolvedActionVersion=[int]$plan.ResolvedActionVersion
                 actionVersionId=[string]$plan.ActionVersionId
+                definitionRelativePath=$definitionRelativePath
                 engine=[string]$plan.Engine
                 entryPoint=[string]$plan.EntryPoint
                 sessionBehavior=[string]$plan.SessionBehavior
@@ -595,6 +932,7 @@ finally{
                 requestedActionVersion=$(if($null -eq $requested){$null}else{[int]$requested})
                 resolvedActionVersion=$null
                 actionVersionId=$null
+                definitionRelativePath=$null
                 engine=$null
                 entryPoint=$null
                 sessionBehavior=$null
@@ -609,6 +947,7 @@ finally{
             }
         }
     }
+    Set-DynomaxFinalizationStep -Step 'WriteWorkflowManifest'
     $workflowManifest=[ordered]@{
         schemaVersion=2
         runId=[string]$runId
@@ -627,10 +966,13 @@ finally{
         workflowDefinitionSha256=Get-DynomaxSha256 -Path $workflowPath
         projectDefinitionSha256=Get-DynomaxSha256 -Path $projectConfigPath
         preflight=$preflightSummary
+        uniqueActionDefinitionCount=[int]$copiedActionDefinitions.Count
+        physicalActionSlotCount=[int]$allSteps.Count
         actions=$manifestActions
     }
     Write-DynomaxJson -Value $workflowManifest -Path (Join-Path $stagingRoot 'WorkflowManifest.json')
 
+    Set-DynomaxFinalizationStep -Step 'CleanupTemporaryWorkspace'
     $cleanupRequested=[bool](Get-DynomaxPropertyValue -Object $config.execution -Name 'deleteTemporaryRunAfterSuccessfulIngestion' -DefaultValue $true)
     $temporaryCleanup=[ordered]@{requested=$cleanupRequested;attempted=$false;succeeded=$false;path=$runDirectory;reason=$null;verifiedAtUtc=$null}
     if($cleanupRequested -and $artifactIngestionSucceeded){
@@ -646,8 +988,10 @@ finally{
     $temporaryCleanup.verifiedAtUtc=[DateTime]::UtcNow.ToString('o')
     Write-DynomaxJson -Value $temporaryCleanup -Path (Join-Path $stagingRoot 'TemporaryWorkspaceCleanup.json')
 
+    Set-DynomaxFinalizationStep -Step 'WriteExportManifest'
     [void](Write-DynomaxExportManifest -ExportDirectory $stagingRoot -RunId $runId -FrameworkVersion ([string]$config.frameworkVersion) -TemporaryCleanup $temporaryCleanup)
 
+    Set-DynomaxFinalizationStep -Step 'BuildResultZip'
     if([bool](Get-DynomaxPropertyValue -Object $config.execution -Name 'createResultZip' -DefaultValue $true)){
         $safeProject=([string]$workflow.projectKey -replace '[^A-Za-z0-9_.-]','_')
         $safeWorkflow=([string]$workflow.workflowId -replace '[^A-Za-z0-9_.-]','_')
@@ -662,24 +1006,134 @@ finally{
         }
         Write-Host ("Result ZIP: {0}" -f $final) -ForegroundColor Cyan
     }
-    try{Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction Stop}catch{Write-Warning ("Export staging cleanup failed: {0}" -f $_.Exception.Message)}
-}
-
-if($RunContractPath){
-    $resolvedContractPath=[System.IO.Path]::GetFullPath($RunContractPath)
-    $contractParent=Split-Path -Parent $resolvedContractPath
-    if($contractParent){[System.IO.Directory]::CreateDirectory($contractParent)|Out-Null}
-    $runContract=[ordered]@{
-        schemaVersion=1
-        runId=[string]$runId
-        projectKey=[string]$workflow.projectKey
-        workflowId=[string]$workflow.workflowId
-        workflowVersionId=[string]$workflowVersionId
-        status=[string]$overall
-        resultZipPath=$(if($resultZipPath){[string]$resultZipPath}else{$null})
-        completedAtUtc=[DateTime]::UtcNow.ToString('o')
+        try{Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction Stop}catch{Write-Warning ("Export staging cleanup failed: {0}" -f $_.Exception.Message)}
+        $finalizationStep='Completed'
+        $finalizationStatus='Completed'
     }
-    Write-DynomaxJson -Value $runContract -Path $resolvedContractPath
+    catch{
+        $finalizationStatus='Failed'
+        $finalizationFailureCode='CORE_FINALIZATION_FAILED'
+        $finalizationFailureMessage=ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_
+        Write-Warning ("Dynomax Result finalization failed after logical status '{0}': {1}" -f $logicalStatus,$finalizationFailureMessage)
+
+        # A nonessential export/copy failure must not erase a completed logical Run. Rebuild one
+        # compact, standard Result package from the authoritative SQL records. This recovery path
+        # deliberately excludes raw browser/context/log files and therefore remains bounded.
+        try{
+            $normalFinalizationFailedStep=$finalizationStep
+            Set-DynomaxFinalizationStep -Step 'Recovery.PrepareStaging'
+            $recoveryExportRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.exports
+            Ensure-DynomaxDirectory -Path $recoveryExportRoot|Out-Null
+            $recoveryStaging=Join-Path $recoveryExportRoot ('.recovery\'+[string]$runId)
+            if(Test-Path -LiteralPath $recoveryStaging){Remove-Item -LiteralPath $recoveryStaging -Recurse -Force -ErrorAction SilentlyContinue}
+            Ensure-DynomaxDirectory -Path $recoveryStaging|Out-Null
+
+            Set-DynomaxFinalizationStep -Step 'Recovery.ExportRunSummary'
+            [void](Export-DynomaxRunSummary -SqlConfig $sqlConfig -RunId $runId -OutputDirectory $recoveryStaging)
+            Set-DynomaxFinalizationStep -Step 'Recovery.CopyDefinitions'
+            $recoveryDefinitions=Ensure-DynomaxDirectory -Path (Join-Path $recoveryStaging 'Definitions')
+            $recoveryProject=Ensure-DynomaxDirectory -Path (Join-Path $recoveryDefinitions 'Project')
+            $recoveryWorkflow=Ensure-DynomaxDirectory -Path (Join-Path $recoveryDefinitions 'Workflow')
+            Copy-Item -LiteralPath $projectConfigPath -Destination (Join-Path $recoveryProject 'project.json') -Force
+            Copy-Item -LiteralPath $workflowPath -Destination (Join-Path $recoveryWorkflow 'workflow.json') -Force
+            Write-DynomaxJson -Value ([ordered]@{
+                schemaVersion=1
+                failureCode='CORE_FINALIZATION_RECOVERED'
+                failureMessage=$finalizationFailureMessage
+                logicalStatus=$logicalStatus
+                normalFinalizationStatus='Failed'
+                normalFinalizationFailedStep=$normalFinalizationFailedStep
+                recoveryStatus='Completed'
+                runId=[string]$runId
+                recordedAtUtc=[DateTime]::UtcNow.ToString('o')
+            }) -Path (Join-Path $recoveryStaging 'FinalizationRecovery.json')
+            $recoveryCleanup=[ordered]@{
+                requested=$true
+                attempted=$false
+                succeeded=$false
+                path=$runDirectory
+                reason='Contained Worker cleanup runs after the recovered Result package is imported.'
+                verifiedAtUtc=[DateTime]::UtcNow.ToString('o')
+            }
+            Write-DynomaxJson -Value $recoveryCleanup -Path (Join-Path $recoveryStaging 'TemporaryWorkspaceCleanup.json')
+            Set-DynomaxFinalizationStep -Step 'Recovery.WriteExportManifest'
+            [void](Write-DynomaxExportManifest -ExportDirectory $recoveryStaging -RunId $runId -FrameworkVersion ([string]$config.frameworkVersion) -TemporaryCleanup $recoveryCleanup)
+
+            $safeProject=([string]$workflow.projectKey -replace '[^A-Za-z0-9_.-]','_')
+            $safeWorkflow=([string]$workflow.workflowId -replace '[^A-Za-z0-9_.-]','_')
+            Set-DynomaxFinalizationStep -Step 'Recovery.BuildResultZip'
+            $recoveryFinal=Join-Path $recoveryExportRoot ("Dynomax_{0}_{1}_{2}_{3}_RECOVERED.zip" -f $safeProject,$safeWorkflow,[DateTime]::UtcNow.ToString('yyyyMMddHHmmss'),$logicalStatus)
+            $recoveryBuilding=$recoveryFinal+'.building.zip'
+            [void](New-DynomaxStandardZip -SourceDirectory $recoveryStaging -DestinationPath $recoveryBuilding)
+            if(-not(Test-Path -LiteralPath $recoveryBuilding -PathType Leaf) -or (Get-Item -LiteralPath $recoveryBuilding).Length -le 0){throw 'Recovered Result ZIP build failed.'}
+            Move-Item -LiteralPath $recoveryBuilding -Destination $recoveryFinal -Force
+            $resultZipPath=$recoveryFinal
+            $finalizationStep='Recovery.Completed'
+            $finalizationStatus='Recovered'
+            $finalizationFailureCode='CORE_FINALIZATION_RECOVERED'
+            $overall=$logicalStatus
+            Remove-Item -LiteralPath $recoveryStaging -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Warning 'Dynomax produced a compact recovered Result package after normal finalization failed.'
+        }
+        catch{
+            $recoveryFailedStep=$finalizationStep
+            $recoveryFailureMessage=ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_
+            $finalizationStatus='Failed'
+            $finalizationStep='Recovery.Failed'
+            $overall='ERROR'
+            $finalizationFailureMessage=("{0} Recovery also failed: {1}" -f $finalizationFailureMessage,$recoveryFailureMessage)
+            if($finalizationFailureMessage.Length -gt 2000){$finalizationFailureMessage=$finalizationFailureMessage.Substring(0,2000)}
+
+            # Last-resort metadata-only evidence. The Worker recognizes this state and replaces it
+            # with a standard agent-readable diagnostic Result before durable import.
+            try{
+                Set-DynomaxFinalizationStep -Step 'Fallback.PrepareStaging'
+                $fallbackExportRoot=Resolve-DynomaxPath -Root $root -ConfiguredPath $config.paths.exports
+                Ensure-DynomaxDirectory -Path $fallbackExportRoot|Out-Null
+                $fallbackStaging=Join-Path $fallbackExportRoot ('.finalization-failure\'+[string]$runId)
+                if(Test-Path -LiteralPath $fallbackStaging){Remove-Item -LiteralPath $fallbackStaging -Recurse -Force -ErrorAction SilentlyContinue}
+                Ensure-DynomaxDirectory -Path $fallbackStaging|Out-Null
+                Write-DynomaxJson -Value ([ordered]@{
+                    schemaVersion=1
+                    failureCode='CORE_FINALIZATION_FAILED'
+                    failureMessage=$finalizationFailureMessage
+                    logicalStatus=$logicalStatus
+                    finalizationStatus=$finalizationStatus
+                    normalFinalizationFailedStep=$normalFinalizationFailedStep
+                    recoveryFailedStep=$recoveryFailedStep
+                    runId=[string]$runId
+                    recordedAtUtc=[DateTime]::UtcNow.ToString('o')
+                }) -Path (Join-Path $fallbackStaging 'FinalizationFailure.json')
+                # Never copy runtime context, secrets, raw console output, project configuration,
+                # or Workflow inputs into the metadata-only fallback package.
+                foreach($diagnosticPath in @((Join-Path $runDirectory 'preflight.json'),(Join-Path $runDirectory 'control-flow-state.json'),(Join-Path $runDirectory 'orchestration-performance.jsonl'))){
+                    if(Test-Path -LiteralPath $diagnosticPath -PathType Leaf){Copy-Item -LiteralPath $diagnosticPath -Destination (Join-Path $fallbackStaging ([System.IO.Path]::GetFileName($diagnosticPath))) -Force}
+                }
+                $safeProject=([string]$workflow.projectKey -replace '[^A-Za-z0-9_.-]','_')
+                $safeWorkflow=([string]$workflow.workflowId -replace '[^A-Za-z0-9_.-]','_')
+                Set-DynomaxFinalizationStep -Step 'Fallback.BuildResultZip'
+                $fallbackFinal=Join-Path $fallbackExportRoot ("Dynomax_{0}_{1}_{2}_CORE_FINALIZATION_FAILED.zip" -f $safeProject,$safeWorkflow,[DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+                $fallbackBuilding=$fallbackFinal+'.building.zip'
+                [void](New-DynomaxStandardZip -SourceDirectory $fallbackStaging -DestinationPath $fallbackBuilding)
+                if((Test-Path -LiteralPath $fallbackBuilding -PathType Leaf) -and (Get-Item -LiteralPath $fallbackBuilding).Length -gt 0){
+                    Move-Item -LiteralPath $fallbackBuilding -Destination $fallbackFinal -Force
+                    $resultZipPath=$fallbackFinal
+                }
+                Remove-Item -LiteralPath $fallbackStaging -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            catch{
+                Write-Warning ("Fallback finalization evidence could not be produced: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))
+            }
+        }
+    }
+    finally{
+        if($RunContractPath){
+            $contractStatus=$(if($finalizationStatus -in @('Completed','Recovered')){$logicalStatus}else{'ERROR'})
+            try{
+                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status $contractStatus -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $finalizationStep -ResultZipPath $resultZipPath -FailureCode $finalizationFailureCode -FailureMessage $finalizationFailureMessage
+            }catch{Write-Warning ("Terminal run-contract checkpoint failed: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
+        }
+    }
 }
 
 Write-Host ("Dynomax Run ID: {0}" -f $runId) -ForegroundColor Cyan

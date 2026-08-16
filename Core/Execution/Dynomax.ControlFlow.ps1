@@ -303,11 +303,15 @@ function Sync-DynomaxControlFlowRunEvents {
         [Parameter(Mandatory)]$SqlConfig,
         [Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)][string]$RunDirectory,
-        [System.Data.SqlClient.SqlConnection]$Connection
+        [System.Data.SqlClient.SqlConnection]$Connection,
+        $State=$null,
+        [switch]$SkipStateWrite
     )
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
-    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){return}
-    $state=Read-DynomaxJson -Path $statePath
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){return $null}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
+    $pendingEvents=[System.Collections.Generic.List[object]]::new()
+
     $systemEvents=@((Get-DynomaxPropertyValue -Object $state -Name 'systemNodeEvents' -DefaultValue @()))
     $systemCursor=[int](Get-DynomaxPropertyValue -Object $state -Name 'persistedSystemNodeEventCount' -DefaultValue 0)
     for($i=$systemCursor;$i -lt $systemEvents.Count;$i++){
@@ -320,8 +324,15 @@ function Sync-DynomaxControlFlowRunEvents {
         if(-not $message){$message="$nodeType '$nodeId' -> $status ($event)."}
         $level=if($status -eq 'FAIL'){'Error'}elseif($status -eq 'SKIPPED'){'Info'}else{'Info'}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'SystemNodeState' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel $level -EventType 'ControlFlow.SystemNodeState' -Message $message -Data $item -RunEventId $eventId -Connection $Connection
+        $pendingEvents.Add([ordered]@{
+            runEventId=$eventId
+            eventLevel=$level
+            eventType='ControlFlow.SystemNodeState'
+            message=$message
+            data=$item
+        })
     }
+
     $transitions=@((Get-DynomaxPropertyValue -Object $state -Name 'transitions' -DefaultValue @()))
     $transitionCursor=[int](Get-DynomaxPropertyValue -Object $state -Name 'persistedTransitionCount' -DefaultValue 0)
     for($i=$transitionCursor;$i -lt $transitions.Count;$i++){
@@ -331,11 +342,24 @@ function Sync-DynomaxControlFlowRunEvents {
         $event=[string](Get-DynomaxPropertyValue -Object $item -Name 'event' -DefaultValue '')
         $message=if($event){"Control-flow transition '$event': '$from' -> '$to'."}else{"Control-flow transition: '$from' -> '$to'."}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'Transition' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'ControlFlow.Transition' -Message $message -Data $item -RunEventId $eventId -Connection $Connection
+        $pendingEvents.Add([ordered]@{
+            runEventId=$eventId
+            eventLevel='Info'
+            eventType='ControlFlow.Transition'
+            message=$message
+            data=$item
+        })
     }
+
+    if($pendingEvents.Count -gt 0){
+        [void](Add-DynomaxRunEventsBatch -SqlConfig $SqlConfig -RunId $RunId -Events $pendingEvents.ToArray() -Connection $Connection)
+    }
+    # Advance cursors only after the whole bounded batch succeeds. A failed batch therefore retries
+    # deterministically at the next checkpoint without losing or duplicating control-flow evidence.
     $state.persistedSystemNodeEventCount=$systemEvents.Count
     $state.persistedTransitionCount=$transitions.Count
-    Write-DynomaxJson -Value $state -Path $statePath
+    if(-not $SkipStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
+    return $state
 }
 
 function Get-DynomaxLoopState {
@@ -849,6 +873,7 @@ function Initialize-DynomaxControlFlowState {
         discoveryCompletedAtUtc=$null
         transitions=@()
         executedActionNodeIds=@()
+        reusedActionNodeIds=@()
         finalSkippedActionNodeIds=@()
         activeFork=$null
         forkHistory=@()
@@ -871,22 +896,22 @@ function Initialize-DynomaxControlFlowState {
 
 function Get-DynomaxControlFlowDecision {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$NodeId)
+    param(
+        [Parameter(Mandatory)]$Workflow,
+        [Parameter(Mandatory)][string]$ContextPath,
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][string]$NodeId,
+        $State=$null
+    )
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return [pscustomobject]@{ShouldRun=$true;Disposition='RUN';Reason='Static linear workflow.'}}
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
-    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){[void](Initialize-DynomaxControlFlowState -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory)}
-    $state=Read-DynomaxJson -Path $statePath
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){[void](Initialize-DynomaxControlFlowState -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory)}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
     $next=[string](Get-DynomaxPropertyValue -Object $state -Name 'nextActionNodeId' -DefaultValue '')
     $terminal=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
     if($terminal){
-        # Once Workflow control flow is terminal there is no future scheduling decision to defer to.
-        # A later physical occurrence of an already-executed logical Action is still a final skip for
-        # that physical slot; returning DEFER here caused large pre-unrolled Loop suites to drain
-        # hundreds of redundant control-flow subprocesses after the Loop had already failed/passed.
-        if(-not(@($state.executedActionNodeIds) -contains $NodeId) -and -not(@($state.finalSkippedActionNodeIds) -contains $NodeId)){
-            $state.finalSkippedActionNodeIds=@($state.finalSkippedActionNodeIds)+@($NodeId)
-            Write-DynomaxJson -Value $state -Path $statePath
-        }
+        # Physical slots that were not selected are persisted in one bounded SQL batch after
+        # Robot returns. Do not grow or rewrite control-flow state merely to classify them.
         return [pscustomobject]@{ShouldRun=$false;Disposition='SKIP_FINAL';Reason="Workflow control flow already completed with terminal status $terminal."}
     }
     if($next -eq $NodeId){return [pscustomobject]@{ShouldRun=$true;Disposition='RUN';Reason='Selected by control flow.'}}
@@ -895,14 +920,26 @@ function Get-DynomaxControlFlowDecision {
 
 function Complete-DynomaxControlFlowAction {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$NodeId)
+    param(
+        [Parameter(Mandatory)]$Workflow,
+        [Parameter(Mandatory)][string]$ContextPath,
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][string]$NodeId,
+        [switch]$Reused,
+        [switch]$DeferStateWrite,
+        $State=$null
+    )
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $null}
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
-    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing.'}
-    $state=Read-DynomaxJson -Path $statePath
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing.'}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
     $next=[string](Get-DynomaxPropertyValue -Object $state -Name 'nextActionNodeId' -DefaultValue '')
     if($next -ne $NodeId){throw "Action '$NodeId' completed but control flow expected '$next'."}
-    if(-(@($state.executedActionNodeIds) -contains $NodeId)){$state.executedActionNodeIds=@($state.executedActionNodeIds)+@($NodeId)}
+    if($Reused){
+        if(-(@($state.reusedActionNodeIds) -contains $NodeId)){$state.reusedActionNodeIds=@($state.reusedActionNodeIds)+@($NodeId)}
+    }elseif(-(@($state.executedActionNodeIds) -contains $NodeId)){
+        $state.executedActionNodeIds=@($state.executedActionNodeIds)+@($NodeId)
+    }
     $discoveryTarget=Get-DynomaxDiscoveryTargetNodeId -Workflow $Workflow
     if($discoveryTarget -and $NodeId -eq $discoveryTarget){
         $state.nextActionNodeId=$null
@@ -912,22 +949,28 @@ function Complete-DynomaxControlFlowAction {
         $state.discoveryBlockReason=$null
         $state.discoveryCompletedAtUtc=[DateTime]::UtcNow.ToString('o')
         Finalize-DynomaxPendingSystemNodes -State $state
-        Write-DynomaxJson -Value $state -Path $statePath
+        if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
         return $state
     }
     $context=Read-DynomaxJson -Path $ContextPath
     Move-DynomaxControlFlowToNextExecutable -Workflow $Workflow -Context $context -State $state -FromNodeId $NodeId -Outcome 'Success'
-    Write-DynomaxJson -Value $state -Path $statePath
+    if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
     return $state
 }
 
 function Fail-DynomaxControlFlowAction {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$NodeId)
+    param(
+        [Parameter(Mandatory)]$Workflow,
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][string]$NodeId,
+        [switch]$DeferStateWrite,
+        $State=$null
+    )
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $null}
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
-    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing.'}
-    $state=Read-DynomaxJson -Path $statePath
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing.'}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
     if(-(@($state.executedActionNodeIds) -contains $NodeId)){$state.executedActionNodeIds=@($state.executedActionNodeIds)+@($NodeId)}
     Stop-DynomaxActiveForkFailFast -State $state -FailedNodeId $NodeId -FailureMessage "Fork failed fast because Action '$NodeId' failed."
     $state.nextActionNodeId=$null
@@ -935,19 +978,19 @@ function Fail-DynomaxControlFlowAction {
     $state.terminalStatus='FAIL'
     Add-DynomaxControlFlowTransition -State $state -FromNodeId $NodeId -ToNodeId $NodeId -When 'Failure' -EdgeId '' -Event 'ActionFailed'
     Finalize-DynomaxPendingSystemNodes -State $state
-    Write-DynomaxJson -Value $state -Path $statePath
+    if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
     return $state
 }
 
 function Assert-DynomaxDiscoveryTargetReached {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][string]$RunDirectory)
+    param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][string]$RunDirectory,$State=$null)
     $target=Get-DynomaxDiscoveryTargetNodeId -Workflow $Workflow
     if(-not $target){return $true}
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $true}
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
-    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw "Branch-aware Discovery target '$target' has no control-flow state evidence."}
-    $state=Read-DynomaxJson -Path $statePath
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw "Branch-aware Discovery target '$target' has no control-flow state evidence."}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
     $recorded=[string](Get-DynomaxPropertyValue -Object $state -Name 'discoveryTargetNodeId' -DefaultValue '')
     $reached=[bool](Get-DynomaxPropertyValue -Object $state -Name 'discoveryTargetReached' -DefaultValue $false)
     if($recorded -ne $target -or -not $reached){

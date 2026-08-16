@@ -235,3 +235,68 @@ END
         if ($ownsConnection -and $activeConnection) { $activeConnection.Dispose() }
     }
 }
+
+function Add-DynomaxRunEventsBatch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][object[]]$Events,
+        [System.Data.SqlClient.SqlConnection]$Connection
+    )
+
+    if ($Events.Count -eq 0) { return 0 }
+    $payload = [System.Collections.Generic.List[object]]::new()
+    foreach ($eventItem in @($Events)) {
+        $eventId = [Guid](Get-DynomaxPropertyValue -Object $eventItem -Name 'runEventId' -DefaultValue ([Guid]::Empty))
+        if ($eventId -eq [Guid]::Empty) { throw 'A deterministic Run event id is required for batched persistence.' }
+        $eventLevel = [string](Get-DynomaxPropertyValue -Object $eventItem -Name 'eventLevel' -DefaultValue '')
+        $eventType = [string](Get-DynomaxPropertyValue -Object $eventItem -Name 'eventType' -DefaultValue '')
+        $message = [string](Get-DynomaxPropertyValue -Object $eventItem -Name 'message' -DefaultValue '')
+        if ([string]::IsNullOrWhiteSpace($eventLevel) -or [string]::IsNullOrWhiteSpace($eventType) -or [string]::IsNullOrWhiteSpace($message)) {
+            throw 'Batched Run events require level, type and message.'
+        }
+        $data = Get-DynomaxPropertyValue -Object $eventItem -Name 'data' -DefaultValue $null
+        $payload.Add([ordered]@{
+            runEventId = $eventId.ToString('D')
+            eventLevel = $eventLevel.Trim()
+            eventType = $eventType.Trim()
+            message = $message
+            dataJson = $(if ($null -eq $data) { $null } else { $data | ConvertTo-Json -Depth 20 -Compress })
+        })
+    }
+
+    $eventsJson = $payload | ConvertTo-Json -Depth 30 -Compress
+    $ownsConnection = $null -eq $Connection
+    $activeConnection = $Connection
+    try {
+        if ($ownsConnection) { $activeConnection = Open-DynomaxConnection -SqlConfig $SqlConfig }
+        $inserted = Invoke-DynomaxSqlScalar -Connection $activeConnection -CommandText @'
+DECLARE @Inserted int = 0;
+;WITH source AS
+(
+    SELECT RunEventId,EventLevel,EventType,Message,DataJson
+    FROM OPENJSON(@EventsJson)
+    WITH
+    (
+        RunEventId uniqueidentifier '$.runEventId',
+        EventLevel nvarchar(32) '$.eventLevel',
+        EventType nvarchar(200) '$.eventType',
+        Message nvarchar(max) '$.message',
+        DataJson nvarchar(max) '$.dataJson'
+    )
+)
+INSERT INTO dmx.RunEvent(RunEventId,RunId,ActionRunId,EventLevel,EventType,Message,DataJson,CreatedAtUtc)
+SELECT source.RunEventId,@RunId,NULL,source.EventLevel,source.EventType,source.Message,source.DataJson,SYSUTCDATETIME()
+FROM source
+WHERE source.RunEventId IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM dmx.RunEvent existing WHERE existing.RunEventId=source.RunEventId);
+SET @Inserted = @@ROWCOUNT;
+SELECT @Inserted;
+'@ -Parameters @{ '@RunId' = $RunId; '@EventsJson' = $eventsJson }
+        return [int]$inserted
+    }
+    finally {
+        if ($ownsConnection -and $activeConnection) { $activeConnection.Dispose() }
+    }
+}

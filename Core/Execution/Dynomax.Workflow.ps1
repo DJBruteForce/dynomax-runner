@@ -15,7 +15,7 @@ function Get-DynomaxBuiltInCoreContractPolicy {
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         $script:DynomaxBuiltInCoreContractPolicy = [pscustomobject]@{
             ManifestPath = $manifestPath
-            InstalledCoreVersion = '1.0.19'
+            InstalledCoreVersion = '1.0.20'
             SupportedRequiredCoreVersions = $legacySupported
             LegacyFallback = $true
         }
@@ -32,16 +32,28 @@ function Get-DynomaxBuiltInCoreContractPolicy {
             Sort-Object -Unique)
         $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         $versionPath = Join-Path $root 'VERSION.txt'
-        $installedCoreVersion = if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
+        $runtimeContractPath = Join-Path $root 'Core\RUNTIME_CONTRACT.json'
+        $installedRuntimeRevision = if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
             ([string](Get-Content -LiteralPath $versionPath -Raw)).Trim()
         } else { '' }
+        if (-not (Test-Path -LiteralPath $runtimeContractPath -PathType Leaf)) {
+            throw 'The Dynomax Core runtime contract is missing while validating the Built-in Core contract policy.'
+        }
+        $runtimeContract = Read-DynomaxJson -Path $runtimeContractPath
+        $runtimeContractSchemaVersion = [int](Get-DynomaxPropertyValue -Object $runtimeContract -Name 'schemaVersion' -DefaultValue 0)
+        $installedCoreVersion = [string](Get-DynomaxPropertyValue -Object $runtimeContract -Name 'coreVersion' -DefaultValue '')
+        $runtimeContractRevision = [string](Get-DynomaxPropertyValue -Object $runtimeContract -Name 'runtimeRevision' -DefaultValue '')
         if ($schemaVersion -ne 1 -or -not $declaredCoreVersion -or $versions.Count -lt 1 -or
-            -not $installedCoreVersion -or $declaredCoreVersion -cne $installedCoreVersion) {
-            throw 'The Built-in Core contract policy does not match the installed Dynomax Core identity.'
+            $runtimeContractSchemaVersion -ne 1 -or -not $installedCoreVersion -or
+            $declaredCoreVersion -cne $installedCoreVersion -or
+            -not $installedRuntimeRevision -or -not $runtimeContractRevision -or
+            $runtimeContractRevision -cne $installedRuntimeRevision) {
+            throw 'The Built-in Core contract policy does not match the installed Dynomax Core semantic version/runtime revision identity.'
         }
         $script:DynomaxBuiltInCoreContractPolicy = [pscustomobject]@{
             ManifestPath = $manifestPath
             InstalledCoreVersion = $installedCoreVersion
+            InstalledRuntimeRevision = $installedRuntimeRevision
             SupportedRequiredCoreVersions = $versions
             LegacyFallback = $false
         }
@@ -53,6 +65,76 @@ function Get-DynomaxBuiltInCoreContractPolicy {
         $exception.Data['DynomaxArtifactType'] = 'CoreContractPolicy'
         $exception.Data['DynomaxArtifactPath'] = 'Core/Execution/BUILTIN_CORE_CONTRACTS.json'
         $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the exact validated Dynomax Core package before executing Built-in Actions.'
+        throw $exception
+    }
+}
+
+function Assert-DynomaxCoreRuntimeContract {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DynomaxRoot)
+
+    $manifestPath = Join-Path $DynomaxRoot 'Core\RUNTIME_CONTRACT.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        $exception = New-Object System.InvalidOperationException('Dynomax Core 1.0.20 is missing the compiler 1.19.15 continuation runtime contract.')
+        $exception.Data['DynomaxErrorCode'] = 'CORE_RUNTIME_CONTRACT_MISSING'
+        $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
+        $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
+        $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.6 overlay before executing compiler 1.19.15 publications.'
+        throw $exception
+    }
+
+    try {
+        $manifest = Read-DynomaxJson -Path $manifestPath
+        $schemaVersion = [int](Get-DynomaxPropertyValue -Object $manifest -Name 'schemaVersion' -DefaultValue 0)
+        $coreVersion = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'coreVersion' -DefaultValue '')
+        $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
+        $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
+        $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.6' -or
+            '1.19.15' -notin $compilerVersions -or
+            'continuation-decision-v1' -notin $capabilities -or
+            'cleanup-execution-order-v1' -notin $capabilities -or
+            'cleanup-stop-on-failure-v1' -notin $capabilities -or
+            'cleanup-transition-fast-path-v1' -notin $capabilities -or
+            'run-contract-finalization-recovery-v1' -notin $capabilities -or
+            'run-data-pool-delta-persistence-v1' -notin $capabilities -or
+            'runtime-context-cache-v1' -notin $capabilities -or
+            'control-flow-checkpoint-v1' -notin $capabilities -or
+            'compact-robot-schedule-v1' -notin $capabilities -or
+            'result-definition-deduplication-v1' -notin $capabilities -or
+            'control-flow-event-batch-v1' -notin $capabilities -or
+            'context-value-batch-persistence-v1' -notin $capabilities -or
+            'result-evidence-compaction-v1' -notin $capabilities -or
+            'structured-form-actions-v1' -notin $capabilities) {
+            throw 'Runtime contract identity/capability mismatch.'
+        }
+
+        $files = @((Get-DynomaxPropertyValue -Object $manifest -Name 'files' -DefaultValue @()))
+        foreach ($requiredPath in @('Core/Robot/Dynomax.resource','Core/Robot/DynomaxContext.py','Core/Execution/Dynomax.Workflow.ps1','Core/Invoke-DynomaxWorkflow.ps1')) {
+            $matches = @($files | Where-Object { [string](Get-DynomaxPropertyValue -Object $_ -Name 'path' -DefaultValue '') -ceq $requiredPath })
+            if ($matches.Count -ne 1) { throw "Runtime contract does not contain exactly one closure entry for '$requiredPath'." }
+            $entry = $matches[0]
+            $expectedLength = [long](Get-DynomaxPropertyValue -Object $entry -Name 'length' -DefaultValue -1)
+            $expectedSha = ([string](Get-DynomaxPropertyValue -Object $entry -Name 'sha256' -DefaultValue '')).ToLowerInvariant()
+            $relativeOsPath = $requiredPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+            $fullPath = Join-Path $DynomaxRoot $relativeOsPath
+            if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw "Required continuation runtime file '$requiredPath' is missing." }
+            $actualLength = [long](Get-Item -LiteralPath $fullPath).Length
+            $actualSha = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($expectedLength -lt 1 -or $expectedSha.Length -ne 64 -or $actualLength -ne $expectedLength -or $actualSha -cne $expectedSha) {
+                throw "Required continuation runtime file '$requiredPath' does not match the runtime contract."
+            }
+        }
+    }
+    catch {
+        if ($_.Exception.Data.Contains('DynomaxErrorCode')) { throw }
+        $exception = New-Object System.InvalidOperationException('Dynomax Core continuation runtime contract is invalid or incomplete.', $_.Exception)
+        $exception.Data['DynomaxErrorCode'] = 'CORE_RUNTIME_CONTRACT_INVALID'
+        $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
+        $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
+        $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.6 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 }
@@ -271,7 +353,7 @@ function Get-DynomaxActionSourceCandidates {
         [Nullable[int]]$ActionVersionNumber
     )
 
-    $candidates = New-Object System.Collections.Generic.List[object]
+    $candidates = [System.Collections.Generic.List[object]]::new()
     $locations = @()
     if ($WorkflowDirectory) {
         $payload = Join-Path $WorkflowDirectory 'Payload'
@@ -517,6 +599,20 @@ function Assert-DynomaxVersionPinnedSessionPlan {
         Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder ([int]$firstUnpinned.order) -ActionKey ([string]$firstUnpinned.actionId) -Message "A version-pinned workflow must specify actionVersion on every normal and cleanup step. Step '$($firstUnpinned.actionId)' is unpinned."
     }
 
+    $normalSteps=@($Steps | Where-Object { -not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false) })
+    $cleanupSteps=@($Steps | Where-Object { [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false) })
+    $preserveCleanupBrowserSession=$normalSteps.Count -gt 0 -and $cleanupSteps.Count -gt 0
+    if($preserveCleanupBrowserSession){
+        foreach($candidate in @($normalSteps)+@($cleanupSteps)){
+            if([string](Get-DynomaxPropertyValue -Object $candidate -Name 'DynomaxEngine' -DefaultValue '') -ne 'RobotBrowser'){$preserveCleanupBrowserSession=$false;break}
+        }
+    }
+    if($preserveCleanupBrowserSession){
+        foreach($candidate in $cleanupSteps){
+            if([string](Get-DynomaxPropertyValue -Object $candidate -Name 'DynomaxSessionBehavior' -DefaultValue 'DoesNotUseBrowser') -eq 'RequiresNewBrowser'){$preserveCleanupBrowserSession=$false;break}
+        }
+    }
+
     foreach ($section in @(
         [pscustomobject]@{ Name='normal'; Steps=@($Steps | Where-Object { -not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false) } | Sort-Object order) },
         [pscustomobject]@{ Name='cleanup'; Steps=@($Steps | Where-Object { [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false) } | Sort-Object order -Descending) }
@@ -552,8 +648,8 @@ function Assert-DynomaxVersionPinnedSessionPlan {
                     if ($robotBlockCount -gt 1) {
                         Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "The $($section.Name) plan contains more than one Robot browser block. Dynomax Core 1.0.16 supports one contiguous Robot block per normal or cleanup section."
                     }
-                    if ($session -eq 'RequiresExistingBrowser') {
-                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Action '$key' requires an existing browser, but it starts the independent $($section.Name) Robot block."
+                    if ($session -eq 'RequiresExistingBrowser' -and -not ($section.Name -eq 'cleanup' -and $preserveCleanupBrowserSession)) {
+                        Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder $order -ActionKey $key -ActionVersionId $versionId -Message "Action '$key' requires an existing browser, but no compatible preserved Main browser is available for the $($section.Name) Robot block."
                     }
                     $insideRobotBlock = $true
                 }
@@ -587,12 +683,20 @@ function New-DynomaxRobotSuite {
         [Parameter(Mandatory)][string]$DynomaxRoot,[Parameter(Mandatory)][string]$ProjectFolder,
         [Parameter(Mandatory)]$ProjectConfig,[Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][object[]]$Steps,
         [Parameter(Mandatory)][Guid]$RunId,[Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$ContextPath,
-        [Parameter(Mandatory)][string]$WorkflowDirectory,[Parameter(Mandatory)][string]$PowerShellPath
+        [Parameter(Mandatory)][string]$WorkflowDirectory,[Parameter(Mandatory)][string]$PowerShellPath,
+        [bool]$PreserveCleanupBrowserSession=$false
     )
     $resourcePaths=@()
     $actionDefinitions=@{}
+    $fingerprintsByActionVersionId=@{}
     foreach($step in $Steps){
-        $fingerprint=Assert-DynomaxActionExecutionSourceUnchanged -Step $step -ProjectFolder $ProjectFolder -WorkflowDirectory $WorkflowDirectory
+        $actionVersionCacheKey=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue '')
+        if($actionVersionCacheKey -and $fingerprintsByActionVersionId.ContainsKey($actionVersionCacheKey)){
+            $fingerprint=$fingerprintsByActionVersionId[$actionVersionCacheKey]
+        }else{
+            $fingerprint=Assert-DynomaxActionExecutionSourceUnchanged -Step $step -ProjectFolder $ProjectFolder -WorkflowDirectory $WorkflowDirectory
+            if($actionVersionCacheKey){$fingerprintsByActionVersionId[$actionVersionCacheKey]=$fingerprint}
+        }
         $folder=[string]$fingerprint.Folder
         $definition=$fingerprint.Definition
         if([string]$definition.engine -ne 'RobotBrowser'){throw "Action '$($step.actionId)' is not RobotBrowser."}
@@ -620,7 +724,9 @@ function New-DynomaxRobotSuite {
     $controlFlowConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'controlFlow' -DefaultValue $null
     $controlFlowEnabled=$null -ne $controlFlowConfig
     $containsMainStep=@($Steps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
+    $containsCleanupStep=@($Steps|Where-Object{[bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
     $useControlFlowDriver=$controlFlowEnabled -and $containsMainStep
+    $usePreservedCleanupDriver=$useControlFlowDriver -and $PreserveCleanupBrowserSession -and $containsCleanupStep
     $lines=New-Object System.Collections.Generic.List[string]
     $lines.Add('*** Settings ***')
     $lines.Add("Resource    $coreResource")
@@ -650,31 +756,56 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_DISCOVERY_TARGET_NODE_ID}    $discoveryTargetNodeId")
     $lines.Add("`${DYNOMAX_CONTROL_FLOW_ENABLED}    $(if($controlFlowEnabled){'True'}else{'False'})")
     $lines.Add("`${DYNOMAX_CONTROL_FLOW_TERMINAL}    False")
+    $lines.Add("`${DYNOMAX_CLEANUP_STOP_REQUESTED}    False")
     $lines.Add("`${DYNOMAX_ACTION_METADATA_READY}    False")
     $lines.Add('')
     $lines.Add('*** Test Cases ***')
+    # Invoke-DynomaxStepSequence has already established semantic execution order: Main is ascending,
+    # Cleanup is descending so the Cleanup graph start executes first. Never re-sort $Steps here.
     if($useControlFlowDriver){
         # A pre-unrolled bounded-control-flow schedule can contain hundreds or thousands of
-        # physical execution slots. Represent it as one Robot test with generated slot keywords
-        # so terminal PASS/FAIL/BLOCKED returns from the schedule immediately instead of forcing
-        # Robot to start every remaining physical test case merely to mark it skipped.
+        # physical execution slots. Keep Main in one Robot test so terminal control flow jumps
+        # immediately rather than visiting every unselected physical slot. When Cleanup shares
+        # the Main browser, execute Cleanup as a second generated phase inside the same Robot
+        # test/browser lifecycle and return immediately on StopCleanup.
+        $driverMainSteps=@($Steps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)})
+        $driverCleanupSteps=@($Steps|Where-Object{[bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)})
         $lines.Add('Dynomax Workflow')
         $lines.Add('    Execute Dynomax Control Flow Schedule')
         $lines.Add('')
         $lines.Add('*** Keywords ***')
         $lines.Add('Execute Dynomax Control Flow Schedule')
-        foreach($scheduledStep in ($Steps|Sort-Object order)){
+        foreach($scheduledStep in $driverMainSteps){
             $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$scheduledStep.order)
             $lines.Add("    $slotKeyword")
             $lines.Add("    IF    `${DYNOMAX_CONTROL_FLOW_TERMINAL}")
+            if($usePreservedCleanupDriver){$lines.Add('        Execute Dynomax Cleanup Schedule')}
             $lines.Add('        RETURN')
             $lines.Add('    END')
         }
+        if($usePreservedCleanupDriver){
+            $lines.Add('    Execute Dynomax Cleanup Schedule')
+        }
+        $lines.Add('    RETURN')
         $lines.Add('')
-        foreach($step in ($Steps|Sort-Object order)){
+        if($usePreservedCleanupDriver){
+            $lines.Add('Execute Dynomax Cleanup Schedule')
+            foreach($scheduledStep in $driverCleanupSteps){
+                $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$scheduledStep.order)
+                $lines.Add("    $slotKeyword")
+                $lines.Add("    IF    `${DYNOMAX_CLEANUP_STOP_REQUESTED}")
+                $lines.Add('        RETURN')
+                $lines.Add('    END')
+            }
+            $lines.Add('    RETURN')
+            $lines.Add('')
+        }
+
+        foreach($step in $Steps){
             $definition=$actionDefinitions[[string][int]$step.order]
-            $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
-            if($cleanup -eq 'True'){throw 'The control-flow Robot driver can execute Main steps only.'}
+            $isCleanup=[bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)
+            if($isCleanup -and -not $usePreservedCleanupDriver){continue}
+            $cleanup=if($isCleanup){'True'}else{'False'}
             $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
             $requestedText=if($null -eq $requestedVersion){''}else{[string]$requestedVersion}
             $requestedRobotCell=ConvertTo-DynomaxRobotCellValue -Value $requestedText
@@ -687,18 +818,7 @@ function New-DynomaxRobotSuite {
             $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true)}})
             $outputSpecsJson=ConvertTo-Json -InputObject $outputSpecs -Depth 10 -Compress
             $outputSpecsB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($outputSpecsJson))
-            $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$step.order)
-            $lines.Add($slotKeyword)
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_ID}    $($step.actionId)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ORDER}    $($step.order)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_STEP_ID}    $stepId")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_WORKFLOW_NODE_ID}    $workflowNodeId")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_EXECUTION_SLOT}    $executionSlot")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_OUTPUT_SPECS_B64}    $outputSpecsB64")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
+            $continueOnFailure=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'continueOnFailure' -DefaultValue $false)){'True'}else{'False'}
             $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
             $retryOnCsv=ConvertTo-DynomaxRobotCellValue -Value (@($policy.RetryOn) -join ',')
             $sensitiveAction=$false
@@ -708,54 +828,41 @@ function New-DynomaxRobotSuite {
                 if($secretFlag -or $classification -in @('Secret','Sensitive')){$sensitiveAction=$true;break}
             }
             $sensitiveText=if($sensitiveAction){'True'}else{'False'}
-            $lines.Add("    Set Test Variable    `${DYNOMAX_RESOLVED_ACTION_VERSION}    $resolvedVersion")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_WAIT_BEFORE_SECONDS}    $($policy.WaitBeforeSeconds)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}    $($policy.AttemptTimeoutSeconds)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_ATTEMPTS}    $($policy.MaximumAttempts)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_DELAY_SECONDS}    $($policy.RetryDelaySeconds)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_BACKOFF}    $($policy.Backoff)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_MAXIMUM_RETRY_DELAY_SECONDS}    $($policy.MaximumRetryDelaySeconds)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_OVERALL_TIMEOUT_SECONDS}    $($policy.OverallTimeoutSeconds)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_RETRY_ON_CSV}    $retryOnCsv")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}    $($policy.EvidencePolicy)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
-            $lines.Add("    `${control_flow_decision}=    Should Run Dynomax Control Flow Action    $workflowNodeId")
-            $lines.Add("    IF    '`${control_flow_decision}' == 'DEFER'")
-            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add('        RETURN')
-            $lines.Add('    END')
-            $lines.Add("    IF    '`${control_flow_decision}' == 'SKIP_FINAL'")
-            $lines.Add("        Set Suite Variable    `${DYNOMAX_CONTROL_FLOW_TERMINAL}    True")
-            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add('        RETURN')
-            $lines.Add('    END')
-            $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
-            $lines.Add("    Prepare Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
-            $lines.Add('    TRY')
-            $lines.Add("        `${action_status}    `${action_message}=    Run Keyword And Ignore Error    Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
-            $lines.Add('    FINALLY')
-            $lines.Add("        Capture Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    $workflowNodeId    $executionSlot    $($step.actionId)    `${DYNOMAX_OUTPUT_SPECS_B64}")
-            $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
-            $lines.Add('    END')
-            $lines.Add('    Persist Dynomax Explicit Robot Action Result    ${action_status}    ${action_message}')
-            $lines.Add("    IF    '`${action_status}' == 'FAIL'")
-            $lines.Add("        Fail Dynomax Control Flow Action    $workflowNodeId")
-            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add('        RETURN')
-            $lines.Add('    END')
-            # Step-local inputs were restored before downstream Condition/Fork/Loop evaluation.
-            $lines.Add("    `${advance_state}=    Advance Dynomax Control Flow After Action    $workflowNodeId")
-            $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
-            $lines.Add("    IF    '`${advance_state}' != 'CONTINUE'")
-            $lines.Add('        RETURN')
-            $lines.Add('    END')
+            $slotKeyword=('Execute Dynomax Physical Slot {0:D6}' -f [int]$step.order)
+            $lines.Add($slotKeyword)
+            $scheduledCall=@(
+                'Execute Dynomax Scheduled Slot',
+                [string]$step.actionId,
+                [string][int]$step.order,
+                $stepId,
+                $workflowNodeId,
+                [string]$executionSlot,
+                $outputSpecsB64,
+                $cleanup,
+                $continueOnFailure,
+                $actionVersionId,
+                $requestedRobotCell,
+                $resolvedVersion,
+                [string]$policy.WaitBeforeSeconds,
+                [string]$policy.AttemptTimeoutSeconds,
+                [string]$policy.MaximumAttempts,
+                [string]$policy.RetryDelaySeconds,
+                [string]$policy.Backoff,
+                [string]$policy.MaximumRetryDelaySeconds,
+                [string]$policy.OverallTimeoutSeconds,
+                $retryOnCsv,
+                [string]$policy.EvidencePolicy,
+                [string]$policy.BrowserSessionRetryMode,
+                $sensitiveText,
+                [string]$definition.keyword
+            )
+            $lines.Add('    '+([string]::Join('    ',$scheduledCall)))
             $lines.Add('')
         }
     }
+
     else{
-        foreach($step in ($Steps|Sort-Object order)){
+        foreach($step in $Steps){
             $definition=$actionDefinitions[[string][int]$step.order]
             $cleanup=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'cleanup' -DefaultValue $false)){'True'}else{'False'}
             $requestedVersion=Get-DynomaxPropertyValue -Object $step -Name 'DynomaxRequestedActionVersion' -DefaultValue $null
@@ -780,6 +887,8 @@ function New-DynomaxRobotSuite {
             $lines.Add("    Set Test Variable    `${DYNOMAX_EXECUTION_SLOT}    $executionSlot")
             $lines.Add("    Set Test Variable    `${DYNOMAX_OUTPUT_SPECS_B64}    $outputSpecsB64")
             $lines.Add("    Set Test Variable    `${DYNOMAX_IS_CLEANUP}    $cleanup")
+            $continueOnFailure=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'continueOnFailure' -DefaultValue $false)){'True'}else{'False'}
+            $lines.Add("    Set Test Variable    `${DYNOMAX_CONTINUE_ON_FAILURE}    $continueOnFailure")
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_VERSION_ID}    $actionVersionId")
             $lines.Add("    Set Test Variable    `${DYNOMAX_REQUESTED_ACTION_VERSION}    $requestedRobotCell")
             $policy=Get-DynomaxExecutionPolicy -Step $step -FallbackTimeoutSeconds ([int](Get-DynomaxPropertyValue -Object $definition -Name 'timeoutSeconds' -DefaultValue 60))
@@ -804,6 +913,12 @@ function New-DynomaxRobotSuite {
             $lines.Add("    Set Test Variable    `${DYNOMAX_BROWSER_SESSION_RETRY_MODE}    $($policy.BrowserSessionRetryMode)")
             $lines.Add("    Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    $sensitiveText")
             $lines.Add("    Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    True")
+            if($cleanup -eq 'True'){
+                $lines.Add("    `${cleanup_stop_requested}=    Get Variable Value    \`${DYNOMAX_CLEANUP_STOP_REQUESTED}    `${False}")
+                $lines.Add("    IF    `${cleanup_stop_requested}")
+                $lines.Add("        Skip    Cleanup stopped after the first failed Cleanup Action because continueOnFailure is false.")
+                $lines.Add("    END")
+            }
             if($controlFlowEnabled -and $cleanup -eq 'False'){
                 # After terminal control flow is established, the remainder of a pre-unrolled Robot
                 # suite is a bookkeeping concern only. Skip it locally without launching another
@@ -822,13 +937,24 @@ function New-DynomaxRobotSuite {
                 $lines.Add("        Skip    Action was not selected by Workflow control flow.")
                 $lines.Add("    END")
             }
-            $lines.Add("    Activate Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
-            $lines.Add("    Prepare Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
+            $lines.Add("    `${continuation_decision}=    Get Dynomax Continuation Decision    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("    IF    '`${continuation_decision}' == 'BLOCKED'")
+            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("        Fail    Continuation is blocked at physical step '$stepId'. Inspect the immutable continuation plan for the safety reason.")
+            $lines.Add("    END")
+            $lines.Add("    IF    '`${continuation_decision}' == 'REUSE'")
+            if($controlFlowEnabled -and $cleanup -eq 'False'){
+                $lines.Add("        Advance Dynomax Control Flow After Reused Action    $workflowNodeId")
+            }
+            $lines.Add("        Set Test Variable    `${DYNOMAX_ACTION_METADATA_READY}    False")
+            $lines.Add("        Pass Execution    Reused from the source Run; this Action did not execute.")
+            $lines.Add("    END")
+            $lines.Add("    Begin Dynomax Step Scope    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
+            $lines.Add("    Mark Dynomax Action Running")
             $lines.Add("    TRY")
             $lines.Add("        Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
             $lines.Add("    FINALLY")
-            $lines.Add("        Capture Dynomax Step Outputs    `${DYNOMAX_CONTEXT_PATH}    $stepId    $workflowNodeId    $executionSlot    $($step.actionId)    `${DYNOMAX_OUTPUT_SPECS_B64}")
-            $lines.Add("        Clear Dynomax Step Inputs    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("        Complete Dynomax Step Scope    `${DYNOMAX_CONTEXT_PATH}    $stepId    $workflowNodeId    $executionSlot    $($step.actionId)    `${DYNOMAX_OUTPUT_SPECS_B64}")
             $lines.Add("    END")
             if($controlFlowEnabled -and $cleanup -eq 'False'){
                 # Restore the shared output context before Condition/Fork/Loop evaluation so
@@ -850,9 +976,9 @@ function Invoke-DynomaxRobotBlock {
         [Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][object[]]$Steps,[Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$WorkflowDirectory,
         [Parameter(Mandatory)][string]$PowerShellPath,[Parameter(Mandatory)][string]$PythonPath,[int]$TimeoutSeconds=0,
-        [bool]$StreamOutput=$true,[bool]$ShowCommand=$false,[int]$HeartbeatSeconds=15
+        [bool]$StreamOutput=$true,[bool]$ShowCommand=$false,[int]$HeartbeatSeconds=15,[bool]$PreserveCleanupBrowserSession=$false
     )
-    $suite=New-DynomaxRobotSuite -DynomaxRoot $DynomaxRoot -ProjectFolder $ProjectFolder -ProjectConfig $ProjectConfig -Workflow $Workflow -Steps $Steps -RunId $RunId -RunDirectory $RunDirectory -ContextPath $ContextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $PowerShellPath
+    $suite=New-DynomaxRobotSuite -DynomaxRoot $DynomaxRoot -ProjectFolder $ProjectFolder -ProjectConfig $ProjectConfig -Workflow $Workflow -Steps $Steps -RunId $RunId -RunDirectory $RunDirectory -ContextPath $ContextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $PowerShellPath -PreserveCleanupBrowserSession:$PreserveCleanupBrowserSession
     $resultDir=Ensure-DynomaxDirectory -Path (Join-Path $RunDirectory 'robot-result')
     $args=@('-B','-m','robot','--outputdir',$resultDir,'--output','output.xml','--log','log.html','--report','report.html',$suite)
     $heartbeat={param($label,$processId,$elapsedSeconds) Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.Heartbeat' -Message ("$label is still running; elapsed ${elapsedSeconds}s.") -Data ([ordered]@{process='Robot';processId=$processId;elapsedSeconds=$elapsedSeconds})}
@@ -935,6 +1061,9 @@ function Invoke-DynomaxPowerShellAction {
     $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputSecretFlags' -NotePropertyValue ([pscustomobject]$priorOutputSecretFlags)
     $prepareContext.secretKeys=@($prepareSecretLookup.Keys|Sort-Object)
     Write-DynomaxJson -Value $prepareContext -Path $ContextPath
+    $startStream=if($isCleanup){'CleanupActionStarted'}else{'MainActionStarted'}
+    $startEventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream $startStream -Sequence ([int]$Step.order)
+    Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.ActionStarted' -Message ("Action '$($Step.actionId)' started.") -Data ([ordered]@{stepOrder=[int]$Step.order;stepId=$stepId;actionKey=[string]$Step.actionId;actionVersionId=$actionVersionId.ToString('D');isCleanup=$isCleanup}) -RunEventId $startEventId
     $overallWatch=[System.Diagnostics.Stopwatch]::StartNew()
     if($policy.WaitBeforeSeconds -gt 0){Start-Sleep -Seconds $policy.WaitBeforeSeconds}
 
@@ -1020,4 +1149,3 @@ function Invoke-DynomaxPowerShellAction {
     Add-DynomaxActionRun -SqlConfig $SqlConfig -RunId $RunId -StepOrder ([int]$Step.order) -ActionKey ([string]$Step.actionId) -ActionVersionId $actionVersionId -Status $finalResult.Status -Message $persistedMessage -OutputJson $persistedOutput -IsCleanup:$isCleanup
     return $lastProcess
 }
-

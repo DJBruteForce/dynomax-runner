@@ -1,5 +1,21 @@
 Set-StrictMode -Version Latest
 
+function Get-DynomaxRelativePath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$BasePath,
+        [Parameter(Mandatory)][string]$TargetPath
+    )
+    $base = [System.IO.Path]::GetFullPath($BasePath).TrimEnd([char[]]@('\','/'))
+    $target = [System.IO.Path]::GetFullPath($TargetPath)
+    if($target.Equals($base,[System.StringComparison]::OrdinalIgnoreCase)){return ''}
+    $prefix = $base + [System.IO.Path]::DirectorySeparatorChar
+    if(-not $target.StartsWith($prefix,[System.StringComparison]::OrdinalIgnoreCase)){
+        throw ("Path '{0}' is outside base path '{1}'." -f $target,$base)
+    }
+    return $target.Substring($prefix.Length)
+}
+
 function New-DynomaxTestRun {
     [CmdletBinding()]
     param(
@@ -140,7 +156,9 @@ function Add-DynomaxMissingControlFlowActionRuns {
         [Parameter(Mandatory)]$SqlConfig,
         [Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)][object[]]$Steps,
-        [string]$Message = 'Physical execution slot was not selected before Workflow control flow terminated.'
+        [string]$ContextPath,
+        [string]$Message = 'Physical execution slot was not selected before Workflow control flow terminated.',
+        [bool]$IsCleanup = $false
     )
     if($Steps.Count -eq 0){return 0}
     $connection=Open-DynomaxConnection -SqlConfig $SqlConfig
@@ -148,8 +166,23 @@ function Add-DynomaxMissingControlFlowActionRuns {
         $existingRows=Invoke-DynomaxSqlRows -Connection $connection -CommandText 'SELECT StepOrder FROM dmx.ActionRun WHERE RunId=@RunId;' -Parameters @{ '@RunId'=$RunId }
         $existing=[System.Collections.Generic.HashSet[int]]::new()
         foreach($row in @($existingRows)){[void]$existing.Add([int]$row.StepOrder)}
-        $insertedCount=0
+        $reusedStepIds=[System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        if($ContextPath -and (Test-Path -LiteralPath $ContextPath -PathType Leaf)){
+            $context=Read-DynomaxJson -Path $ContextPath
+            $continuation=Get-DynomaxPropertyValue -Object $context -Name 'continuation' -DefaultValue $null
+            $plan=if($null -ne $continuation){Get-DynomaxPropertyValue -Object $continuation -Name 'plan' -DefaultValue $null}else{$null}
+            $planItems=if($null -ne $plan){@(Get-DynomaxPropertyValue -Object $plan -Name 'items' -DefaultValue @())}else{@()}
+            foreach($item in @($planItems)){
+                if(([string](Get-DynomaxPropertyValue -Object $item -Name 'decision' -DefaultValue '')).ToUpperInvariant() -eq 'REUSE'){
+                    [void]$reusedStepIds.Add([string](Get-DynomaxPropertyValue -Object $item -Name 'targetStepId' -DefaultValue ''))
+                }
+            }
+        }
+
+        $pending=[System.Collections.Generic.List[object]]::new()
         foreach($step in @($Steps|Sort-Object order)){
+            $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue '')
+            if($reusedStepIds.Contains($stepId)){continue}
             $stepOrder=[int](Get-DynomaxPropertyValue -Object $step -Name 'order' -DefaultValue 0)
             if($existing.Contains($stepOrder)){continue}
             $actionKey=[string](Get-DynomaxPropertyValue -Object $step -Name 'actionId' -DefaultValue '')
@@ -158,21 +191,41 @@ function Add-DynomaxMissingControlFlowActionRuns {
             if([string]::IsNullOrWhiteSpace($actionKey) -or -not [Guid]::TryParse($versionText,[ref]$actionVersionId)){
                 throw "Cannot finalize skipped physical slot '$stepOrder' because its exact Action identity is incomplete."
             }
-            $inserted=Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
-INSERT INTO dmx.ActionRun(ActionRunId,RunId,StepOrder,ActionVersionId,ActionKey,Status,IsCleanup,StartedAtUtc,EndedAtUtc,Message,OutputJson)
-SELECT NEWID(),@RunId,@StepOrder,av.ActionVersionId,@ActionKey,N'SKIPPED',0,SYSUTCDATETIME(),SYSUTCDATETIME(),@Message,NULL
-FROM dmx.TestRun tr
-JOIN dmx.Action a ON a.ProjectId=tr.ProjectId AND a.ActionKey=@ActionKey
-JOIN dmx.ActionVersion av ON av.ActionId=a.ActionId AND av.ActionVersionId=@ActionVersionId
-WHERE tr.RunId=@RunId
-  AND NOT EXISTS(SELECT 1 FROM dmx.ActionRun ar WHERE ar.RunId=@RunId AND ar.StepOrder=@StepOrder);
-'@ -Parameters @{ '@RunId'=$RunId; '@StepOrder'=$stepOrder; '@ActionKey'=$actionKey; '@ActionVersionId'=$actionVersionId; '@Message'=$Message }
-            if([int]$inserted -eq 1){$insertedCount++;[void]$existing.Add($stepOrder)}
-            elseif(-$existing.Contains($stepOrder)){
-                $nowExists=[int](Invoke-DynomaxSqlScalar -Connection $connection -CommandText 'SELECT COUNT(*) FROM dmx.ActionRun WHERE RunId=@RunId AND StepOrder=@StepOrder;' -Parameters @{ '@RunId'=$RunId; '@StepOrder'=$stepOrder })
-                if($nowExists -ne 1){throw "Could not finalize skipped physical slot '$stepOrder' for Action '$actionKey'."}
-                [void]$existing.Add($stepOrder)
+            $pending.Add([pscustomobject]@{StepOrder=$stepOrder;ActionKey=$actionKey;ActionVersionId=$actionVersionId})
+        }
+        if($pending.Count -eq 0){return 0}
+
+        # Persist bookkeeping-only physical slots in bounded batches. A large bounded control-flow
+        # schedule can contain hundreds or thousands of slots; one SQL round-trip per skipped slot
+        # makes Main->Cleanup and StopCleanup transitions scale with the unselected schedule size.
+        $insertedCount=0
+        $batchSize=200
+        for($offset=0;$offset -lt $pending.Count;$offset+=$batchSize){
+            $count=[Math]::Min($batchSize,$pending.Count-$offset)
+            $selects=New-Object System.Collections.Generic.List[string]
+            $parameters=@{ '@RunId'=$RunId; '@Message'=$Message; '@IsCleanup'=$IsCleanup }
+            for($i=0;$i -lt $count;$i++){
+                $item=$pending[$offset+$i]
+                $selects.Add("SELECT @StepOrder$i AS StepOrder,@ActionKey$i AS ActionKey,@ActionVersionId$i AS ActionVersionId")
+                $parameters["@StepOrder$i"]=[int]$item.StepOrder
+                $parameters["@ActionKey$i"]=[string]$item.ActionKey
+                $parameters["@ActionVersionId$i"]=[Guid]$item.ActionVersionId
             }
+            $desiredSql=[string]::Join("`nUNION ALL`n",$selects)
+            $command=@"
+WITH desired AS (
+$desiredSql
+)
+INSERT INTO dmx.ActionRun(ActionRunId,RunId,StepOrder,ActionVersionId,ActionKey,Status,IsCleanup,StartedAtUtc,EndedAtUtc,Message,OutputJson)
+SELECT NEWID(),@RunId,d.StepOrder,av.ActionVersionId,d.ActionKey,N'SKIPPED',@IsCleanup,SYSUTCDATETIME(),SYSUTCDATETIME(),@Message,NULL
+FROM desired d
+JOIN dmx.TestRun tr ON tr.RunId=@RunId
+JOIN dmx.Action a ON a.ProjectId=tr.ProjectId AND a.ActionKey=d.ActionKey
+JOIN dmx.ActionVersion av ON av.ActionId=a.ActionId AND av.ActionVersionId=d.ActionVersionId
+WHERE NOT EXISTS(SELECT 1 FROM dmx.ActionRun ar WHERE ar.RunId=@RunId AND ar.StepOrder=d.StepOrder);
+"@
+            $inserted=[int](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText $command -Parameters $parameters)
+            $insertedCount += $inserted
         }
         return $insertedCount
     }
@@ -217,6 +270,38 @@ function Set-DynomaxRunDataPoolStepOutputs {
     return $step
 }
 
+function ConvertTo-DynomaxSafeRunDataPoolStep {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Step,
+        [Parameter(Mandatory)][string]$FallbackStepId
+    )
+    $safeOutputs=[pscustomobject][ordered]@{}
+    $outputs=Get-DynomaxPropertyValue -Object $Step -Name 'outputs' -DefaultValue $null
+    if($null -ne $outputs){foreach($outputProperty in @($outputs.PSObject.Properties)){
+        $output=$outputProperty.Value
+        $available=[bool](Get-DynomaxPropertyValue -Object $output -Name 'available' -DefaultValue $false)
+        $classification=[string](Get-DynomaxPropertyValue -Object $output -Name 'classification' -DefaultValue 'Normal')
+        $persist=[bool](Get-DynomaxPropertyValue -Object $output -Name 'persistInResult' -DefaultValue $true)
+        $canExpose=$available -and $classification -eq 'Normal' -and $persist
+        Set-DynomaxContextObjectProperty -Object $safeOutputs -Name ([string]$outputProperty.Name) -Value ([pscustomobject][ordered]@{
+            available=$available
+            value=$(if($canExpose){Get-DynomaxPropertyValue -Object $output -Name 'value' -DefaultValue $null}else{$null})
+            classification=$classification
+            persistInResult=$persist
+            redacted=(-not $canExpose -and $available)
+        })
+    }}
+    return [pscustomobject][ordered]@{
+        stepId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'stepId' -DefaultValue $FallbackStepId)
+        workflowNodeId=[string](Get-DynomaxPropertyValue -Object $Step -Name 'workflowNodeId' -DefaultValue '')
+        executionSlot=[int](Get-DynomaxPropertyValue -Object $Step -Name 'executionSlot' -DefaultValue 1)
+        actionKey=[string](Get-DynomaxPropertyValue -Object $Step -Name 'actionKey' -DefaultValue '')
+        capturedAtUtc=[string](Get-DynomaxPropertyValue -Object $Step -Name 'capturedAtUtc' -DefaultValue '')
+        outputs=$safeOutputs
+    }
+}
+
 function ConvertTo-DynomaxSafeRunDataPool {
     [CmdletBinding()]
     param($RunDataPool)
@@ -224,20 +309,105 @@ function ConvertTo-DynomaxSafeRunDataPool {
     if($null -ne $RunDataPool){
         $steps=Get-DynomaxPropertyValue -Object $RunDataPool -Name 'steps' -DefaultValue $null
         if($null -ne $steps){foreach($stepProperty in @($steps.PSObject.Properties)){
-            $step=$stepProperty.Value;$safeOutputs=[pscustomobject][ordered]@{}
-            $outputs=Get-DynomaxPropertyValue -Object $step -Name 'outputs' -DefaultValue $null
-            if($null -ne $outputs){foreach($outputProperty in @($outputs.PSObject.Properties)){
-                $output=$outputProperty.Value
-                $available=[bool](Get-DynomaxPropertyValue -Object $output -Name 'available' -DefaultValue $false)
-                $classification=[string](Get-DynomaxPropertyValue -Object $output -Name 'classification' -DefaultValue 'Normal')
-                $persist=[bool](Get-DynomaxPropertyValue -Object $output -Name 'persistInResult' -DefaultValue $true)
-                $canExpose=$available -and $classification -eq 'Normal' -and $persist
-                Set-DynomaxContextObjectProperty -Object $safeOutputs -Name ([string]$outputProperty.Name) -Value ([pscustomobject][ordered]@{available=$available;value=$(if($canExpose){Get-DynomaxPropertyValue -Object $output -Name 'value' -DefaultValue $null}else{$null});classification=$classification;persistInResult=$persist;redacted=(-not $canExpose -and $available)})
-            }}
-            Set-DynomaxContextObjectProperty -Object $safeSteps -Name ([string]$stepProperty.Name) -Value ([pscustomobject][ordered]@{stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue $stepProperty.Name);workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue '');executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1);actionKey=[string](Get-DynomaxPropertyValue -Object $step -Name 'actionKey' -DefaultValue '');capturedAtUtc=[string](Get-DynomaxPropertyValue -Object $step -Name 'capturedAtUtc' -DefaultValue '');outputs=$safeOutputs})
+            Set-DynomaxContextObjectProperty -Object $safeSteps -Name ([string]$stepProperty.Name) -Value (ConvertTo-DynomaxSafeRunDataPoolStep -Step $stepProperty.Value -FallbackStepId ([string]$stepProperty.Name))
         }}
     }
     return [pscustomobject][ordered]@{schemaVersion=1;steps=$safeSteps}
+}
+
+function Set-DynomaxRunDataPoolStepInSql {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$StepId,
+        [Parameter(Mandatory)]$Step,
+        [System.Data.SqlClient.SqlConnection]$Connection,
+        [hashtable]$PersistedContextCache
+    )
+    $safeStep=ConvertTo-DynomaxSafeRunDataPoolStep -Step $Step -FallbackStepId $StepId
+    $valueJson=([ordered]@{value=$safeStep}|ConvertTo-Json -Depth 100 -Compress)
+    $stepBytes=[System.Text.Encoding]::UTF8.GetBytes($StepId)
+    $sha=[System.Security.Cryptography.SHA256]::Create()
+    try{$stepHash=([System.BitConverter]::ToString($sha.ComputeHash($stepBytes))).Replace('-','').ToLowerInvariant()}
+    finally{$sha.Dispose()}
+    # The hash keeps ContextKey bounded and safe while the payload retains the exact immutable StepId.
+    $contextKey='__dynomax.runDataPool.step.'+$stepHash
+    $cacheValue=('0|{0}' -f $valueJson)
+    if($null -ne $PersistedContextCache -and $PersistedContextCache.ContainsKey($contextKey) -and [string]$PersistedContextCache[$contextKey] -ceq $cacheValue){return}
+
+    $ownsConnection=$null -eq $Connection
+    $activeConnection=$Connection
+    if($ownsConnection){$activeConnection=Open-DynomaxConnection -SqlConfig $SqlConfig}
+    try{
+        [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
+MERGE dmx.RunContextValue AS target
+USING (SELECT @RunId AS RunId,@ContextKey AS ContextKey) AS source
+ON target.RunId=source.RunId AND target.ContextKey=source.ContextKey
+WHEN MATCHED THEN UPDATE SET ValueJson=@ValueJson,IsSecret=0,UpdatedAtUtc=SYSUTCDATETIME()
+WHEN NOT MATCHED THEN INSERT(RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc)
+VALUES(NEWID(),@RunId,@ContextKey,@ValueJson,0,SYSUTCDATETIME(),SYSUTCDATETIME());
+'@ -Parameters @{ '@RunId'=$RunId; '@ContextKey'=$contextKey; '@ValueJson'=$valueJson })
+        if($null -ne $PersistedContextCache){$PersistedContextCache[$contextKey]=$cacheValue}
+    }
+    finally{if($ownsConnection -and $activeConnection){$activeConnection.Dispose()}}
+}
+
+function Set-DynomaxContextStepInSql {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)]$Context,
+        [Parameter(Mandatory)][string]$StepId,
+        [System.Data.SqlClient.SqlConnection]$Connection,
+        [hashtable]$PersistedContextCache
+    )
+    $ownsConnection=$null -eq $Connection
+    $activeConnection=$Connection
+    if($ownsConnection){$activeConnection=Open-DynomaxConnection -SqlConfig $SqlConfig}
+    try{
+        $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
+        $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
+        $stepProperty=if($null -ne $steps){$steps.PSObject.Properties[$StepId]}else{$null}
+        if($null -ne $stepProperty -and $null -ne $PersistedContextCache){
+            $outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null
+            if($null -ne $outputs){foreach($outputProperty in @($outputs.PSObject.Properties)){
+                $classification=[string](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'classification' -DefaultValue 'Normal')
+                $persist=[bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'persistInResult' -DefaultValue $true)
+                if($classification -ne 'Normal' -or -not $persist){
+                    $PersistedContextCache['__dynomax.sensitiveOutputName.'+[string]$outputProperty.Name]=$true
+                }
+            }}
+        }
+        Set-DynomaxContextValuesInSql -SqlConfig $SqlConfig -RunId $RunId -Context $Context -Connection $activeConnection -PersistedContextCache $PersistedContextCache -PersistRunDataPool:$false -InspectRunDataPool:$false
+        if($null -ne $stepProperty){Set-DynomaxRunDataPoolStepInSql -SqlConfig $SqlConfig -RunId $RunId -StepId $StepId -Step $stepProperty.Value -Connection $activeConnection -PersistedContextCache $PersistedContextCache}
+    }
+    finally{if($ownsConnection -and $activeConnection){$activeConnection.Dispose()}}
+}
+
+function Set-DynomaxContextValuesIndividuallyInSql {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Data.SqlClient.SqlConnection]$Connection,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)]$PendingValues
+    )
+    foreach($pending in @($PendingValues)){
+        [void](Invoke-DynomaxSqlNonQuery -Connection $Connection -CommandText @'
+MERGE dmx.RunContextValue AS target
+USING (SELECT @RunId AS RunId,@ContextKey AS ContextKey) AS source
+ON target.RunId=source.RunId AND target.ContextKey=source.ContextKey
+WHEN MATCHED THEN UPDATE SET ValueJson=@ValueJson,IsSecret=@IsSecret,UpdatedAtUtc=SYSUTCDATETIME()
+WHEN NOT MATCHED THEN INSERT(RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc)
+VALUES(NEWID(),@RunId,@ContextKey,@ValueJson,@IsSecret,SYSUTCDATETIME(),SYSUTCDATETIME());
+'@ -Parameters @{
+            '@RunId'=$RunId
+            '@ContextKey'=[string]$pending.contextKey
+            '@ValueJson'=[string]$pending.valueJson
+            '@IsSecret'=[bool]$pending.isSecret
+        })
+    }
 }
 
 function Set-DynomaxContextValuesInSql {
@@ -247,7 +417,9 @@ function Set-DynomaxContextValuesInSql {
         [Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)]$Context,
         [System.Data.SqlClient.SqlConnection]$Connection,
-        [hashtable]$PersistedContextCache
+        [hashtable]$PersistedContextCache,
+        [bool]$PersistRunDataPool=$true,
+        [bool]$InspectRunDataPool=$true
     )
     $ownsConnection = $null -eq $Connection
     $activeConnection = $Connection
@@ -256,8 +428,31 @@ function Set-DynomaxContextValuesInSql {
         $secretLookup=@{}
         foreach($secretKey in @(Get-DynomaxPropertyValue -Object $Context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$secretKey)){$secretLookup[[string]$secretKey]=$true}}
         $sensitiveOutputNames=@{}
+        if($null -ne $PersistedContextCache){
+            foreach($cacheKey in @($PersistedContextCache.Keys)){
+                $prefix='__dynomax.sensitiveOutputName.'
+                if(([string]$cacheKey).StartsWith($prefix,[System.StringComparison]::Ordinal)){
+                    $sensitiveOutputNames[([string]$cacheKey).Substring($prefix.Length)]=$true
+                }
+            }
+        }
         $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
-        if($null -ne $pool){$steps=Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null;if($null -ne $steps){foreach($stepProperty in @($steps.PSObject.Properties)){$outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null;if($null -ne $outputs){foreach($outputProperty in @($outputs.PSObject.Properties)){$classification=[string](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'classification' -DefaultValue 'Normal');$persist=[bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'persistInResult' -DefaultValue $true);if($classification -ne 'Normal' -or -not $persist){$sensitiveOutputNames[[string]$outputProperty.Name]=$true}}}}}}
+        if($InspectRunDataPool -and $null -ne $pool){
+            $steps=Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null
+            if($null -ne $steps){foreach($stepProperty in @($steps.PSObject.Properties)){
+                $outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null
+                if($null -ne $outputs){foreach($outputProperty in @($outputs.PSObject.Properties)){
+                    $classification=[string](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'classification' -DefaultValue 'Normal')
+                    $persist=[bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'persistInResult' -DefaultValue $true)
+                    if($classification -ne 'Normal' -or -not $persist){
+                        $name=[string]$outputProperty.Name
+                        $sensitiveOutputNames[$name]=$true
+                        if($null -ne $PersistedContextCache){$PersistedContextCache['__dynomax.sensitiveOutputName.'+$name]=$true}
+                    }
+                }}
+            }}
+        }
+        $pendingValues=[System.Collections.Generic.List[object]]::new()
         foreach ($property in $Context.values.PSObject.Properties) {
             $contextKey=[string]$property.Name
             $isSecret=$secretLookup.ContainsKey($contextKey)
@@ -265,30 +460,118 @@ function Set-DynomaxContextValuesInSql {
             $valueJson=$(if($redact){'{"redacted":true}'}else{([ordered]@{ value = $property.Value }) | ConvertTo-Json -Depth 50 -Compress})
             $cacheValue=('{0}|{1}' -f $(if($isSecret){'1'}else{'0'}),$valueJson)
             if($null -ne $PersistedContextCache -and $PersistedContextCache.ContainsKey($contextKey) -and [string]$PersistedContextCache[$contextKey] -ceq $cacheValue){continue}
-            [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
-MERGE dmx.RunContextValue AS target
-USING (SELECT @RunId AS RunId,@ContextKey AS ContextKey) AS source
-ON target.RunId=source.RunId AND target.ContextKey=source.ContextKey
-WHEN MATCHED THEN UPDATE SET ValueJson=@ValueJson,IsSecret=@IsSecret,UpdatedAtUtc=SYSUTCDATETIME()
-WHEN NOT MATCHED THEN INSERT(RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc)
-VALUES(NEWID(),@RunId,@ContextKey,@ValueJson,@IsSecret,SYSUTCDATETIME(),SYSUTCDATETIME());
-'@ -Parameters @{ '@RunId'=$RunId; '@ContextKey'=$contextKey; '@ValueJson'=$valueJson; '@IsSecret'=[bool]$isSecret })
-            if($null -ne $PersistedContextCache){$PersistedContextCache[$contextKey]=$cacheValue}
+            $pendingValues.Add([ordered]@{
+                contextKey=$contextKey
+                valueJson=$valueJson
+                isSecret=[bool]$isSecret
+                cacheValue=$cacheValue
+            })
         }
-        $safePool=ConvertTo-DynomaxSafeRunDataPool -RunDataPool $pool
-        $poolJson=([ordered]@{value=$safePool}|ConvertTo-Json -Depth 100 -Compress)
-        $poolCacheKey='__dynomax.runDataPool'
-        $poolCacheValue=('0|{0}' -f $poolJson)
-        if($null -eq $PersistedContextCache -or -not $PersistedContextCache.ContainsKey($poolCacheKey) -or [string]$PersistedContextCache[$poolCacheKey] -cne $poolCacheValue){
-            [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
-MERGE dmx.RunContextValue AS target
-USING (SELECT @RunId AS RunId,N'__dynomax.runDataPool' AS ContextKey) AS source
-ON target.RunId=source.RunId AND target.ContextKey=source.ContextKey
-WHEN MATCHED THEN UPDATE SET ValueJson=@ValueJson,IsSecret=0,UpdatedAtUtc=SYSUTCDATETIME()
-WHEN NOT MATCHED THEN INSERT(RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc)
-VALUES(NEWID(),@RunId,N'__dynomax.runDataPool',@ValueJson,0,SYSUTCDATETIME(),SYSUTCDATETIME());
+        if($pendingValues.Count -gt 0){
+            $batchDisabled=$null -ne $PersistedContextCache -and $PersistedContextCache.ContainsKey('__dynomax.contextBatchDisabled')
+            if($batchDisabled){
+                Set-DynomaxContextValuesIndividuallyInSql -Connection $activeConnection -RunId $RunId -PendingValues $pendingValues
+            }
+            else{
+                try{
+                    $payload=@($pendingValues | ForEach-Object { [ordered]@{contextKey=$_.contextKey;valueJson=$_.valueJson;isSecret=$_.isSecret} })
+                    $valuesJson=ConvertTo-Json -InputObject ([object[]]$payload) -Depth 20 -Compress
+                    [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
+SET XACT_ABORT ON;
+BEGIN TRY
+    BEGIN TRANSACTION;
+    DECLARE @Source TABLE
+    (
+        ContextKey nvarchar(450) NOT NULL PRIMARY KEY,
+        ValueJson nvarchar(max) NULL,
+        IsSecret bit NOT NULL
+    );
+    INSERT INTO @Source(ContextKey,ValueJson,IsSecret)
+    SELECT ContextKey,ValueJson,IsSecret
+    FROM OPENJSON(@ValuesJson)
+    WITH
+    (
+        ContextKey nvarchar(450) '$.contextKey',
+        ValueJson nvarchar(max) '$.valueJson',
+        IsSecret bit '$.isSecret'
+    )
+    WHERE ContextKey IS NOT NULL;
+
+    UPDATE target
+    SET target.ValueJson=source.ValueJson,
+        target.IsSecret=source.IsSecret,
+        target.UpdatedAtUtc=SYSUTCDATETIME()
+    FROM dmx.RunContextValue target
+    JOIN @Source source ON source.ContextKey=target.ContextKey
+    WHERE target.RunId=@RunId;
+
+    INSERT INTO dmx.RunContextValue
+    (
+        RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc
+    )
+    SELECT NEWID(),@RunId,source.ContextKey,source.ValueJson,source.IsSecret,SYSUTCDATETIME(),SYSUTCDATETIME()
+    FROM @Source source
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM dmx.RunContextValue existing
+        WHERE existing.RunId=@RunId AND existing.ContextKey=source.ContextKey
+    );
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+'@ -Parameters @{ '@RunId'=$RunId; '@ValuesJson'=$valuesJson })
+                }
+                catch{
+                    $safeBatchMessage=([string]$_.Exception.Message -replace '[\r\n\t]+',' ').Trim()
+                    if($safeBatchMessage.Length -gt 1500){$safeBatchMessage=$safeBatchMessage.Substring(0,1500)}
+                    Write-Warning ("Batched RunContext persistence failed; using deterministic per-key fallback for the remainder of this Run. {0}" -f $safeBatchMessage)
+                    if($null -ne $PersistedContextCache){$PersistedContextCache['__dynomax.contextBatchDisabled']=$safeBatchMessage}
+                    Set-DynomaxContextValuesIndividuallyInSql -Connection $activeConnection -RunId $RunId -PendingValues $pendingValues
+                    try{
+                        Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Warning' -EventType 'Runtime.ContextBatchFallback' -Message 'Batched RunContext persistence failed and Dynomax switched to the deterministic per-key fallback for this Run.' -Data ([ordered]@{error=$safeBatchMessage;pendingValueCount=$pendingValues.Count}) -Connection $activeConnection
+                    }catch{Write-Warning ("Could not persist the context-batch fallback diagnostic event: {0}" -f $_.Exception.Message)}
+                }
+            }
+            if($null -ne $PersistedContextCache){
+                foreach($pending in $pendingValues.ToArray()){$PersistedContextCache[[string]$pending.contextKey]=[string]$pending.cacheValue}
+            }
+        }
+        if($PersistRunDataPool){
+            $safePool=ConvertTo-DynomaxSafeRunDataPool -RunDataPool $pool
+            $poolJson=([ordered]@{value=$safePool}|ConvertTo-Json -Depth 100 -Compress)
+            $poolCacheKey='__dynomax.runDataPool'
+            $poolCacheValue=('0|{0}' -f $poolJson)
+            if($null -eq $PersistedContextCache -or -not $PersistedContextCache.ContainsKey($poolCacheKey) -or [string]$PersistedContextCache[$poolCacheKey] -cne $poolCacheValue){
+                [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
+SET XACT_ABORT ON;
+BEGIN TRY
+    BEGIN TRANSACTION;
+    MERGE dmx.RunContextValue AS target
+    USING (SELECT @RunId AS RunId,N'__dynomax.runDataPool' AS ContextKey) AS source
+    ON target.RunId=source.RunId AND target.ContextKey=source.ContextKey
+    WHEN MATCHED THEN UPDATE SET ValueJson=@ValueJson,IsSecret=0,UpdatedAtUtc=SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT(RunContextValueId,RunId,ContextKey,ValueJson,IsSecret,CreatedAtUtc,UpdatedAtUtc)
+    VALUES(NEWID(),@RunId,N'__dynomax.runDataPool',@ValueJson,0,SYSUTCDATETIME(),SYSUTCDATETIME());
+    DELETE FROM dmx.RunContextValue
+    WHERE RunId=@RunId AND ContextKey LIKE N'__dynomax.runDataPool.step.%';
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
 '@ -Parameters @{ '@RunId'=$RunId; '@ValueJson'=$poolJson })
-            if($null -ne $PersistedContextCache){$PersistedContextCache[$poolCacheKey]=$poolCacheValue}
+                if($null -ne $PersistedContextCache){
+                    $PersistedContextCache[$poolCacheKey]=$poolCacheValue
+                    foreach($cachedKey in @($PersistedContextCache.Keys)){
+                        if(([string]$cachedKey).StartsWith('__dynomax.runDataPool.step.',[System.StringComparison]::Ordinal)){$PersistedContextCache.Remove($cachedKey)}
+                    }
+                }
+            }
         }
     }
     finally { if($ownsConnection -and $activeConnection){$activeConnection.Dispose()} }
@@ -297,39 +580,61 @@ VALUES(NEWID(),@RunId,N'__dynomax.runDataPool',@ValueJson,0,SYSUTCDATETIME(),SYS
 function Add-DynomaxArtifact {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]$SqlConfig,[Parameter(Mandatory)][Guid]$RunId,[string]$ActionKey,
-        [Parameter(Mandatory)][string]$ArtifactType,[Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][long]$MaximumBytes
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [string]$ActionKey,
+        [Parameter(Mandatory)][string]$ArtifactType,
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][long]$MaximumBytes,
+        [System.Data.SqlClient.SqlConnection]$Connection,
+        [hashtable]$ContentIdCache
     )
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     $file = Get-Item -LiteralPath $Path
     if ($file.Length -gt $MaximumBytes) { return $null }
-    [byte[]]$original = [System.IO.File]::ReadAllBytes($Path)
     $hash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-    $memory = New-Object System.IO.MemoryStream
+
+    $ownsConnection = $null -eq $Connection
+    $activeConnection = $Connection
     try {
-        $gzip = New-Object System.IO.Compression.GZipStream($memory,[System.IO.Compression.CompressionMode]::Compress,$true)
-        try { $gzip.Write($original,0,$original.Length) } finally { $gzip.Dispose() }
-        [byte[]]$compressed = $memory.ToArray()
-    }
-    finally { $memory.Dispose() }
-    $connection = Open-DynomaxConnection -SqlConfig $SqlConfig
-    try {
-        $contentIdText = Invoke-DynomaxSqlScalar -Connection $connection -CommandText 'SELECT CONVERT(nvarchar(36),ArtifactContentId) FROM dmx.ArtifactContent WHERE Sha256=@Sha256;' -Parameters @{ '@Sha256'=$hash }
-        if (-not $contentIdText) {
-            $contentId=[Guid]::NewGuid()
-            [void](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+        if ($ownsConnection) { $activeConnection = Open-DynomaxConnection -SqlConfig $SqlConfig }
+        $contentId = [Guid]::Empty
+        if ($null -ne $ContentIdCache -and $ContentIdCache.ContainsKey($hash)) {
+            $contentId = [Guid]$ContentIdCache[$hash]
+        }
+        else {
+            $contentIdText = Invoke-DynomaxSqlScalar -Connection $activeConnection -CommandText 'SELECT CONVERT(nvarchar(36),ArtifactContentId) FROM dmx.ArtifactContent WHERE Sha256=@Sha256;' -Parameters @{ '@Sha256'=$hash }
+            if ($contentIdText) {
+                $contentId = [Guid]$contentIdText
+            }
+            else {
+                [byte[]]$original = [System.IO.File]::ReadAllBytes($Path)
+                $memory = New-Object System.IO.MemoryStream
+                try {
+                    $gzip = New-Object System.IO.Compression.GZipStream($memory,[System.IO.Compression.CompressionMode]::Compress,$true)
+                    try { $gzip.Write($original,0,$original.Length) } finally { $gzip.Dispose() }
+                    [byte[]]$compressed = $memory.ToArray()
+                }
+                finally { $memory.Dispose() }
+                $contentId=[Guid]::NewGuid()
+                [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
 INSERT INTO dmx.ArtifactContent(ArtifactContentId,Sha256,OriginalLength,StoredLength,CompressionType,Content,CreatedAtUtc)
 VALUES(@Id,@Sha256,@OriginalLength,@StoredLength,'GZip',@Content,SYSUTCDATETIME());
 '@ -Parameters @{ '@Id'=$contentId; '@Sha256'=$hash; '@OriginalLength'=[long]$original.LongLength; '@StoredLength'=[long]$compressed.LongLength; '@Content'=$compressed })
-        } else { $contentId=[Guid]$contentIdText }
+            }
+            if ($null -ne $ContentIdCache) { $ContentIdCache[$hash]=$contentId }
+        }
+
         $artifactId=[Guid]::NewGuid()
-        [void](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+        [void](Invoke-DynomaxSqlNonQuery -Connection $activeConnection -CommandText @'
 INSERT INTO dmx.Artifact(ArtifactId,RunId,ActionKey,ArtifactContentId,ArtifactType,OriginalFileName,MimeType,CreatedAtUtc)
 VALUES(@Id,@RunId,@ActionKey,@ContentId,@ArtifactType,@FileName,@MimeType,SYSUTCDATETIME());
 '@ -Parameters @{ '@Id'=$artifactId; '@RunId'=$RunId; '@ActionKey'=$(if($ActionKey){$ActionKey}else{[DBNull]::Value}); '@ContentId'=$contentId; '@ArtifactType'=$ArtifactType; '@FileName'=$file.Name; '@MimeType'=(Get-DynomaxMimeType -Path $Path) })
         return $artifactId
     }
-    finally { $connection.Dispose() }
+    finally {
+        if ($ownsConnection -and $activeConnection) { $activeConnection.Dispose() }
+    }
 }
 
 function Get-DynomaxMimeType {
@@ -535,15 +840,34 @@ ORDER BY a.CreatedAtUtc,a.OriginalFileName;
 
         $context = [ordered]@{}
         $safeRunDataPool=[pscustomobject][ordered]@{schemaVersion=1;steps=[pscustomobject][ordered]@{}}
+        $runDataPoolStepPrefix='__dynomax.runDataPool.step.'
+        foreach($row in $contextTable.Rows){
+            if([bool]$row.IsSecret -or [string]$row.ContextKey -ne '__dynomax.runDataPool'){continue}
+            $parsed=ConvertFrom-DynomaxDbJson $row.ValueJson
+            if($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains 'value' -and $null -ne $parsed.value){
+                $safeRunDataPool=$parsed.value
+                if($null -eq (Get-DynomaxPropertyValue -Object $safeRunDataPool -Name 'steps' -DefaultValue $null)){
+                    Set-DynomaxContextObjectProperty -Object $safeRunDataPool -Name 'steps' -Value ([pscustomobject][ordered]@{})
+                }
+            }
+        }
         foreach ($row in $contextTable.Rows) {
             if([bool]$row.IsSecret){continue}
+            $contextKey=[string]$row.ContextKey
             $parsed = ConvertFrom-DynomaxDbJson $row.ValueJson
-            if([string]$row.ContextKey -eq '__dynomax.runDataPool'){
-                if($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains 'value'){$safeRunDataPool=$parsed.value}
+            if($contextKey -eq '__dynomax.runDataPool'){continue}
+            if($contextKey.StartsWith($runDataPoolStepPrefix,[System.StringComparison]::Ordinal)){
+                $safeStep=if($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains 'value'){$parsed.value}else{$null}
+                $stepId=[string](Get-DynomaxPropertyValue -Object $safeStep -Name 'stepId' -DefaultValue '')
+                if(-not [string]::IsNullOrWhiteSpace($stepId)){
+                    $steps=Get-DynomaxPropertyValue -Object $safeRunDataPool -Name 'steps' -DefaultValue $null
+                    if($null -eq $steps){$steps=[pscustomobject][ordered]@{};Set-DynomaxContextObjectProperty -Object $safeRunDataPool -Name 'steps' -Value $steps}
+                    Set-DynomaxContextObjectProperty -Object $steps -Name $stepId -Value $safeStep
+                }
                 continue
             }
-            if ($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains 'value') {$context[[string]$row.ContextKey] = $parsed.value}
-            else { $context[[string]$row.ContextKey] = $parsed }
+            if ($null -ne $parsed -and $parsed.PSObject.Properties.Name -contains 'value') {$context[$contextKey] = $parsed.value}
+            else { $context[$contextKey] = $parsed }
         }
 
         $assertions = @($assertionTable.Rows | ForEach-Object {
@@ -803,7 +1127,53 @@ function Copy-DynomaxAttemptRecorderEvidence {
     if (-not (Test-Path -LiteralPath $source -PathType Container)) { return $false }
     $destination = Join-Path $TestEvidenceDirectory 'AttemptRecorder'
     if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
+
+    $retainedAttempts=[System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $attemptIndexPath=Join-Path $RunDirectory 'execution-attempts.jsonl'
+    $indexAvailable=$false
+    if(Test-Path -LiteralPath $attemptIndexPath -PathType Leaf){
+        foreach($line in Get-Content -LiteralPath $attemptIndexPath -Encoding UTF8){
+            if([string]::IsNullOrWhiteSpace($line)){continue}
+            try{
+                $attempt=$line|ConvertFrom-Json
+                $stepOrder=[int](Get-DynomaxPropertyValue -Object $attempt -Name 'stepOrder' -DefaultValue 0)
+                $attemptNumber=[int](Get-DynomaxPropertyValue -Object $attempt -Name 'attemptNumber' -DefaultValue 0)
+                $status=[string](Get-DynomaxPropertyValue -Object $attempt -Name 'status' -DefaultValue '')
+                $retained=[bool](Get-DynomaxPropertyValue -Object $attempt -Name 'evidenceRetained' -DefaultValue $false)
+                if($stepOrder -gt 0 -and $attemptNumber -gt 0 -and ($status -ne 'PASS' -or $retained)){
+                    [void]$retainedAttempts.Add(('{0}|{1}' -f $stepOrder,$attemptNumber))
+                }
+                $indexAvailable=$true
+            }
+            catch{
+                # A malformed optional line must not erase all attempt diagnostics. Fall back to the
+                # previous non-empty-file behaviour when the index cannot be trusted completely.
+                $indexAvailable=$false
+                $retainedAttempts.Clear()
+                break
+            }
+        }
+    }
+
     [System.IO.Directory]::CreateDirectory($destination) | Out-Null
-    Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
+    $copied = 0
+    foreach ($file in Get-ChildItem -LiteralPath $source -File -Recurse -Force) {
+        if ($file.Length -le 0) { continue }
+        $relative = Get-DynomaxRelativePath -BasePath $source -TargetPath $file.FullName
+        if($indexAvailable){
+            $parts=$relative -split '[\\/]'
+            if($parts.Count -lt 3){continue}
+            $attemptKey=('{0}|{1}' -f $parts[0],$parts[1])
+            if(-not $retainedAttempts.Contains($attemptKey)){continue}
+        }
+        $target = Join-Path $destination $relative
+        [System.IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+        $copied++
+    }
+    if ($copied -eq 0) {
+        Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue
+        return $false
+    }
     return $true
 }

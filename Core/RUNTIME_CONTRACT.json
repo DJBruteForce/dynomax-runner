@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.0.20",
+  "runtimeRevision": "R20.7.6",
+  "compilerVersions": [
+    "1.19.15",
+    "1.19.16",
+    "1.19.17"
+  ],
+  "capabilities": [
+    "continuation-decision-v1",
+    "continuation-reuse-control-flow-v1",
+    "runtime-values-v1",
+    "runtime-contract-preflight-v1",
+    "browser-attempt-timeout-v1",
+    "bounded-browser-teardown-v1",
+    "cleanup-execution-order-v1",
+    "cleanup-stop-on-failure-v1",
+    "live-action-progress-v1",
+    "cleanup-browser-session-continuity-v1",
+    "cleanup-transition-fast-path-v1",
+    "run-contract-finalization-recovery-v1",
+    "run-data-pool-delta-persistence-v1",
+    "runtime-context-cache-v1",
+    "control-flow-checkpoint-v1",
+    "compact-robot-schedule-v1",
+    "result-definition-deduplication-v1",
+    "control-flow-event-batch-v1",
+    "context-value-batch-persistence-v1",
+    "result-evidence-compaction-v1",
+    "structured-form-actions-v1",
+    "context-value-batch-fallback-v1",
+    "core-diagnostics-jsonl-v1"
+  ],
+  "files": [
+    {
+      "path": "Core/Database/Dynomax.Database.ps1",
+      "length": 12579,
+      "sha256": "e5a37b34601782f3ca128ad6c8734e96a0feb18ba187f778ff2b3696ccb85272"
+    },
+    {
+      "path": "Core/Robot/Dynomax.resource",
+      "length": 32780,
+      "sha256": "ac1d89c67e1e2076a1924825d72c5a4ac20047498bf176fc52686e82e78e3905"
+    },
+    {
+      "path": "Core/Robot/DynomaxContext.py",
+      "length": 16572,
+      "sha256": "e342311b9c2145b6ff73c4f4f53eca21a1ef61d267fca5d7919725bc17fc51d7"
+    },
+    {
+      "path": "Core/Robot/DynomaxRuntimeBridge.py",
+      "length": 14418,
+      "sha256": "dd3de7bc2c8273ec4c0db45785fc2332f105dcd0da0d0af96222e521f45c5879"
+    },
+    {
+      "path": "Core/Results/Dynomax.Results.ps1",
+      "length": 63890,
+      "sha256": "0defe24c93b0f18b8208706fee1d515eadbc3d37c640443195ae90f2d96bd0f7"
+    },
+    {
+      "path": "Core/Execution/Dynomax.ControlFlow.ps1",
+      "length": 62373,
+      "sha256": "b84a070d46821d1fc14f9e43ba612659351710da5869f3731dd17d9bc8796149"
+    },
+    {
+      "path": "Core/Execution/Dynomax.Orchestration.ps1",
+      "length": 11456,
+      "sha256": "b85757f4e41bb6c72512011bd25df3edc2519b75e0d93c694b2ecbf4e26decc6"
+    },
+    {
+      "path": "Core/Execution/Invoke-DynomaxRunOrchestrationHost.ps1",
+      "length": 9013,
+      "sha256": "d5f261b352fdcaec2945fecb7da8dcfda7dda42e65c3e518f6dddc28766a5ee9"
+    },
+    {
+      "path": "Core/Execution/Dynomax.Workflow.ps1",
+      "length": 87278,
+      "sha256": "8e5620e0d7436da6d39799b6a9ebf73dc7b6ff504987cdd20a5ce64977c1f32c"
+    },
+    {
+      "path": "Core/Invoke-DynomaxWorkflow.ps1",
+      "length": 80314,
+      "sha256": "a73c703e08492ace8a14fed2510f2a08e8a581e66528fdab98609e6f5fb833e9"
+    }
+  ]
+}
