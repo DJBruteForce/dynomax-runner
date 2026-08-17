@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "coreVersion": "1.0.20",
-  "runtimeRevision": "R20.7.6",
+  "runtimeRevision": "R20.7.7",
   "compilerVersions": [
     "1.19.15",
     "1.19.16",
@@ -60,8 +60,8 @@
     },
     {
       "path": "Core/Execution/Dynomax.ControlFlow.ps1",
-      "length": 62373,
-      "sha256": "b84a070d46821d1fc14f9e43ba612659351710da5869f3731dd17d9bc8796149"
+      "length": 62405,
+      "sha256": "fa8ed06345b703018b963d7718fe83977e0c457908f65af99dcb4b186efb2e0d"
     },
     {
       "path": "Core/Execution/Dynomax.Orchestration.ps1",
@@ -76,7 +76,7 @@
     {
       "path": "Core/Execution/Dynomax.Workflow.ps1",
       "length": 87278,
-      "sha256": "8e5620e0d7436da6d39799b6a9ebf73dc7b6ff504987cdd20a5ce64977c1f32c"
+      "sha256": "470c4b2fea939b61e3b461f45b7c2c2b82bbfeaffbd756efcc3c1f8518d0f350"
     },
     {
       "path": "Core/Invoke-DynomaxWorkflow.ps1",

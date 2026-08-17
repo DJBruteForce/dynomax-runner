@@ -7,8 +7,8 @@ VERSION = (ROOT / "VERSION.txt").read_text(encoding="ascii").strip()
 
 
 def test_r20_7_5_revision_and_explicit_diagnostic_handoff():
-    assert VERSION == "R20.7.6"
-    assert '"runtimeRevision": "R20.7.6"' in CONTRACT
+    assert VERSION == "R20.7.7"
+    assert '"runtimeRevision": "R20.7.7"' in CONTRACT
     assert "[string]$CoreDiagnosticPath" in INVOKE
     assert "$coreDiagnosticHandoffPath" in INVOKE
     assert "foreach($diagnosticPath in $coreDiagnosticPaths)" in INVOKE

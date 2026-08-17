@@ -324,7 +324,7 @@ function Sync-DynomaxControlFlowRunEvents {
         if(-not $message){$message="$nodeType '$nodeId' -> $status ($event)."}
         $level=if($status -eq 'FAIL'){'Error'}elseif($status -eq 'SKIPPED'){'Info'}else{'Info'}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'SystemNodeState' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        $pendingEvents.Add([ordered]@{
+        $pendingEvents.Add([pscustomobject][ordered]@{
             runEventId=$eventId
             eventLevel=$level
             eventType='ControlFlow.SystemNodeState'
@@ -342,7 +342,7 @@ function Sync-DynomaxControlFlowRunEvents {
         $event=[string](Get-DynomaxPropertyValue -Object $item -Name 'event' -DefaultValue '')
         $message=if($event){"Control-flow transition '$event': '$from' -> '$to'."}else{"Control-flow transition: '$from' -> '$to'."}
         $eventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'Transition' -Sequence ([int](Get-DynomaxPropertyValue -Object $item -Name 'sequence' -DefaultValue ($i+1)))
-        $pendingEvents.Add([ordered]@{
+        $pendingEvents.Add([pscustomobject][ordered]@{
             runEventId=$eventId
             eventLevel='Info'
             eventType='ControlFlow.Transition'

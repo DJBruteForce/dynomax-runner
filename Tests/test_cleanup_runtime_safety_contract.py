@@ -27,7 +27,7 @@ class CleanupRuntimeSafetyContractTests(unittest.TestCase):
 
     def test_runtime_contract_hashes_match_cleanup_closure(self) -> None:
         manifest = json.loads((ROOT / "Core" / "RUNTIME_CONTRACT.json").read_text(encoding="utf-8"))
-        self.assertEqual("R20.7.6", manifest["runtimeRevision"])
+        self.assertEqual("R20.7.7", manifest["runtimeRevision"])
         self.assertIn("cleanup-execution-order-v1", manifest["capabilities"])
         self.assertIn("cleanup-stop-on-failure-v1", manifest["capabilities"])
         self.assertIn("live-action-progress-v1", manifest["capabilities"])

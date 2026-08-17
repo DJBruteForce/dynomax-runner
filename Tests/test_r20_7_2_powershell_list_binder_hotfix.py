@@ -7,7 +7,7 @@ CONTRACT = (CORE / "RUNTIME_CONTRACT.json").read_text(encoding="ascii")
 
 
 def test_runtime_revision_is_r20_7_2():
-    assert '"runtimeRevision": "R20.7.6"' in CONTRACT
+    assert '"runtimeRevision": "R20.7.7"' in CONTRACT
 
 
 def test_new_object_generic_object_list_is_not_used_anywhere_in_core():

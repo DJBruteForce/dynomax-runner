@@ -80,7 +80,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.6 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.7 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 
@@ -91,7 +91,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
         $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
         $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
-        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.6' -or
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.7' -or
             '1.19.15' -notin $compilerVersions -or
             'continuation-decision-v1' -notin $capabilities -or
             'cleanup-execution-order-v1' -notin $capabilities -or
@@ -134,7 +134,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.6 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.7 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 }

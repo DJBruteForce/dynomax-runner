@@ -8,7 +8,7 @@ def read(relative):
 
 def test_runtime_contract_advertises_live_action_progress():
     contract = json.loads(read("Core/RUNTIME_CONTRACT.json"))
-    assert contract["runtimeRevision"] == "R20.7.6"
+    assert contract["runtimeRevision"] == "R20.7.7"
     assert "live-action-progress-v1" in contract["capabilities"]
 
 def test_action_start_uses_existing_run_event_channel_without_actionrun_schema_change():

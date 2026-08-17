@@ -16,6 +16,16 @@ WORKFLOW = (ROOT / "Core" / "Execution" / "Dynomax.Workflow.ps1").read_text(enco
 HOST = (ROOT / "Core" / "Execution" / "Invoke-DynomaxRunOrchestrationHost.ps1").read_text(encoding="utf-8")
 RESOURCE = (ROOT / "Core" / "Robot" / "Dynomax.resource").read_text(encoding="utf-8")
 MANIFEST_PATH = ROOT / "Core" / "RUNTIME_CONTRACT.json"
+CONTROL_FLOW = (ROOT / "Core" / "Execution" / "Dynomax.ControlFlow.ps1").read_text(encoding="utf-8")
+DATABASE = (ROOT / "Core" / "Database" / "Dynomax.Database.ps1").read_text(encoding="utf-8")
+
+
+def _deterministic_run_event_id(run_id_bytes: bytes, stream: str, sequence: int) -> bytes:
+    # Mirrors the published Core contract: UTF-8 RunId|stream|sequence -> SHA-256 -> first 16 bytes.
+    import uuid
+    run_id = str(uuid.UUID(bytes=run_id_bytes))
+    digest = hashlib.sha256(f"{run_id}|{stream}|{sequence}".encode("utf-8")).digest()
+    return digest[:16]
 
 
 def _load_context_module():
@@ -123,7 +133,7 @@ def test_robot_schedule_and_result_definitions_are_compact_and_deduplicated():
 
 def test_runtime_contract_closes_the_exact_r20_7_overlay():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["runtimeRevision"] == "R20.7.6"
+    assert manifest["runtimeRevision"] == "R20.7.7"
     expected = {
         "run-contract-finalization-recovery-v1",
         "run-data-pool-delta-persistence-v1",
@@ -152,3 +162,61 @@ def test_context_batch_has_deterministic_per_key_fallback_and_startup_contract()
     assert "CORE_CONTEXT_INITIALIZATION_FAILED" in INVOKE
     assert "InitialContextPersistence" in INVOKE
     assert "core-diagnostics.jsonl" in INVOKE
+
+
+def test_control_flow_startup_batch_uses_property_bearing_events_before_first_action():
+    sync_start = CONTROL_FLOW.index("function Sync-DynomaxControlFlowRunEvents")
+    sync_end = CONTROL_FLOW.index("function Get-DynomaxLoopState", sync_start)
+    sync = CONTROL_FLOW[sync_start:sync_end]
+    assert sync.count("$pendingEvents.Add([pscustomobject][ordered]@{") == 2
+    assert "eventType='ControlFlow.SystemNodeState'" in sync
+    assert "eventType='ControlFlow.Transition'" in sync
+    assert "$pendingEvents.Add([ordered]@{" not in sync
+
+    initialize = INVOKE.index("Initialize-DynomaxControlFlowState")
+    initial_sync = INVOKE.index("Sync-DynomaxControlFlowRunEvents", initialize)
+    execute = INVOKE.index("Invoke-DynomaxStepSequence", initial_sync)
+    assert initialize < initial_sync < execute
+
+
+def test_control_flow_event_identity_contract_is_stable_nonempty_and_stream_scoped():
+    import uuid
+    run_id = uuid.UUID("12345678-1234-5678-9abc-def012345678")
+    first = _deterministic_run_event_id(run_id.bytes, "SystemNodeState", 1)
+    repeated = _deterministic_run_event_id(run_id.bytes, "SystemNodeState", 1)
+    transition = _deterministic_run_event_id(run_id.bytes, "Transition", 1)
+    next_sequence = _deterministic_run_event_id(run_id.bytes, "SystemNodeState", 2)
+    assert first == repeated
+    assert first != bytes(16)
+    assert first != transition
+    assert first != next_sequence
+
+    assert "('{0:D}|{1}|{2}' -f $RunId,$Stream,$Sequence)" in CONTROL_FLOW
+    assert "[System.Security.Cryptography.SHA256]::Create()" in CONTROL_FLOW
+    assert "[Array]::Copy($hash,0,$guidBytes,0,16)" in CONTROL_FLOW
+
+
+def test_control_flow_batch_retry_is_idempotent_and_cursors_advance_only_after_success():
+    sync_start = CONTROL_FLOW.index("function Sync-DynomaxControlFlowRunEvents")
+    sync_end = CONTROL_FLOW.index("function Get-DynomaxLoopState", sync_start)
+    sync = CONTROL_FLOW[sync_start:sync_end]
+    persist = sync.index("Add-DynomaxRunEventsBatch")
+    system_cursor = sync.index("$state.persistedSystemNodeEventCount=$systemEvents.Count")
+    transition_cursor = sync.index("$state.persistedTransitionCount=$transitions.Count")
+    assert persist < system_cursor < transition_cursor
+    assert "Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'SystemNodeState'" in sync
+    assert "Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream 'Transition'" in sync
+
+    assert "if ($eventId -eq [Guid]::Empty) { throw 'A deterministic Run event id is required for batched persistence.' }" in DATABASE
+    assert "WHERE existing.RunEventId=source.RunEventId" in DATABASE
+    assert "WHERE source.RunEventId IS NOT NULL" in DATABASE
+
+
+def test_control_flow_batch_contract_does_not_weaken_guard_or_add_random_identity_fallback():
+    sync_start = CONTROL_FLOW.index("function Sync-DynomaxControlFlowRunEvents")
+    sync_end = CONTROL_FLOW.index("function Get-DynomaxLoopState", sync_start)
+    sync = CONTROL_FLOW[sync_start:sync_end]
+    assert "[Guid]::NewGuid" not in sync
+    assert "New-Guid" not in sync
+    assert "Guid.NewGuid" not in sync
+    assert "A deterministic Run event id is required for batched persistence." in DATABASE
