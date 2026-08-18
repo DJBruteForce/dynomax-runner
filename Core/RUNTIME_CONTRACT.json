@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
   "coreVersion": "1.0.20",
-  "runtimeRevision": "R20.7.7",
+  "runtimeRevision": "R20.7.9",
   "compilerVersions": [
     "1.19.15",
     "1.19.16",
-    "1.19.17"
+    "1.19.17",
+    "1.19.18"
   ],
   "capabilities": [
     "continuation-decision-v1",
@@ -30,7 +31,9 @@
     "result-evidence-compaction-v1",
     "structured-form-actions-v1",
     "context-value-batch-fallback-v1",
-    "core-diagnostics-jsonl-v1"
+    "core-diagnostics-jsonl-v1",
+    "pdf-result-evidence-v1",
+    "sensitive-runtime-propagation-v1"
   ],
   "files": [
     {
@@ -40,13 +43,18 @@
     },
     {
       "path": "Core/Robot/Dynomax.resource",
-      "length": 32780,
-      "sha256": "ac1d89c67e1e2076a1924825d72c5a4ac20047498bf176fc52686e82e78e3905"
+      "length": 35556,
+      "sha256": "16e4e264c7320479dbe6537997a103eda86c005e46093270690b3cad89db5d38"
     },
     {
       "path": "Core/Robot/DynomaxContext.py",
-      "length": 16572,
-      "sha256": "e342311b9c2145b6ff73c4f4f53eca21a1ef61d267fca5d7919725bc17fc51d7"
+      "length": 20101,
+      "sha256": "ce564e68a1183659c35d3f369e6b1cb6b9bfec7e932144f74d0145ebda9f70ce"
+    },
+    {
+      "path": "Core/Robot/DynomaxDiscovery.py",
+      "length": 25380,
+      "sha256": "3c7cd119c3130d30e65a8d06c77d41360898585dca29ed99cdffcde17be510e9"
     },
     {
       "path": "Core/Robot/DynomaxRuntimeBridge.py",
@@ -55,8 +63,8 @@
     },
     {
       "path": "Core/Results/Dynomax.Results.ps1",
-      "length": 63890,
-      "sha256": "0defe24c93b0f18b8208706fee1d515eadbc3d37c640443195ae90f2d96bd0f7"
+      "length": 65438,
+      "sha256": "e0b42d55e1ce8b7ad5e5af377fb45a1c222086157ff6ae4e154cdd1ab31ae35a"
     },
     {
       "path": "Core/Execution/Dynomax.ControlFlow.ps1",
@@ -75,13 +83,13 @@
     },
     {
       "path": "Core/Execution/Dynomax.Workflow.ps1",
-      "length": 87278,
-      "sha256": "470c4b2fea939b61e3b461f45b7c2c2b82bbfeaffbd756efcc3c1f8518d0f350"
+      "length": 88558,
+      "sha256": "0d8184d4f6551040070350b10042512f439460ee79d8400ffa23a0bbb08e4fda"
     },
     {
       "path": "Core/Invoke-DynomaxWorkflow.ps1",
-      "length": 80314,
-      "sha256": "a73c703e08492ace8a14fed2510f2a08e8a581e66528fdab98609e6f5fb833e9"
+      "length": 83611,
+      "sha256": "31fb0688c16680ae6b0a0bf664d1007aaa034b86f1310e1611ee0cae75e797e8"
     }
   ]
 }

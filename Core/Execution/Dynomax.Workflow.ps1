@@ -80,7 +80,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.7 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.9 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 
@@ -91,7 +91,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
         $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
         $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
-        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.7' -or
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.9' -or
             '1.19.15' -notin $compilerVersions -or
             'continuation-decision-v1' -notin $capabilities -or
             'cleanup-execution-order-v1' -notin $capabilities -or
@@ -134,7 +134,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.7 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.9 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 }
@@ -815,7 +815,7 @@ function New-DynomaxRobotSuite {
             $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
             $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
             $executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1)
-            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true)}})
+            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true);sensitiveWhenInputsSensitive=@(Get-DynomaxPropertyValue -Object $_ -Name 'sensitiveWhenInputsSensitive' -DefaultValue @())}})
             $outputSpecsJson=ConvertTo-Json -InputObject $outputSpecs -Depth 10 -Compress
             $outputSpecsB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($outputSpecsJson))
             $continueOnFailure=if([bool](Get-DynomaxPropertyValue -Object $step -Name 'continueOnFailure' -DefaultValue $false)){'True'}else{'False'}
@@ -874,7 +874,7 @@ function New-DynomaxRobotSuite {
             $stepId=[string](Get-DynomaxPropertyValue -Object $step -Name 'stepId' -DefaultValue ("step-{0}" -f $step.order))
             $workflowNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue $stepId)
             $executionSlot=[int](Get-DynomaxPropertyValue -Object $step -Name 'executionSlot' -DefaultValue 1)
-            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true)}})
+            $outputSpecs=@((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @())|ForEach-Object{[ordered]@{name=[string](Get-DynomaxPropertyValue -Object $_ -Name 'name' -DefaultValue '');classification=[string](Get-DynomaxPropertyValue -Object $_ -Name 'classification' -DefaultValue 'Normal');persistInResult=[bool](Get-DynomaxPropertyValue -Object $_ -Name 'persistInResult' -DefaultValue $true);sensitiveWhenInputsSensitive=@(Get-DynomaxPropertyValue -Object $_ -Name 'sensitiveWhenInputsSensitive' -DefaultValue @())}})
             $outputSpecsJson=ConvertTo-Json -InputObject $outputSpecs -Depth 10 -Compress
             $outputSpecsB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($outputSpecsJson))
             $name=('{0:D6} - {1}' -f [int]$step.order,[string]$step.actionId)
@@ -950,6 +950,10 @@ function New-DynomaxRobotSuite {
             $lines.Add("        Pass Execution    Reused from the source Run; this Action did not execute.")
             $lines.Add("    END")
             $lines.Add("    Begin Dynomax Step Scope    `${DYNOMAX_CONTEXT_PATH}    $stepId    `${DYNOMAX_OUTPUT_SPECS_B64}")
+            $lines.Add("    `${runtime_sensitive}=    Is Dynomax Active Step Sensitive    `${DYNOMAX_CONTEXT_PATH}    $stepId")
+            $lines.Add("    IF    `${runtime_sensitive}")
+            $lines.Add("        Set Test Variable    `${DYNOMAX_SENSITIVE_ACTION}    True")
+            $lines.Add("    END")
             $lines.Add("    Mark Dynomax Action Running")
             $lines.Add("    TRY")
             $lines.Add("        Execute Dynomax Action With Policy    $($definition.keyword)    $cleanup")
@@ -1045,21 +1049,25 @@ function Invoke-DynomaxPowerShellAction {
         $activeOutputScope=[pscustomobject][ordered]@{stepId=$stepId;priorValues=[pscustomobject][ordered]@{};priorSecretFlags=[pscustomobject][ordered]@{}}
         $prepareContext | Add-Member -NotePropertyName 'activeStepInput' -NotePropertyValue $activeOutputScope
     }
-    $priorOutputValues=[ordered]@{};$priorOutputSecretFlags=[ordered]@{}
+    $priorOutputValues=[ordered]@{};$priorOutputSecretFlags=[ordered]@{};$priorOutputSensitiveFlags=[ordered]@{}
     $prepareSecretLookup=@{};foreach($key in @(Get-DynomaxPropertyValue -Object $prepareContext -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$prepareSecretLookup[[string]$key]=$true}}
+    $prepareSensitiveLookup=@{};foreach($key in @(Get-DynomaxPropertyValue -Object $prepareContext -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$prepareSensitiveLookup[[string]$key]=$true}}
     foreach($outputDefinition in @((Get-DynomaxPropertyValue -Object $definition -Name 'outputs' -DefaultValue @()))){
         $outputName=[string](Get-DynomaxPropertyValue -Object $outputDefinition -Name 'name' -DefaultValue '')
         if([string]::IsNullOrWhiteSpace($outputName)){continue}
         $existingOutput=$prepareContext.values.PSObject.Properties[$outputName]
         $priorOutputValues[$outputName]=[ordered]@{exists=($null -ne $existingOutput);value=$(if($null -ne $existingOutput){$existingOutput.Value}else{$null})}
         $priorOutputSecretFlags[$outputName]=$prepareSecretLookup.ContainsKey($outputName)
+        $priorOutputSensitiveFlags[$outputName]=$prepareSensitiveLookup.ContainsKey($outputName)
         $activePriorValues=Get-DynomaxPropertyValue -Object $activeOutputScope -Name 'priorValues' -DefaultValue $null
         $isAlsoInput=$null -ne $activePriorValues -and $null -ne $activePriorValues.PSObject.Properties[$outputName]
-        if(-not $isAlsoInput){[void]$prepareContext.values.PSObject.Properties.Remove($outputName);[void]$prepareSecretLookup.Remove($outputName)}
+        if(-not $isAlsoInput){[void]$prepareContext.values.PSObject.Properties.Remove($outputName);[void]$prepareSecretLookup.Remove($outputName);[void]$prepareSensitiveLookup.Remove($outputName)}
     }
     $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputValues' -NotePropertyValue ([pscustomobject]$priorOutputValues)
     $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputSecretFlags' -NotePropertyValue ([pscustomobject]$priorOutputSecretFlags)
+    $activeOutputScope | Add-Member -Force -NotePropertyName 'priorOutputSensitiveFlags' -NotePropertyValue ([pscustomobject]$priorOutputSensitiveFlags)
     $prepareContext.secretKeys=@($prepareSecretLookup.Keys|Sort-Object)
+    Set-DynomaxDynamicContextProperty -Object $prepareContext -Name 'sensitiveKeys' -Value @($prepareSensitiveLookup.Keys|Sort-Object)
     Write-DynomaxJson -Value $prepareContext -Path $ContextPath
     $startStream=if($isCleanup){'CleanupActionStarted'}else{'MainActionStarted'}
     $startEventId=Get-DynomaxControlFlowRunEventId -RunId $RunId -Stream $startStream -Sequence ([int]$Step.order)

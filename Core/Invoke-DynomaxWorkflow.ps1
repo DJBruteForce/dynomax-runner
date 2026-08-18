@@ -89,7 +89,7 @@ function Test-DynomaxSqlEvidenceCandidate {
     )
     if($File.Name -eq 'context.json'){return $false}
     if($File.Length -le 0 -and $File.Extension -match '^\.(log|txt)$'){return $false}
-    if($File.Extension -notmatch '^\.(xml|html?|log|png|jpe?g|json|jsonl|md|txt)$'){return $false}
+    if($File.Extension -notmatch '^\.(xml|html?|log|png|jpe?g|pdf|json|jsonl|md|txt)$'){return $false}
     $relative=((Get-DynomaxRelativePath -BasePath $RunDirectory -TargetPath $File.FullName) -replace '\\','/').TrimStart('/')
     if($relative.StartsWith('attempt-recorder/',[System.StringComparison]::OrdinalIgnoreCase)){return $false}
     if($relative.StartsWith('robot-result/',[System.StringComparison]::OrdinalIgnoreCase)){
@@ -99,6 +99,8 @@ function Test-DynomaxSqlEvidenceCandidate {
     if($relative.StartsWith('screenshots/',[System.StringComparison]::OrdinalIgnoreCase) -or
        $relative.StartsWith('discovery/',[System.StringComparison]::OrdinalIgnoreCase) -or
        $relative.StartsWith('attempt-evidence/',[System.StringComparison]::OrdinalIgnoreCase) -or
+       $relative.StartsWith('downloads/',[System.StringComparison]::OrdinalIgnoreCase) -or
+       $relative.StartsWith('documents/',[System.StringComparison]::OrdinalIgnoreCase) -or
        $relative.StartsWith('project-export/',[System.StringComparison]::OrdinalIgnoreCase)){
         return $true
     }
@@ -208,7 +210,7 @@ function Write-DynomaxCoreDiagnostic {
     }catch{}
 }
 Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'Startup' -Message 'Dynomax Core workflow startup began.' -CoreRunId ([Guid]::Empty)
-$context=[ordered]@{schemaVersion=3;secretKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{};continuation=$null}
+$context=[ordered]@{schemaVersion=3;secretKeys=@();sensitiveKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{};continuation=$null}
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
@@ -463,7 +465,7 @@ function Refresh-DynomaxRuntimeStepInputContext {
     return $changed
 }
 
-function Get-DynomaxRunDataPoolOutputValue {
+function Get-DynomaxRunDataPoolOutputEntry {
     param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][string]$SourceStepId,[Parameter(Mandatory)][string]$OutputName)
     $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
     $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
@@ -474,7 +476,13 @@ function Get-DynomaxRunDataPoolOutputValue {
     if($null -eq $outputProperty -or -not [bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'available' -DefaultValue $false)){
         throw "Required Dynomax output '$OutputName' from source step '$SourceStepId' is unavailable."
     }
-    return (Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'value' -DefaultValue $null)
+    return $outputProperty.Value
+}
+
+function Get-DynomaxRunDataPoolOutputValue {
+    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][string]$SourceStepId,[Parameter(Mandatory)][string]$OutputName)
+    $entry=Get-DynomaxRunDataPoolOutputEntry -Context $Context -SourceStepId $SourceStepId -OutputName $OutputName
+    return (Get-DynomaxPropertyValue -Object $entry -Name 'value' -DefaultValue $null)
 }
 
 function Enter-DynomaxStepInputContext {
@@ -489,6 +497,7 @@ function Enter-DynomaxStepInputContext {
     $entry=$entryProperty.Value
     $stepValues=Get-DynomaxPropertyValue -Object $entry -Name 'values' -DefaultValue $null
     $resolvedValues=[ordered]@{}
+    $deferredSensitiveLookup=@{}
     if($null -ne $stepValues){foreach($property in @($stepValues.PSObject.Properties)){$resolvedValues[[string]$property.Name]=$property.Value}}
     foreach($binding in @(Get-DynomaxPropertyValue -Object $entry -Name 'deferredBindings' -DefaultValue @())){
         $kind=[string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '')
@@ -498,7 +507,9 @@ function Enter-DynomaxStepInputContext {
             $sourceStepId=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceStepId' -DefaultValue '')
             $sourceOutputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceOutputName' -DefaultValue '')
             if(-not $sourceStepId -or -not $sourceOutputName){throw 'A Dynomax step-output binding is incomplete.'}
-            $resolvedValues[$inputName]=Get-DynomaxRunDataPoolOutputValue -Context $context -SourceStepId $sourceStepId -OutputName $sourceOutputName
+            $sourceOutput=Get-DynomaxRunDataPoolOutputEntry -Context $context -SourceStepId $sourceStepId -OutputName $sourceOutputName
+            $resolvedValues[$inputName]=Get-DynomaxPropertyValue -Object $sourceOutput -Name 'value' -DefaultValue $null
+            if([string](Get-DynomaxPropertyValue -Object $sourceOutput -Name 'classification' -DefaultValue 'Normal') -eq 'SensitiveRedacted'){$deferredSensitiveLookup[$inputName]=$true}
         }elseif($kind -eq 'RuntimeValue'){
             $name=[string](Get-DynomaxPropertyValue -Object $binding -Name 'name' -DefaultValue '')
             if(-not $name){throw 'A Dynomax runtime-value binding is incomplete.'}
@@ -511,18 +522,26 @@ function Enter-DynomaxStepInputContext {
 
     $secretLookup=@{}
     foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
+    $sensitiveLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$sensitiveLookup[[string]$key]=$true}}
     $stepSecretLookup=@{}
     foreach($key in @(Get-DynomaxPropertyValue -Object $entry -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$stepSecretLookup[[string]$key]=$true}}
-    $priorValues=[ordered]@{};$priorSecretFlags=[ordered]@{}
+    $stepSensitiveLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $entry -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$stepSensitiveLookup[[string]$key]=$true}}
+    foreach($key in @($deferredSensitiveLookup.Keys)){$stepSensitiveLookup[[string]$key]=$true}
+    $priorValues=[ordered]@{};$priorSecretFlags=[ordered]@{};$priorSensitiveFlags=[ordered]@{}
     foreach($name in @($resolvedValues.Keys)){
         $existing=$context.values.PSObject.Properties[$name]
         $priorValues[$name]=[ordered]@{exists=($null -ne $existing);value=$(if($null -ne $existing){$existing.Value}else{$null})}
         $priorSecretFlags[$name]=$secretLookup.ContainsKey($name)
+        $priorSensitiveFlags[$name]=$sensitiveLookup.ContainsKey($name)
         Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value $resolvedValues[$name]
         if($stepSecretLookup.ContainsKey($name)){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
+        if($stepSensitiveLookup.ContainsKey($name) -or $stepSecretLookup.ContainsKey($name)){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
     }
     $context.secretKeys=@($secretLookup.Keys|Sort-Object)
-    Set-DynomaxDynamicContextProperty -Object $context -Name 'activeStepInput' -Value ([pscustomobject][ordered]@{stepId=$StepId;priorValues=[pscustomobject]$priorValues;priorSecretFlags=[pscustomobject]$priorSecretFlags})
+    Set-DynomaxDynamicContextProperty -Object $context -Name 'sensitiveKeys' -Value @($sensitiveLookup.Keys|Sort-Object)
+    Set-DynomaxDynamicContextProperty -Object $context -Name 'activeStepInput' -Value ([pscustomobject][ordered]@{stepId=$StepId;priorValues=[pscustomobject]$priorValues;priorSecretFlags=[pscustomobject]$priorSecretFlags;priorSensitiveFlags=[pscustomobject]$priorSensitiveFlags})
     Write-DynomaxJson -Value $context -Path $ContextPath
     return $true
 }
@@ -531,32 +550,45 @@ function Exit-DynomaxStepInputContext {
     param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
     $context=Read-DynomaxJson -Path $ContextPath
     $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
+    $secretLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
+    $sensitiveLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$sensitiveLookup[[string]$key]=$true}}
     if($null -ne $active){
         if(-not [string]::Equals([string](Get-DynomaxPropertyValue -Object $active -Name 'stepId' -DefaultValue ''),$StepId,[StringComparison]::Ordinal)){throw 'The active Dynomax step-input scope belongs to a different execution slot.'}
-        $secretLookup=@{}
-        foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
-        $priorValues=Get-DynomaxPropertyValue -Object $active -Name 'priorValues' -DefaultValue $null
-        $priorSecretFlags=Get-DynomaxPropertyValue -Object $active -Name 'priorSecretFlags' -DefaultValue $null
-        if($null -ne $priorValues){foreach($property in @($priorValues.PSObject.Properties)){
-            $name=[string]$property.Name;$previous=$property.Value
-            if([bool](Get-DynomaxPropertyValue -Object $previous -Name 'exists' -DefaultValue $false)){Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $previous -Name 'value' -DefaultValue $null)}else{[void]$context.values.PSObject.Properties.Remove($name)}
-            $wasSecret=$false;if($null -ne $priorSecretFlags){$sp=$priorSecretFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSecret=[bool]$sp.Value}}
-            if($wasSecret){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
-        }}
-        $priorOutputValues=Get-DynomaxPropertyValue -Object $active -Name 'priorOutputValues' -DefaultValue $null
-        $priorOutputSecretFlags=Get-DynomaxPropertyValue -Object $active -Name 'priorOutputSecretFlags' -DefaultValue $null
-        if($null -ne $priorOutputValues){foreach($property in @($priorOutputValues.PSObject.Properties)){
-            $name=[string]$property.Name;$previous=$property.Value
-            if([bool](Get-DynomaxPropertyValue -Object $previous -Name 'exists' -DefaultValue $false)){Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $previous -Name 'value' -DefaultValue $null)}else{[void]$context.values.PSObject.Properties.Remove($name)}
-            $wasSecret=$false;if($null -ne $priorOutputSecretFlags){$sp=$priorOutputSecretFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSecret=[bool]$sp.Value}}
-            if($wasSecret){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
-        }}
-        $context.secretKeys=@($secretLookup.Keys|Sort-Object);[void]$context.PSObject.Properties.Remove('activeStepInput')
+        foreach($triple in @(
+            @('priorValues','priorSecretFlags','priorSensitiveFlags'),
+            @('priorOutputValues','priorOutputSecretFlags','priorOutputSensitiveFlags')
+        )){
+            $priorValues=Get-DynomaxPropertyValue -Object $active -Name $triple[0] -DefaultValue $null
+            $priorSecretFlags=Get-DynomaxPropertyValue -Object $active -Name $triple[1] -DefaultValue $null
+            $priorSensitiveFlags=Get-DynomaxPropertyValue -Object $active -Name $triple[2] -DefaultValue $null
+            if($null -ne $priorValues){foreach($property in @($priorValues.PSObject.Properties)){
+                $name=[string]$property.Name;$previous=$property.Value
+                if([bool](Get-DynomaxPropertyValue -Object $previous -Name 'exists' -DefaultValue $false)){Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $previous -Name 'value' -DefaultValue $null)}else{[void]$context.values.PSObject.Properties.Remove($name)}
+                $wasSecret=$false;if($null -ne $priorSecretFlags){$sp=$priorSecretFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSecret=[bool]$sp.Value}}
+                if($wasSecret){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
+                $wasSensitive=$false;if($null -ne $priorSensitiveFlags){$sp=$priorSensitiveFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSensitive=[bool]$sp.Value}}
+                if($wasSensitive){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
+            }}
+        }
+        [void]$context.PSObject.Properties.Remove('activeStepInput')
     }
     $pool=Get-DynomaxPropertyValue -Object $context -Name 'runDataPool' -DefaultValue $null
     $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
     $stepProperty=if($null -ne $steps){$steps.PSObject.Properties[$StepId]}else{$null}
-    if($null -ne $stepProperty){$outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null;if($null -ne $outputs){foreach($property in @($outputs.PSObject.Properties)){if([bool](Get-DynomaxPropertyValue -Object $property.Value -Name 'available' -DefaultValue $false)){Set-DynomaxDynamicContextProperty -Object $context.values -Name ([string]$property.Name) -Value (Get-DynomaxPropertyValue -Object $property.Value -Name 'value' -DefaultValue $null)}}}}
+    if($null -ne $stepProperty){
+        $outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null
+        if($null -ne $outputs){foreach($property in @($outputs.PSObject.Properties)){
+            if([bool](Get-DynomaxPropertyValue -Object $property.Value -Name 'available' -DefaultValue $false)){
+                $name=[string]$property.Name
+                Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $property.Value -Name 'value' -DefaultValue $null)
+                if([string](Get-DynomaxPropertyValue -Object $property.Value -Name 'classification' -DefaultValue 'Normal') -eq 'SensitiveRedacted'){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
+            }
+        }}
+    }
+    $context.secretKeys=@($secretLookup.Keys|Sort-Object)
+    Set-DynomaxDynamicContextProperty -Object $context -Name 'sensitiveKeys' -Value @($sensitiveLookup.Keys|Sort-Object)
     Write-DynomaxJson -Value $context -Path $ContextPath
 }
 
@@ -873,6 +905,20 @@ finally{
     }
     $screenshots=Join-Path $runDirectory 'screenshots'
     if(Test-Path $screenshots){Copy-Item -LiteralPath $screenshots -Destination (Join-Path $testEvidence 'Screenshots') -Recurse -Force}
+    $documentsEvidence=Ensure-DynomaxDirectory -Path (Join-Path $testEvidence 'Documents')
+    foreach($documentRootName in @('downloads','documents')){
+        $documentRoot=Join-Path $runDirectory $documentRootName
+        if(-not(Test-Path -LiteralPath $documentRoot -PathType Container)){continue}
+        foreach($documentFile in Get-ChildItem -LiteralPath $documentRoot -File -Recurse -ErrorAction SilentlyContinue){
+            if($documentFile.Extension -notmatch '(?i)^\.pdf$'){continue}
+            $relativeDocument=(Get-DynomaxRelativePath -BasePath $documentRoot -TargetPath $documentFile.FullName) -replace '\\','/'
+            $destinationRoot=Ensure-DynomaxDirectory -Path (Join-Path $documentsEvidence $documentRootName)
+            $destination=Join-Path $destinationRoot ($relativeDocument -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+            $destinationDirectory=Split-Path -Parent $destination
+            if($destinationDirectory){[void](Ensure-DynomaxDirectory -Path $destinationDirectory)}
+            Copy-Item -LiteralPath $documentFile.FullName -Destination $destination -Force
+        }
+    }
     $discoveryEvidence=Join-Path $runDirectory 'discovery'
     if(Test-Path $discoveryEvidence){Copy-Item -LiteralPath $discoveryEvidence -Destination (Join-Path $testEvidence 'Discovery') -Recurse -Force}
     $attemptEvidence=Join-Path $runDirectory 'attempt-evidence'

@@ -236,6 +236,10 @@ Execute Dynomax Scheduled Slot
         RETURN
     END
     Begin Dynomax Step Scope    ${DYNOMAX_CONTEXT_PATH}    ${step_id}    ${DYNOMAX_OUTPUT_SPECS_B64}
+    ${runtime_sensitive}=    Is Dynomax Active Step Sensitive    ${DYNOMAX_CONTEXT_PATH}    ${step_id}
+    IF    ${runtime_sensitive}
+        Set Test Variable    ${DYNOMAX_SENSITIVE_ACTION}    True
+    END
     Mark Dynomax Action Running
     TRY
         ${action_status}    ${action_message}=    Run Keyword And Ignore Error    Execute Dynomax Action With Policy    ${action_keyword}    ${is_cleanup}
@@ -296,7 +300,7 @@ Execute Dynomax Action With Policy
         Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
         ${previous_browser_timeout}=    Set Browser Timeout    ${effective_timeout}s    scope=Test
         TRY
-            IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
+            IF    ${DYNOMAX_SENSITIVE_ACTION} or '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
                 ${previous_log_level}=    Set Log Level    NONE
                 TRY
                     ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
@@ -311,6 +315,9 @@ Execute Dynomax Action With Policy
         END
         ${actual_action_duration_ms}=    Evaluate    (time.perf_counter() - float($actual_action_started)) * 1000.0    modules=time
         ${attempt_ended}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime
+        IF    ${DYNOMAX_SENSITIVE_ACTION} and '${attempt_status}' != 'PASS'
+            ${attempt_message}=    Set Variable    Sensitive Dynomax Action failed; diagnostic value details are redacted.
+        END
         ${is_last_numbered_attempt}=    Evaluate    int($attempt) >= int($DYNOMAX_MAXIMUM_ATTEMPTS)
         ${proposed_delay}=    Calculate Dynomax Retry Delay    ${attempt}
         ${elapsed_after_attempt}=    Evaluate    time.time() - $workflow_started    modules=time
@@ -348,7 +355,8 @@ Execute Dynomax Action With Policy
         IF    not ${retryable}
             Fail Dynomax Preserving Action Failure    ${attempt_message}
         END
-        IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'EveryFailedAttempt'
+        ${runtime_sensitive_browser_state}=    Has Dynomax Runtime Sensitive Browser State
+        IF    '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'EveryFailedAttempt' and not ${DYNOMAX_SENSITIVE_ACTION} and not ${runtime_sensitive_browser_state}
             ${attempt_evidence_dir}=    Set Variable    ${DYNOMAX_RUN_DIR}${/}attempt-evidence${/}${DYNOMAX_STEP_ORDER}${/}${attempt}
             Create Directory    ${attempt_evidence_dir}
             Run Keyword And Ignore Error    Take Screenshot    ${attempt_evidence_dir}${/}browser.png
@@ -497,6 +505,44 @@ Fill Dynomax Secret
         Set Log Level    ${previous_log_level}
     END
 
+Fill Dynomax Sensitive
+    [Arguments]    ${selector}    ${context_key}
+    ${previous_log_level}=    Set Log Level    NONE
+    TRY
+        ${context}=    Get Dynomax Context
+        ${secret_keys}=    Evaluate    set($context.get('secretKeys', []))
+        ${sensitive_keys}=    Evaluate    set($context.get('sensitiveKeys', []))
+        ${is_declared_sensitive}=    Evaluate    $context_key in $secret_keys or $context_key in $sensitive_keys
+        IF    not ${is_declared_sensitive}
+            Fail    The requested Dynomax context key is not declared as sensitive.
+        END
+        ${sensitive_value}=    Evaluate    $context.get('values', {}).get($context_key)
+        ${is_missing}=    Evaluate    $sensitive_value is None or str($sensitive_value) == ''
+        IF    ${is_missing}
+            Fail    The requested Dynomax sensitive value is unavailable.
+        END
+        Fill Secret    ${selector}    $sensitive_value
+    FINALLY
+        Set Log Level    ${previous_log_level}
+    END
+
+Register Dynomax Sensitive Selector
+    [Arguments]    ${selector}
+    ${previous_log_level}=    Set Log Level    NONE
+    TRY
+        ${existing}=    Get Dynomax Context Value    __dynomaxRuntimeSensitiveSelectors    ${EMPTY}
+        ${selectors}=    Evaluate    list($existing) if isinstance($existing, list) else ([] if $existing in (None, '') else [str($existing)])
+        ${updated}=    Evaluate    list(dict.fromkeys($selectors + [str($selector)]))
+        Set Dynomax Context Value    __dynomaxRuntimeSensitiveSelectors    ${updated}
+    FINALLY
+        Set Log Level    ${previous_log_level}
+    END
+
+Has Dynomax Runtime Sensitive Browser State
+    ${existing}=    Get Dynomax Context Value    __dynomaxRuntimeSensitiveSelectors    ${EMPTY}
+    ${has_sensitive_state}=    Evaluate    bool($existing)
+    RETURN    ${has_sensitive_state}
+
 Mark Dynomax Action Running
     Dynomax Host Mark Action Running    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}    ${DYNOMAX_STEP_ORDER}    ${DYNOMAX_STEP_ID}    ${DYNOMAX_ACTION_ID}    ${DYNOMAX_ACTION_VERSION_ID}    ${DYNOMAX_IS_CLEANUP}
 
@@ -510,7 +556,8 @@ Persist Dynomax Explicit Robot Action Result
         END
     END
     ${message64}=    Evaluate    base64.b64encode(str($robot_message).encode('utf-8')).decode('ascii')    modules=base64
-    IF    '${robot_status}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}
+    ${runtime_sensitive_browser_state}=    Has Dynomax Runtime Sensitive Browser State
+    IF    '${robot_status}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION} and not ${runtime_sensitive_browser_state}
         ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
         Run Keyword And Ignore Error    Take Screenshot    ${DYNOMAX_RUN_DIR}${/}screenshots${/}${DYNOMAX_STEP_ORDER}-${safe_name}.png
     END
@@ -538,7 +585,8 @@ Persist Dynomax Robot Action Result
         END
     END
     ${message64}=    Evaluate    base64.b64encode($TEST_MESSAGE.encode('utf-8')).decode('ascii')    modules=base64
-    IF    '${TEST_STATUS}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION}
+    ${runtime_sensitive_browser_state}=    Has Dynomax Runtime Sensitive Browser State
+    IF    '${TEST_STATUS}' == 'FAIL' and not ${DYNOMAX_SENSITIVE_ACTION} and not ${runtime_sensitive_browser_state}
         ${safe_name}=    Evaluate    re.sub(r'[^A-Za-z0-9_.-]+','_', $DYNOMAX_ACTION_ID)    modules=re
         Run Keyword And Ignore Error    Take Screenshot    ${DYNOMAX_RUN_DIR}${/}screenshots${/}${DYNOMAX_STEP_ORDER}-${safe_name}.png
     END

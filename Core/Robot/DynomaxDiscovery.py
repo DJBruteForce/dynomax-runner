@@ -29,7 +29,7 @@ TEXT_SCRIPT = r'''(root)=>{let s=String(root.innerText||'').replace(/[\s]+/g,' '
 
 TIMING_SCRIPT = r'''(root)=>{const safe=(v)=>{try{const u=new URL(v,location.href);u.search=[...u.searchParams.keys()].map(k=>encodeURIComponent(k)+'=%5Bredacted%5D').join('&');u.hash='';return u.toString()}catch{return String(v||'').slice(0,1200)}};return{schemaVersion:2,navigation:performance.getEntriesByType('navigation').slice(0,5).map(e=>({name:safe(e.name),entryType:e.entryType,startTime:e.startTime,duration:e.duration,domInteractive:e.domInteractive,domContentLoadedEventEnd:e.domContentLoadedEventEnd,loadEventEnd:e.loadEventEnd,transferSize:e.transferSize,encodedBodySize:e.encodedBodySize,decodedBodySize:e.decodedBodySize})),resources:performance.getEntriesByType('resource').slice(-1500).map(e=>({name:safe(e.name),initiatorType:e.initiatorType,startTime:e.startTime,duration:e.duration,transferSize:e.transferSize,encodedBodySize:e.encodedBodySize,decodedBodySize:e.decodedBodySize}))};}'''
 
-UNMASK_SCRIPT = r'''(root)=>{document.getElementById('dynomax-discovery-mask')?.remove();const saved=window.__dynomaxDiscoveryTextMask||[];for(const item of saved){try{item[0].nodeValue=item[1]}catch{}}window.__dynomaxDiscoveryTextMask=[];return true;}'''
+UNMASK_SCRIPT = r'''(root)=>{document.getElementById('dynomax-discovery-mask')?.remove();const saved=window.__dynomaxDiscoveryTextMask||[];for(const item of saved){try{item[0].nodeValue=item[1]}catch{}}window.__dynomaxDiscoveryTextMask=[];const elements=window.__dynomaxDiscoveryElementMask||[];for(const item of elements){try{if(item[1]===null)item[0].removeAttribute('style');else item[0].setAttribute('style',item[1])}catch{}}window.__dynomaxDiscoveryElementMask=[];return true;}'''
 
 
 def _load_secret_values(context_path):
@@ -59,9 +59,52 @@ def _load_secret_values(context_path):
         return []
 
 
+def _load_sensitive_values(context_path):
+    try:
+        context = json.loads(Path(str(context_path)).read_text(encoding="utf-8"))
+        values = context.get("values") or {}
+        result = []
+        keys = {str(k) for k in (context.get("secretKeys") or [])}
+        keys.update(str(k) for k in (context.get("sensitiveKeys") or []))
+        for key in keys:
+            value = values.get(key)
+            if value is None:
+                continue
+            text = str(value)
+            if text and text not in result:
+                result.append(text)
+        for entry in (context.get("stepInputs") or {}).values():
+            step_values = (entry or {}).get("values") or {}
+            step_keys = {str(k) for k in ((entry or {}).get("secretKeys") or [])}
+            step_keys.update(str(k) for k in ((entry or {}).get("sensitiveKeys") or []))
+            for key in step_keys:
+                value = step_values.get(key)
+                if value is None:
+                    continue
+                text = str(value)
+                if text and text not in result:
+                    result.append(text)
+        return sorted(result, key=len, reverse=True)
+    except Exception:
+        return []
+
+
+def _load_runtime_sensitive_selectors(context_path):
+    try:
+        context = json.loads(Path(str(context_path)).read_text(encoding="utf-8"))
+        value = (context.get("values") or {}).get("__dynomaxRuntimeSensitiveSelectors")
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()][:200]
+        if value is None or str(value).strip() == "":
+            return []
+        return [str(value)]
+    except Exception:
+        return []
+
+
 def _redact_exact_secrets(text, context_path=None):
     value = str(text)
-    for secret in _load_secret_values(context_path) if context_path else []:
+    for secret in _load_sensitive_values(context_path) if context_path else []:
         variants = {secret, quote(secret, safe=""), quote(secret, safe="@._-~")}
         for variant in sorted((v for v in variants if v), key=len, reverse=True):
             value = value.replace(variant, "[redacted-secret]")
@@ -244,9 +287,11 @@ def get_discovery_script(name, context_path=None):
     if key == "unmask":
         return UNMASK_SCRIPT
     if key == "mask":
-        secrets = _load_secret_values(context_path)
-        encoded = json.dumps(secrets, ensure_ascii=False)
-        return r'''(root)=>{const secrets=''' + encoded + r''';document.getElementById('dynomax-discovery-mask')?.remove();const style=document.createElement('style');style.id='dynomax-discovery-mask';style.textContent='input,textarea,select,[contenteditable="true"],[data-secret],[data-sensitive]{color:transparent!important;text-shadow:none!important;caret-color:transparent!important} input::placeholder,textarea::placeholder{color:transparent!important}';document.head.appendChild(style);const saved=[];const email=/[A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,}/ig;const walker=document.createTreeWalker(document.body||root,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode()){const original=String(node.nodeValue||'');let masked=original;for(const secret of secrets){if(secret)masked=masked.split(secret).join('[redacted-secret]')}masked=masked.replace(email,'[redacted-email]');if(masked!==original){saved.push([node,original]);node.nodeValue=masked}}window.__dynomaxDiscoveryTextMask=saved;return {applied:true,textNodesMasked:saved.length,formControlsMasked:true,exactRuntimeSecretsConsidered:secrets.length};}'''
+        sensitive_values = _load_sensitive_values(context_path)
+        sensitive_selectors = _load_runtime_sensitive_selectors(context_path)
+        encoded_values = json.dumps(sensitive_values, ensure_ascii=False)
+        encoded_selectors = json.dumps(sensitive_selectors, ensure_ascii=False)
+        return r'''(root)=>{const secrets=''' + encoded_values + r''';const selectors=''' + encoded_selectors + r''';document.getElementById('dynomax-discovery-mask')?.remove();const style=document.createElement('style');style.id='dynomax-discovery-mask';style.textContent='input,textarea,select,[contenteditable="true"],[data-secret],[data-sensitive]{color:transparent!important;text-shadow:none!important;caret-color:transparent!important} input::placeholder,textarea::placeholder{color:transparent!important}';document.head.appendChild(style);const saved=[];const email=/[A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,}/ig;const walker=document.createTreeWalker(document.body||root,NodeFilter.SHOW_TEXT);let node;while(node=walker.nextNode()){const original=String(node.nodeValue||'');let masked=original;for(const secret of secrets){if(secret)masked=masked.split(secret).join('[redacted-sensitive]')}masked=masked.replace(email,'[redacted-email]');if(masked!==original){saved.push([node,original]);node.nodeValue=masked}}window.__dynomaxDiscoveryTextMask=saved;const elementSaved=[];let selectorCount=0;for(const selector of selectors){let elements=[];try{elements=[...document.querySelectorAll(selector)]}catch{continue}selectorCount+=elements.length;for(const element of elements){if(elementSaved.some(item=>item[0]===element))continue;elementSaved.push([element,element.getAttribute('style')]);element.style.setProperty('visibility','hidden','important')}}window.__dynomaxDiscoveryElementMask=elementSaved;return {applied:true,textNodesMasked:saved.length,formControlsMasked:true,exactRuntimeSecretsConsidered:secrets.length,exactRuntimeSensitiveValuesConsidered:secrets.length,runtimeSensitiveSelectorCount:selectors.length,runtimeSensitiveElementsMasked:selectorCount};}'''
     raise ValueError(f"Unknown Discovery script '{name}'.")
 
 
@@ -264,6 +309,7 @@ def validate_discovery_evidence(discovery_dir, context_path=None):
         problems.append("Missing required sanitized evidence: " + ", ".join(missing))
 
     secrets = _load_secret_values(context_path)
+    sensitive_values = _load_sensitive_values(context_path)
     textual = [
         "page-structure.json", "page-dom.html", "page-text.txt", "screenshot-mask.json",
         "console.json", "page-errors.json", "network.har.json", "resource-timing.json", "capture-metadata.json"
@@ -277,12 +323,12 @@ def validate_discovery_evidence(discovery_dir, context_path=None):
             text = path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
-        for secret in secrets:
+        for secret in sensitive_values:
             if secret and secret in text:
                 leaked_files.append(name)
                 break
     if leaked_files:
-        problems.append("Exact runtime secret value found in sanitized textual evidence: " + ", ".join(sorted(set(leaked_files))))
+        problems.append("Exact runtime secret/sensitive value found in sanitized textual evidence: " + ", ".join(sorted(set(leaked_files))))
 
     raw_har = root.parent / "discovery-network.raw.har"
     if raw_har.exists():
@@ -309,6 +355,7 @@ def validate_discovery_evidence(discovery_dir, context_path=None):
         "requiredEvidenceCount": len(required),
         "missingEvidence": missing,
         "runtimeSecretValuesLoadedForValidation": len(secrets),
+        "runtimeSensitiveValuesLoadedForValidation": len(sensitive_values),
         "exactSecretLeakDetected": bool(leaked_files),
         "rawHarDeleted": not raw_har.exists(),
         "screenshotsMasked": not any("Screenshot masking" in p for p in problems),

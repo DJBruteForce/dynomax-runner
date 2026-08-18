@@ -9,8 +9,8 @@ VERSION = (ROOT / "VERSION.txt").read_text(encoding="utf-8").strip()
 def test_builtin_policy_separates_semantic_version_from_runtime_revision():
     assert '"coreVersion": "1.0.20"' in POLICY
     assert '"coreVersion": "1.0.20"' in CONTRACT
-    assert '"runtimeRevision": "R20.7.7"' in CONTRACT
-    assert VERSION == 'R20.7.7'
+    assert '"runtimeRevision": "R20.7.9"' in CONTRACT
+    assert VERSION == 'R20.7.9'
     assert "$declaredCoreVersion -cne $installedCoreVersion" in WORKFLOW
     assert "$runtimeContractRevision -cne $installedRuntimeRevision" in WORKFLOW
     assert "$declaredCoreVersion -cne $installedRuntimeRevision" not in WORKFLOW

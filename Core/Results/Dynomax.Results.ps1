@@ -253,18 +253,33 @@ function Set-DynomaxRunDataPoolStepOutputs {
     if($null -eq $pool){$pool=[pscustomobject][ordered]@{schemaVersion=1;steps=[pscustomobject][ordered]@{}};Set-DynomaxContextObjectProperty -Object $Context -Name 'runDataPool' -Value $pool}
     $steps=Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null
     if($null -eq $steps){$steps=[pscustomobject][ordered]@{};Set-DynomaxContextObjectProperty -Object $pool -Name 'steps' -Value $steps}
+    $secretLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $Context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
+    $sensitiveLookup=@{}
+    foreach($key in @(Get-DynomaxPropertyValue -Object $Context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$sensitiveLookup[[string]$key]=$true}}
     $outputs=[pscustomobject][ordered]@{}
     foreach($definition in @($OutputDefinitions)){
         $name=[string](Get-DynomaxPropertyValue -Object $definition -Name 'name' -DefaultValue '')
         if([string]::IsNullOrWhiteSpace($name)){continue}
         $classification=[string](Get-DynomaxPropertyValue -Object $definition -Name 'classification' -DefaultValue 'Normal')
         $persist=[bool](Get-DynomaxPropertyValue -Object $definition -Name 'persistInResult' -DefaultValue $true)
+        $propagationSources=@(Get-DynomaxPropertyValue -Object $definition -Name 'sensitiveWhenInputsSensitive' -DefaultValue @())
+        $effectiveSensitive=$false
+        foreach($source in $propagationSources){
+            $sourceName=[string]$source
+            if($sensitiveLookup.ContainsKey($sourceName) -or $secretLookup.ContainsKey($sourceName)){$effectiveSensitive=$true;break}
+        }
+        if($effectiveSensitive){$classification='SensitiveRedacted';$persist=$false}
         $available=$false;$value=$null
         if($null -ne $OutputObject){$prop=$OutputObject.PSObject.Properties[$name];if($null -ne $prop){$available=$true;$value=$prop.Value}}
         if(-not $available){$prop=$Context.values.PSObject.Properties[$name];if($null -ne $prop){$available=$true;$value=$prop.Value}}
         Set-DynomaxContextObjectProperty -Object $outputs -Name $name -Value ([pscustomobject][ordered]@{available=$available;value=$value;classification=$classification;persistInResult=$persist})
-        if($available){Set-DynomaxContextObjectProperty -Object $Context.values -Name $name -Value $value}
+        if($available){
+            Set-DynomaxContextObjectProperty -Object $Context.values -Name $name -Value $value
+            if($classification -eq 'SensitiveRedacted'){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
+        }
     }
+    Set-DynomaxContextObjectProperty -Object $Context -Name 'sensitiveKeys' -Value @($sensitiveLookup.Keys|Sort-Object)
     $step=[pscustomobject][ordered]@{stepId=$StepId;workflowNodeId=$WorkflowNodeId;executionSlot=$ExecutionSlot;actionKey=$ActionKey;capturedAtUtc=[DateTime]::UtcNow.ToString('o');outputs=$outputs}
     Set-DynomaxContextObjectProperty -Object $steps -Name $StepId -Value $step
     return $step
@@ -427,6 +442,8 @@ function Set-DynomaxContextValuesInSql {
     try {
         $secretLookup=@{}
         foreach($secretKey in @(Get-DynomaxPropertyValue -Object $Context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$secretKey)){$secretLookup[[string]$secretKey]=$true}}
+        $sensitiveLookup=@{}
+        foreach($sensitiveKey in @(Get-DynomaxPropertyValue -Object $Context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$sensitiveKey)){$sensitiveLookup[[string]$sensitiveKey]=$true}}
         $sensitiveOutputNames=@{}
         if($null -ne $PersistedContextCache){
             foreach($cacheKey in @($PersistedContextCache.Keys)){
@@ -456,7 +473,7 @@ function Set-DynomaxContextValuesInSql {
         foreach ($property in $Context.values.PSObject.Properties) {
             $contextKey=[string]$property.Name
             $isSecret=$secretLookup.ContainsKey($contextKey)
-            $redact=$isSecret -or $sensitiveOutputNames.ContainsKey($contextKey)
+            $redact=$isSecret -or $sensitiveLookup.ContainsKey($contextKey) -or $sensitiveOutputNames.ContainsKey($contextKey)
             $valueJson=$(if($redact){'{"redacted":true}'}else{([ordered]@{ value = $property.Value }) | ConvertTo-Json -Depth 50 -Compress})
             $cacheValue=('{0}|{1}' -f $(if($isSecret){'1'}else{'0'}),$valueJson)
             if($null -ne $PersistedContextCache -and $PersistedContextCache.ContainsKey($contextKey) -and [string]$PersistedContextCache[$contextKey] -ceq $cacheValue){continue}
@@ -650,6 +667,7 @@ function Get-DynomaxMimeType {
         '.png' { 'image/png' }
         '.jpg' { 'image/jpeg' }
         '.jpeg' { 'image/jpeg' }
+        '.pdf' { 'application/pdf' }
         '.zip' { 'application/zip' }
         default { 'application/octet-stream' }
     }

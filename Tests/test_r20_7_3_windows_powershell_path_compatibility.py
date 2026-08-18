@@ -9,7 +9,7 @@ CONTRACT = json.loads((ROOT / "Core" / "RUNTIME_CONTRACT.json").read_text(encodi
 
 
 def test_runtime_revision_is_r20_7_3():
-    assert CONTRACT["runtimeRevision"] == "R20.7.7"
+    assert CONTRACT["runtimeRevision"] == "R20.7.9"
 
 
 def test_windows_powershell_runtime_does_not_call_path_getrelativepath():

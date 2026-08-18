@@ -133,7 +133,7 @@ def test_robot_schedule_and_result_definitions_are_compact_and_deduplicated():
 
 def test_runtime_contract_closes_the_exact_r20_7_overlay():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["runtimeRevision"] == "R20.7.7"
+    assert manifest["runtimeRevision"] == "R20.7.9"
     expected = {
         "run-contract-finalization-recovery-v1",
         "run-data-pool-delta-persistence-v1",

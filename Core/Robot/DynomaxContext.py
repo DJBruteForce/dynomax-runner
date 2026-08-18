@@ -73,12 +73,16 @@ def _data_pool(context: Dict[str, Any]) -> Dict[str, Any]:
     return pool
 
 
-def _resolve_step_output(context: Dict[str, Any], source_step_id: str, output_name: str) -> Any:
+def _resolve_step_output_entry(context: Dict[str, Any], source_step_id: str, output_name: str) -> Dict[str, Any]:
     step = (_data_pool(context).get("steps") or {}).get(str(source_step_id))
     output = ((step or {}).get("outputs") or {}).get(str(output_name))
     if not output or not bool(output.get("available")):
         raise RuntimeError(f"Required Dynomax output '{output_name}' from source step '{source_step_id}' is unavailable.")
-    return output.get("value")
+    return output
+
+
+def _resolve_step_output(context: Dict[str, Any], source_step_id: str, output_name: str) -> Any:
+    return _resolve_step_output_entry(context, source_step_id, output_name).get("value")
 
 
 def get_continuation_decision(context_path: str, step_id: str) -> str:
@@ -123,7 +127,9 @@ def _activate_inputs(context: Dict[str, Any], step_id: str) -> None:
         return
     values = context.setdefault("values", {})
     current_secret_keys = {str(value) for value in (context.get("secretKeys") or [])}
+    current_sensitive_keys = {str(value) for value in (context.get("sensitiveKeys") or [])}
     step_values = dict(entry.get("values") or {})
+    deferred_sensitive_keys: set[str] = set()
     for binding in entry.get("deferredBindings") or []:
         kind = str(binding.get("kind") or "")
         input_name = str(binding.get("inputName") or "")
@@ -134,7 +140,10 @@ def _activate_inputs(context: Dict[str, Any], step_id: str) -> None:
             source_output_name = str(binding.get("sourceOutputName") or "")
             if not source_step_id or not source_output_name:
                 raise RuntimeError("A Dynomax step-output binding is incomplete.")
-            step_values[input_name] = _resolve_step_output(context, source_step_id, source_output_name)
+            source_output = _resolve_step_output_entry(context, source_step_id, source_output_name)
+            step_values[input_name] = source_output.get("value")
+            if str(source_output.get("classification") or "Normal") == "SensitiveRedacted":
+                deferred_sensitive_keys.add(input_name)
         elif kind == "RuntimeValue":
             name = str(binding.get("name") or "")
             if not name:
@@ -143,58 +152,83 @@ def _activate_inputs(context: Dict[str, Any], step_id: str) -> None:
         else:
             raise RuntimeError(f"Deferred Dynomax binding kind '{kind}' is not supported by this Core release.")
     step_secret_keys = {str(value) for value in (entry.get("secretKeys") or [])}
+    step_sensitive_keys = {str(value) for value in (entry.get("sensitiveKeys") or [])} | deferred_sensitive_keys
     prior_values: Dict[str, Any] = {}
     prior_secret_flags: Dict[str, bool] = {}
+    prior_sensitive_flags: Dict[str, bool] = {}
     for name, value in step_values.items():
         key = str(name)
         prior_values[key] = {"exists": key in values, "value": values.get(key)}
         prior_secret_flags[key] = key in current_secret_keys
+        prior_sensitive_flags[key] = key in current_sensitive_keys
         values[key] = value
         if key in step_secret_keys:
             current_secret_keys.add(key)
         else:
             current_secret_keys.discard(key)
+        if key in step_sensitive_keys or key in step_secret_keys:
+            current_sensitive_keys.add(key)
+        else:
+            current_sensitive_keys.discard(key)
     context["secretKeys"] = sorted(current_secret_keys)
-    context["activeStepInput"] = {"stepId": str(step_id), "priorValues": prior_values, "priorSecretFlags": prior_secret_flags}
+    context["sensitiveKeys"] = sorted(current_sensitive_keys)
+    context["activeStepInput"] = {
+        "stepId": str(step_id),
+        "priorValues": prior_values,
+        "priorSecretFlags": prior_secret_flags,
+        "priorSensitiveFlags": prior_sensitive_flags,
+    }
 
 
 def _prepare_outputs(context: Dict[str, Any], step_id: str, specs: list[dict[str, Any]]) -> None:
     active = context.get("activeStepInput")
     if active is None:
-        active = {"stepId": str(step_id), "priorValues": {}, "priorSecretFlags": {}}
+        active = {"stepId": str(step_id), "priorValues": {}, "priorSecretFlags": {}, "priorSensitiveFlags": {}}
         context["activeStepInput"] = active
     if str(active.get("stepId") or "") != str(step_id):
         raise RuntimeError("The active Dynomax step-input scope belongs to a different execution slot.")
     values = context.setdefault("values", {})
     secret_keys = {str(value) for value in (context.get("secretKeys") or [])}
+    sensitive_keys = {str(value) for value in (context.get("sensitiveKeys") or [])}
     prior_outputs: Dict[str, Any] = {}
     prior_output_secret_flags: Dict[str, bool] = {}
+    prior_output_sensitive_flags: Dict[str, bool] = {}
     for spec in specs:
         name = str(spec.get("name") or "")
         if not name:
             continue
         prior_outputs[name] = {"exists": name in values, "value": values.get(name)}
         prior_output_secret_flags[name] = name in secret_keys
+        prior_output_sensitive_flags[name] = name in sensitive_keys
         if name not in (active.get("priorValues") or {}):
             values.pop(name, None)
             secret_keys.discard(name)
+            sensitive_keys.discard(name)
     active["priorOutputValues"] = prior_outputs
     active["priorOutputSecretFlags"] = prior_output_secret_flags
+    active["priorOutputSensitiveFlags"] = prior_output_sensitive_flags
     context["secretKeys"] = sorted(secret_keys)
+    context["sensitiveKeys"] = sorted(sensitive_keys)
 
 
 def _capture_outputs(context: Dict[str, Any], step_id: str, workflow_node_id: str, execution_slot: str, action_key: str, specs: list[dict[str, Any]]) -> None:
     values = context.setdefault("values", {})
+    secret_keys = {str(value) for value in (context.get("secretKeys") or [])}
+    sensitive_keys = {str(value) for value in (context.get("sensitiveKeys") or [])}
     outputs: Dict[str, Any] = {}
     for spec in specs:
         name = str(spec.get("name") or "")
         if not name:
             continue
+        propagation_sources = [str(value) for value in (spec.get("sensitiveWhenInputsSensitive") or []) if str(value)]
+        effective_sensitive = any(source in sensitive_keys or source in secret_keys for source in propagation_sources)
+        classification = "SensitiveRedacted" if effective_sensitive else str(spec.get("classification") or "Normal")
+        persist = False if effective_sensitive else bool(spec.get("persistInResult", True))
         outputs[name] = {
             "available": name in values,
             "value": values.get(name) if name in values else None,
-            "classification": str(spec.get("classification") or "Normal"),
-            "persistInResult": bool(spec.get("persistInResult", True)),
+            "classification": classification,
+            "persistInResult": persist,
         }
     _data_pool(context)["steps"][str(step_id)] = {
         "stepId": str(step_id),
@@ -213,7 +247,11 @@ def _clear_inputs(context: Dict[str, Any], step_id: str) -> None:
             raise RuntimeError("The active Dynomax step-input scope belongs to a different execution slot.")
         values = context.setdefault("values", {})
         current_secret_keys = {str(value) for value in (context.get("secretKeys") or [])}
-        for field, secret_field in (("priorValues", "priorSecretFlags"), ("priorOutputValues", "priorOutputSecretFlags")):
+        current_sensitive_keys = {str(value) for value in (context.get("sensitiveKeys") or [])}
+        for field, secret_field, sensitive_field in (
+            ("priorValues", "priorSecretFlags", "priorSensitiveFlags"),
+            ("priorOutputValues", "priorOutputSecretFlags", "priorOutputSensitiveFlags"),
+        ):
             for name, previous in (active.get(field) or {}).items():
                 if bool((previous or {}).get("exists")):
                     values[name] = (previous or {}).get("value")
@@ -223,13 +261,24 @@ def _clear_inputs(context: Dict[str, Any], step_id: str) -> None:
                     current_secret_keys.add(name)
                 else:
                     current_secret_keys.discard(name)
+                if bool((active.get(sensitive_field) or {}).get(name)):
+                    current_sensitive_keys.add(name)
+                else:
+                    current_sensitive_keys.discard(name)
         context["secretKeys"] = sorted(current_secret_keys)
+        context["sensitiveKeys"] = sorted(current_sensitive_keys)
         context.pop("activeStepInput", None)
     step = ((_data_pool(context).get("steps") or {}).get(str(step_id)) or {})
     values = context.setdefault("values", {})
+    sensitive_keys = {str(value) for value in (context.get("sensitiveKeys") or [])}
     for name, output in (step.get("outputs") or {}).items():
         if bool((output or {}).get("available")):
             values[str(name)] = (output or {}).get("value")
+            if str((output or {}).get("classification") or "Normal") == "SensitiveRedacted":
+                sensitive_keys.add(str(name))
+            else:
+                sensitive_keys.discard(str(name))
+    context["sensitiveKeys"] = sorted(sensitive_keys)
 
 
 def begin_step_scope(context_path: str, step_id: str, output_specs_b64: str) -> None:
@@ -309,6 +358,17 @@ class DynomaxContext:
     @keyword("Refresh Dynomax Runtime Step Inputs")
     def refresh_dynomax_runtime_step_inputs(self, context_path: str, step_id: str, attempt_number: int) -> None:
         refresh_runtime_step_inputs(str(context_path), str(step_id), int(attempt_number))
+
+    @keyword("Is Dynomax Active Step Sensitive")
+    def is_dynomax_active_step_sensitive(self, context_path: str, step_id: str) -> bool:
+        context = _load(str(context_path))
+        active = context.get("activeStepInput") or {}
+        if str(active.get("stepId") or "") != str(step_id):
+            return False
+        input_names = {str(name) for name in (active.get("priorValues") or {}).keys()}
+        sensitive = {str(value) for value in (context.get("sensitiveKeys") or [])}
+        sensitive.update(str(value) for value in (context.get("secretKeys") or []))
+        return bool(input_names & sensitive)
 
     @keyword("Prepare Dynomax Step Outputs")
     def prepare_dynomax_step_outputs(self, context_path: str, step_id: str, output_specs_b64: str) -> None:
