@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "coreVersion": "1.0.20",
-  "runtimeRevision": "R20.7.9",
+  "runtimeRevision": "R20.8",
   "compilerVersions": [
     "1.19.15",
     "1.19.16",
@@ -33,7 +33,9 @@
     "context-value-batch-fallback-v1",
     "core-diagnostics-jsonl-v1",
     "pdf-result-evidence-v1",
-    "sensitive-runtime-propagation-v1"
+    "sensitive-runtime-propagation-v1",
+    "browser-optional-workflow-v1",
+    "browser-optional-action-timeout-v1"
   ],
   "files": [
     {
@@ -43,8 +45,8 @@
     },
     {
       "path": "Core/Robot/Dynomax.resource",
-      "length": 35556,
-      "sha256": "16e4e264c7320479dbe6537997a103eda86c005e46093270690b3cad89db5d38"
+      "length": 36022,
+      "sha256": "4ee587a8545e3fb4775b6e1507632a6aa9ff804818dad5f237a26093b2199985"
     },
     {
       "path": "Core/Robot/DynomaxContext.py",
@@ -83,8 +85,8 @@
     },
     {
       "path": "Core/Execution/Dynomax.Workflow.ps1",
-      "length": 88558,
-      "sha256": "0d8184d4f6551040070350b10042512f439460ee79d8400ffa23a0bbb08e4fda"
+      "length": 88884,
+      "sha256": "07be28a9c8e9c159d9e365b7bdbe5f32db930bced76236b848f21ddfc2862cb4"
     },
     {
       "path": "Core/Invoke-DynomaxWorkflow.ps1",

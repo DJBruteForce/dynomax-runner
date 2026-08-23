@@ -1,5 +1,4 @@
 *** Settings ***
-Library    Browser
 Library    OperatingSystem
 Library    Process
 Library    Collections
@@ -10,6 +9,10 @@ Library    ${CURDIR}${/}DynomaxRuntimeBridge.py
 
 *** Keywords ***
 Start Dynomax Browser
+    ${browser_library_loaded}=    Run Keyword And Return Status    Get Library Instance    Browser
+    IF    not ${browser_library_loaded}
+        Import Library    Browser
+    END
     Create Directory    ${DYNOMAX_RUN_DIR}${/}screenshots
     New Browser    ${DYNOMAX_BROWSER}    headless=${DYNOMAX_HEADLESS}
     ${discovery_enabled}=    Get Variable Value    \${DYNOMAX_DISCOVERY_ENABLED}    ${False}
@@ -297,8 +300,12 @@ Execute Dynomax Action With Policy
         ${png_snapshot}=    Capture Dynomax Png Snapshot
         ${actual_action_started}=    Evaluate    time.perf_counter()    modules=time
         ${semantic_timeout}=    Get Dynomax Context Value    timeoutSeconds    ${EMPTY}
-        Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
-        ${previous_browser_timeout}=    Set Browser Timeout    ${effective_timeout}s    scope=Test
+        ${browser_available}=    Get Variable Value    \${DYNOMAX_BROWSER_AVAILABLE}    ${False}
+        Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s when Browser is active; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
+        ${previous_browser_timeout}=    Set Variable    ${EMPTY}
+        IF    ${browser_available}
+            ${previous_browser_timeout}=    Set Browser Timeout    ${effective_timeout}s    scope=Test
+        END
         TRY
             IF    ${DYNOMAX_SENSITIVE_ACTION} or '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
                 ${previous_log_level}=    Set Log Level    NONE
@@ -311,7 +318,9 @@ Execute Dynomax Action With Policy
                 ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
             END
         FINALLY
-            Set Browser Timeout    ${previous_browser_timeout}    scope=Test
+            IF    ${browser_available}
+                Set Browser Timeout    ${previous_browser_timeout}    scope=Test
+            END
         END
         ${actual_action_duration_ms}=    Evaluate    (time.perf_counter() - float($actual_action_started)) * 1000.0    modules=time
         ${attempt_ended}=    Evaluate    datetime.datetime.now(datetime.timezone.utc).isoformat()    modules=datetime

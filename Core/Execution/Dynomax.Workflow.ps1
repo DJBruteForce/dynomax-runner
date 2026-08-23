@@ -80,7 +80,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.7.9 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.8 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 
@@ -91,7 +91,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
         $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
         $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
-        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.7.9' -or
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.8' -or
             '1.19.15' -notin $compilerVersions -or
             'continuation-decision-v1' -notin $capabilities -or
             'cleanup-execution-order-v1' -notin $capabilities -or
@@ -134,7 +134,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.7.9 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.8 overlay before executing compiler 1.19.15 publications.'
         throw $exception
     }
 }
@@ -727,12 +727,15 @@ function New-DynomaxRobotSuite {
     $containsCleanupStep=@($Steps|Where-Object{[bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
     $useControlFlowDriver=$controlFlowEnabled -and $containsMainStep
     $usePreservedCleanupDriver=$useControlFlowDriver -and $PreserveCleanupBrowserSession -and $containsCleanupStep
+    $requiresBrowser=@($Steps|Where-Object{[string](Get-DynomaxPropertyValue -Object $_ -Name 'DynomaxSessionBehavior' -DefaultValue 'DoesNotUseBrowser') -ne 'DoesNotUseBrowser'}).Count -gt 0
     $lines=New-Object System.Collections.Generic.List[string]
     $lines.Add('*** Settings ***')
     $lines.Add("Resource    $coreResource")
     foreach($resource in ($resourcePaths|Select-Object -Unique)){$lines.Add("Resource    $resource")}
-    $lines.Add('Suite Setup    Start Dynomax Browser')
-    $lines.Add('Suite Teardown    Complete Dynomax Browser Suite')
+    if($requiresBrowser){
+        $lines.Add('Suite Setup    Start Dynomax Browser')
+        $lines.Add('Suite Teardown    Complete Dynomax Browser Suite')
+    }
     if(-not $useControlFlowDriver){$lines.Add('Test Teardown    Persist Dynomax Robot Action Result')}
     $lines.Add('')
     $lines.Add('*** Variables ***')
@@ -747,6 +750,7 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_POWERSHELL}    $psForward")
     $lines.Add("`${DYNOMAX_BASE_URL}    $baseUrl")
     $lines.Add("`${DYNOMAX_BROWSER}    $browser")
+    $lines.Add("`${DYNOMAX_BROWSER_AVAILABLE}    $(if($requiresBrowser){'True'}else{'False'})")
     $lines.Add("`${DYNOMAX_HEADLESS}    $headless")
     $lines.Add("`${DYNOMAX_VIEWPORT}    $viewport")
     $discoveryConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'discovery' -DefaultValue $null
