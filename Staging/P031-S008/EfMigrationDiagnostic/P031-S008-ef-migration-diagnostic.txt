@@ -1,0 +1,21 @@
+P031-S008 EF migration generation diagnostic
+diagnosticOnly=true
+realCheckoutModified=false
+databaseMigrationApplied=false
+preMigrationPortalBuild=Passed
+efMode=global
+efExitCode=-2147450751
+--- dotnet-ef version ---
+Entity Framework Core .NET Command-line Tools
+8.0.0
+
+--- migration output ---
+dotnet.exe : The specified deps.json [<WORK_ROOT>\checkout\src\Dynomax.P
+ortal\bin\Debug\net8.0\Dynomax.Portal.deps.json] does not exist
+At C:\Dynomax\Temp\Runs\20260904044046162\process-scripts\2213c0f5943541609bd06a783c01e1ce.ps1:395 char:29
++ ... f){$efText=(& dotnet ef migrations add AddProjectContextGitRepositori ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (The specified d... does not exist:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+

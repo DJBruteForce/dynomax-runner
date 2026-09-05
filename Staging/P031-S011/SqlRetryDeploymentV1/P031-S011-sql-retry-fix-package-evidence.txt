@@ -1,0 +1,22 @@
+P031-S011 SQL retry connect fix package evidence
+acceptedWorkflowRevision=1
+acceptedWorkflowRevisionId=98ec5cd4-0909-4e81-b2ac-4cbbda84a086
+acceptedWorkflowSha=ed629dd261cb640776470ee7ac19907d93e1a2db200ba53f7f3d2c101b1dcddc
+acceptedRun=325f791f-9ee3-425c-b714-81c522aa28bb
+acceptedResultPackSha=fa170fa87964e47347d740e488357220177350b89624bb0a693996ce56a563c0
+sourceSha256=
+bbaca035abf1dfb4c7b765f237dc862faa302612249e6e66a2b10d101b95e129
+packageName=
+Dynomax_P031-S011_SQL_Retry_Connect_Fix_v1.zip
+packageSha256=
+623371f4e49ef073ac09d25153cfd28b2714b73d02200fd326441424f569315b
+zipEntryCount=1
+canonicalPath=
+src/Dynomax.Infrastructure/ProjectContext/Repositories/RepositoryConnectionService.cs
+migrationRequired=false
+portalRestartRequired=true
+workerRestartRequired=false
+coreRestartRequired=false
+connectorRescanRequired=false
+githubNetworkCall=false
+realGitHubPatRead=false

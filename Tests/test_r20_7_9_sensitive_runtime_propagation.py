@@ -179,8 +179,8 @@ def test_r20_7_9_contract_keeps_sensitive_values_runtime_only_and_masks_browser_
     invoke = INVOKE_PATH.read_text(encoding="utf-8")
     discovery = DISCOVERY_PATH.read_text(encoding="utf-8")
 
-    assert version == "R20.7.9"
-    assert contract["runtimeRevision"] == "R20.7.9"
+    assert version == "R20.9"
+    assert contract["runtimeRevision"] == "R20.9"
     assert "1.19.18" in contract["compilerVersions"]
     assert "sensitive-runtime-propagation-v1" in contract["capabilities"]
 

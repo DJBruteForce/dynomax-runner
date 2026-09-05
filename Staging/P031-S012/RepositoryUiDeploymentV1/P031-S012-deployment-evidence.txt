@@ -1,0 +1,31 @@
+P031-S012 deployment package evidence
+package=
+Dynomax_P031-S012_Project_Context_Repository_UI_v1.zip
+packageSha256=
+c20c6e378c37a6a9a8e846a5a25a0eb21fb17bd83a63e20b5e306d32be7df6fb
+packageBytes=
+27465
+archiveEntryCount=8
+changedNewSourceFiles=8
+portalReleaseBuild=PASS
+finalWorkflowRevision=9
+finalRunRequestId=a3b9f631-5219-4903-b1d2-167f0e756295
+migrationRequired=false
+connectorContractChanged=false
+connectorRescanRequired=false
+portalRestartRequired=true
+workerRestartRequired=false
+coreRestartRequired=false
+databaseModified=false
+githubRepositoryMutation=false
+realGitHubPatRead=false
+zipReopenExactHashVerification=PASS
+--- exact entries ---
+9bd643f328c1490b7245312cd4f1d841b8a7f34a02998732bf803135afb51927  src/Dynomax.Application/ProjectContext/Repositories/RepositoryContextPresentationContracts.cs
+0fbd5e5f09f8635464cf6c3f086184be0e79e6cd03f11cfa553b4bc62a643217  src/Dynomax.Infrastructure/ProjectContext/Repositories/RepositoryContextPresentationService.cs
+7f3ed86dbb48e4fb14da7ded983033374fe98fa60b00e7c24d4fe146bea8b353  src/Dynomax.Infrastructure/DependencyInjection.cs
+70111cb45ecbc850344251f27a610c30b6bb7c2b1a9e4e3731483c2aefacc311  src/Dynomax.Portal/Pages/Projects/Context/Index.cshtml.cs
+377a9b23b3711dafeb1cc8f8b00a6b3bdaea2ae39f1225ea45c8f8d98a31f607  src/Dynomax.Portal/Pages/Projects/Context/Index.Repositories.cs
+469e1b9d12f0518236d3aeb78397d4e9095ddbbbd3a9f417e3afa3732fa3922a  src/Dynomax.Portal/Pages/Projects/Context/Index.cshtml
+571df8179a0cd67fa9ca7d211c5bc75530267699785e36cd1b636711a11fa81b  src/Dynomax.Portal/Pages/Projects/Context/_RepositoryBrowser.cshtml
+04f9379ea9a50d382df5e3832cb1dd4df5b240fb65da4ddc31db93b60cf0b446  src/Dynomax.Portal/Pages/Projects/Context/_RepositoryDrawer.cshtml

@@ -1,0 +1,212 @@
+@page
+@model Dynomax.Portal.Pages.Projects.Context.IndexModel
+@{
+    ViewData["Title"] = "Project Context";
+    var selected = Model.SelectedResource?.Resource;
+    var selectedVersions = Model.SelectedResource?.Versions ?? [];
+}
+
+<style>
+.pc-page{display:flex;flex-direction:column;gap:18px;min-width:0}.pc-heading{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.pc-heading h1{margin:0 0 6px;font-size:28px;line-height:1.15}.pc-heading p{margin:0;color:var(--muted,#667085);max-width:720px}.pc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.pc-card{background:#fff;border:1px solid #e6eaf0;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.03)}.pc-metric{padding:14px 16px;display:flex;align-items:center;gap:12px;min-height:72px}.pc-metric-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:#f3f5ff;color:#5b4df5;font-size:18px}.pc-metric-label{font-size:12px;color:#667085}.pc-metric-value{font-size:20px;font-weight:700;color:#101828}.pc-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.pc-toolbar-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pc-btn{height:36px;padding:0 13px;border:1px solid #d9dee8;background:#fff;border-radius:8px;color:#344054;font:inherit;display:inline-flex;align-items:center;gap:7px;text-decoration:none;cursor:pointer}.pc-btn:hover{background:#f8f9fb}.pc-btn.primary{background:#5b4df5;color:#fff;border-color:#5b4df5}.pc-btn.danger{border-color:#f3b4b4;color:#d92d20;background:#fff}.pc-search{height:36px;min-width:260px;border:1px solid #d9dee8;border-radius:8px;padding:0 12px}.pc-select{height:36px;border:1px solid #d9dee8;border-radius:8px;padding:0 30px 0 10px;background:#fff}.pc-workspace{display:grid;grid-template-columns:205px minmax(0,1fr);gap:14px;align-items:start}.pc-sidebar{padding:10px}.pc-sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 10px;font-weight:700}.pc-collection{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 9px;border-radius:8px;color:#344054;text-decoration:none;font-size:13px}.pc-collection:hover{background:#f8f9fb}.pc-collection.active{background:#f0edff;color:#4f3fe8}.pc-collection-name{display:flex;gap:8px;min-width:0;align-items:center}.pc-collection-name span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pc-count{font-size:11px;color:#98a2b3}.pc-sidebar-foot{border-top:1px solid #eef1f5;margin-top:8px;padding:10px 8px 2px;display:grid;gap:8px}.pc-switch-row{display:flex;align-items:center;gap:8px;color:#667085;font-size:12px}.pc-switch{width:30px;height:17px;border-radius:999px;background:#d9dee8;display:inline-block;position:relative}.pc-switch:after{content:"";position:absolute;width:13px;height:13px;left:2px;top:2px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.2)}.pc-switch.on{background:#5b4df5}.pc-switch.on:after{left:15px}.pc-link{font-size:12px;color:#5b4df5;text-decoration:none}.pc-browser{overflow:hidden}.pc-browser-top{padding:12px 14px;border-bottom:1px solid #e9edf3;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.pc-crumbs{display:flex;align-items:center;gap:7px;min-width:0;font-size:12px;color:#667085}.pc-crumbs a{color:#475467;text-decoration:none}.pc-crumbs strong{color:#101828}.pc-table-wrap{overflow:auto}.pc-table{width:100%;border-collapse:collapse;font-size:12px}.pc-table th{background:#fafbfc;color:#667085;text-align:left;padding:10px 12px;border-bottom:1px solid #e9edf3;font-weight:600;white-space:nowrap}.pc-table td{padding:10px 12px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:#344054}.pc-table tr:hover td{background:#fcfcfd}.pc-table tr.selected td{background:#f2f0ff}.pc-table tr.selected td:first-child{box-shadow:inset 3px 0 0 #5b4df5}.pc-table tr.selected .pc-file-name{color:#4f3fe8}.pc-file-name{font-weight:600;color:#101828;text-decoration:none;display:inline-flex;align-items:center;gap:8px}.pc-type{color:#667085}.pc-status{display:inline-flex;padding:3px 7px;border-radius:5px;font-size:11px;font-weight:600}.pc-status.current{color:#16803d;background:#eaf8ef}.pc-status.backup{color:#2672d6;background:#edf5ff}.pc-status.retired{color:#b54708;background:#fff4e8}.pc-icon{position:relative;display:inline-block;flex:0 0 auto;width:16px;height:16px;color:#667085}.pc-icon.folder{width:17px;height:12px;border:1.5px solid #5b8def;border-radius:2px;background:#eef5ff;margin-top:2px}.pc-icon.folder:before{content:"";position:absolute;left:1px;top:-5px;width:8px;height:5px;border:1.5px solid #5b8def;border-bottom:0;border-radius:2px 2px 0 0;background:#eef5ff}.pc-icon.file{width:13px;height:16px;border:1.5px solid #667085;border-radius:2px;background:#fff}.pc-icon.file:after{content:"";position:absolute;right:-1.5px;top:-1.5px;width:5px;height:5px;border-left:1.5px solid #667085;border-bottom:1.5px solid #667085;background:#fff}.pc-icon.backup{width:15px;height:15px;border:1.5px solid #98a2b3;border-radius:50%}.pc-icon.backup:before{content:"";position:absolute;width:1.5px;height:5px;background:#98a2b3;left:6px;top:3px}.pc-icon.backup:after{content:"";position:absolute;width:4px;height:1.5px;background:#98a2b3;left:6px;top:7px;transform:rotate(25deg);transform-origin:left center}.pc-kebab{position:relative;text-align:right}.pc-menu{position:relative;display:inline-block;text-align:left}.pc-menu>summary{list-style:none;width:30px;height:30px;border:1px solid transparent;border-radius:7px;display:grid;place-items:center;cursor:pointer;color:#667085;font-size:17px}.pc-menu>summary::-webkit-details-marker{display:none}.pc-menu>summary:hover,.pc-menu[open]>summary{background:#f2f4f7;border-color:#e4e7ec;color:#344054}.pc-menu-pop{position:absolute;right:0;top:34px;z-index:40;min-width:170px;padding:6px;background:#fff;border:1px solid #e4e7ec;border-radius:9px;box-shadow:0 10px 30px rgba(16,24,40,.14)}.pc-menu-pop a,.pc-menu-pop button{display:flex;width:100%;box-sizing:border-box;align-items:center;border:0;background:transparent;text-decoration:none;color:#344054;padding:8px 9px;border-radius:6px;font:inherit;font-size:12px;cursor:pointer}.pc-menu-pop a:hover,.pc-menu-pop button:hover{background:#f8f9fb}.pc-menu-pop form{margin:0}.pc-menu-pop .danger{color:#d92d20}.pc-sidebar-add{border:0;background:transparent;border-radius:6px;width:28px;height:28px;display:grid;place-items:center;cursor:pointer;color:#667085;font-size:18px}.pc-sidebar-add:hover{background:#f2f4f7;color:#344054}.pc-pagination{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;font-size:12px;color:#667085}.pc-pages{display:flex;gap:6px;align-items:center}.pc-page-link{width:30px;height:30px;border:1px solid transparent;border-radius:7px;display:grid;place-items:center;text-decoration:none;color:#475467}.pc-page-link.active{border-color:#7f73ff;color:#5b4df5;background:#f7f5ff}.pc-drawer{overflow:auto;position:fixed;z-index:70;right:20px;top:78px;bottom:20px;width:min(440px,calc(100vw - 40px));box-shadow:0 18px 55px rgba(16,24,40,.2)}.pc-drawer-title{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;font-weight:700;border-bottom:1px solid #e9edf3}.pc-tabs{display:flex;gap:0;border-bottom:1px solid #e9edf3;overflow:auto}.pc-tab{padding:10px 12px;border:0;background:transparent;font:inherit;font-size:11px;color:#667085;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}.pc-tab.active{color:#5b4df5;border-bottom-color:#5b4df5}.pc-tab-panel{display:none;padding:12px}.pc-tab-panel.active{display:block}.pc-info{border:1px solid #e7ebf1;border-radius:9px;padding:11px;display:grid;gap:9px}.pc-info-row{display:grid;grid-template-columns:110px 1fr;gap:8px;font-size:11px}.pc-info-row dt{color:#667085}.pc-info-row dd{margin:0;color:#344054;min-width:0;overflow-wrap:anywhere}.pc-actions{margin-top:12px;border:1px solid #e7ebf1;border-radius:9px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.pc-actions .pc-btn{justify-content:center;font-size:11px;padding:0 8px}.pc-actions .wide{grid-column:1/-1}.pc-preview{max-height:420px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap}.pc-empty{padding:28px;color:#667085;text-align:center}.pc-bottom{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.7fr);gap:14px}.pc-panel-head{padding:13px 14px;border-bottom:1px solid #e9edf3;font-weight:700}.pc-activity{padding:0 14px 12px}.pc-activity table{width:100%;border-collapse:collapse;font-size:11px}.pc-activity th,.pc-activity td{padding:9px 7px;border-bottom:1px solid #eef1f5;text-align:left;color:#475467}.pc-result{display:inline-flex;align-items:center;gap:5px;color:#16803d;background:#eaf8ef;padding:3px 7px;border-radius:5px}.pc-storage{padding:14px;display:grid;grid-template-columns:130px 1fr;align-items:center;gap:16px}.pc-donut{width:118px;height:118px;border-radius:50%;background:conic-gradient(#5b8def 0 62%,#7654e8 62% 79%,#f3a23a 79% 89%,#41b883 89% 96%,#98a2b3 96% 100%);position:relative}.pc-donut:after{content:"";position:absolute;inset:22px;border-radius:50%;background:#fff}.pc-storage-list{display:grid;gap:8px}.pc-storage-row{display:grid;grid-template-columns:8px 1fr auto;gap:8px;align-items:center;font-size:11px}.pc-dot{width:8px;height:8px;border-radius:50%;background:#5b8def}.pc-storage-row:nth-child(2) .pc-dot{background:#7654e8}.pc-storage-row:nth-child(3) .pc-dot{background:#f3a23a}.pc-storage-row:nth-child(4) .pc-dot{background:#41b883}.pc-storage-row:nth-child(5) .pc-dot{background:#98a2b3}.pc-modal{border:0;border-radius:12px;padding:0;max-width:760px;width:min(760px,calc(100vw - 30px));box-shadow:0 20px 60px rgba(16,24,40,.22)}.pc-modal::backdrop{background:rgba(16,24,40,.35)}.pc-modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #e9edf3}.pc-modal-body{padding:16px}.pc-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pc-field{display:grid;gap:5px;font-size:12px}.pc-field.wide{grid-column:1/-1}.pc-field input,.pc-field select,.pc-field textarea{border:1px solid #d9dee8;border-radius:8px;padding:9px 10px;font:inherit}.pc-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;grid-column:1/-1}.pc-check{display:flex;gap:8px;align-items:flex-start;font-size:11px;color:#475467}.pc-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:14px}.pc-success{padding:10px 12px;border:1px solid #a6dfb5;background:#ecfdf3;color:#067647;border-radius:8px}.pc-note{font-size:11px;color:#667085}.pc-history-list{display:grid;gap:8px}.pc-history-item{border:1px solid #e7ebf1;border-radius:8px;padding:9px;font-size:11px}.pc-history-meta{display:flex;justify-content:space-between;gap:8px;color:#667085;margin-top:5px}.pc-new-folder-pop{position:relative}.pc-new-folder-menu{display:none;position:absolute;top:41px;left:0;width:280px;padding:12px;z-index:20}.pc-new-folder-pop.open .pc-new-folder-menu{display:block}@@media(max-width:1180px){.pc-workspace{grid-template-columns:190px minmax(0,1fr)}.pc-bottom{grid-template-columns:1fr}}@@media(max-width:780px){.pc-metrics{grid-template-columns:1fr 1fr}.pc-workspace{grid-template-columns:1fr}.pc-sidebar{order:1}.pc-browser{order:2}.pc-drawer{inset:0;width:100vw;max-width:none;border-radius:0;z-index:100}.pc-bottom{grid-template-columns:1fr}.pc-storage{grid-template-columns:1fr}.pc-form-grid{grid-template-columns:1fr}.pc-field.wide,.pc-checks{grid-column:auto}.pc-checks{grid-template-columns:1fr}}
+.pc-drawer-close{width:30px;height:30px;display:grid;place-items:center;text-decoration:none;color:#667085;border-radius:7px;font-size:20px}.pc-drawer-close:hover{background:#f2f4f7;color:#344054}.pc-repo-toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:13px 14px;border-bottom:1px solid #e9edf3}.pc-repo-topology{padding:12px 14px;border-bottom:1px solid #e9edf3;background:#fbfcff}.pc-repo-topology-head{display:flex;justify-content:space-between;gap:12px;align-items:center;color:#475467;font-size:12px;margin-bottom:10px}.pc-repo-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}.pc-repo-node{border:1px solid #e4e7ec;background:#fff;border-radius:9px;padding:10px;text-decoration:none;color:#475467;display:grid;gap:4px;font-size:11px}.pc-repo-node:hover{border-color:#b8b1ff;background:#f9f8ff}.pc-repo-node-name{font-weight:700;color:#101828}.pc-repo-mark{display:grid;place-items:center;width:28px;height:28px;border-radius:7px;background:#1f2937;color:#fff;font-size:10px;font-weight:800}.pc-repo-table .pc-file-name>span:last-child{display:grid;gap:2px}.pc-repo-table .pc-file-name small{font-weight:400;color:#667085}.pc-repo-health{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:700}.pc-repo-health.healthy{color:#067647;background:#ecfdf3}.pc-repo-health.empty{color:#175cd3;background:#eff8ff}.pc-repo-health.error{color:#b42318;background:#fef3f2}.pc-repo-health.disconnected{color:#475467;background:#f2f4f7}.pc-repo-health.unknown{color:#6941c6;background:#f4f3ff}.pc-repo-credential{margin-top:10px}.pc-info+.pc-info{margin-top:10px}@@media(max-width:780px){.pc-repo-toolbar{align-items:flex-start;flex-direction:column}.pc-repo-map{grid-template-columns:1fr}.pc-repo-table th:nth-child(2),.pc-repo-table td:nth-child(2),.pc-repo-table th:nth-child(5),.pc-repo-table td:nth-child(5){display:none}}</style>
+
+<div class="pc-page">
+    <div class="pc-heading">
+        <div>
+            <h1>Project Context</h1>
+            <p>The Project's managed working context library. See the current files and reference materials and restore from recent backups when needed.</p>
+        </div>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="pc-success">@success</div>
+    }
+
+    @if (TempData["Error"] is string error)
+    {
+        <div class="validation-summary-errors" role="alert">@error</div>
+    }
+    <section class="pc-metrics" aria-label="Project Context summary">
+        <div class="pc-card pc-metric"><div class="pc-metric-icon">▣</div><div><div class="pc-metric-label">Collections</div><div class="pc-metric-value">@Model.CollectionNavigation.Count(item => item.ResourceCount > 0)</div></div></div>
+        <div class="pc-card pc-metric"><div class="pc-metric-icon">▤</div><div><div class="pc-metric-label">Files</div><div class="pc-metric-value">@Model.Resources.Count.ToString("N0")</div></div></div>
+        <div class="pc-card pc-metric"><div class="pc-metric-icon">◔</div><div><div class="pc-metric-label">Storage</div><div class="pc-metric-value">@FormatBytes(Model.CurrentStorageBytes)</div></div></div>
+        <div class="pc-card pc-metric"><div class="pc-metric-icon">◷</div><div><div class="pc-metric-label">Last import</div><div class="pc-metric-value" style="font-size:15px">@(Model.LastImportUtc is DateTime lastImport ? RelativeTime(lastImport) : "—")</div></div></div>
+            <div class="pc-card pc-metric"><div class="pc-metric-icon">GH</div><div><div class="pc-metric-label">Repositories</div><div class="pc-metric-value">@Model.RepositoryRows.Count</div></div></div></section>
+
+    <section class="pc-toolbar">
+        <div class="pc-toolbar-group">
+            @if (Model.CanUpload) { <button class="pc-btn primary" type="button" onclick="document.getElementById('pc-upload-dialog').showModal()">⇧ Upload</button> }
+            @if (Model.CanImportLocalFolder) { <button class="pc-btn" type="button" onclick="document.getElementById('pc-import-dialog').showModal()">▱ Import Folder</button> }
+            <div class="pc-new-folder-pop" id="pc-new-folder-pop">
+                <button class="pc-btn" type="button" onclick="document.getElementById('pc-new-folder-pop').classList.toggle('open')">▱ New Folder</button>
+                <div class="pc-card pc-new-folder-menu"><strong>Folders are path-based</strong><p class="pc-note">Project Context does not persist empty folders. Create a folder by uploading a file to a new logical path or importing a folder into a new collection path.</p><div class="pc-toolbar-group">@if (Model.CanUpload){<button class="pc-btn" type="button" onclick="document.getElementById('pc-upload-dialog').showModal()">Upload file</button>}@if(Model.CanImportLocalFolder){<button class="pc-btn" type="button" onclick="document.getElementById('pc-import-dialog').showModal()">Import folder</button>}</div></div>
+            </div>
+            <a class="pc-btn" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-showDiagnostics="@Model.ShowDiagnostics">↻ Refresh</a>
+            <button class="pc-btn" type="button" title="More actions">•••</button>
+        </div>
+        <form method="get" class="pc-toolbar-group">
+            <input type="hidden" name="projectId" value="@Model.Project.Id" />
+            <input type="hidden" name="category" value="@Model.BrowseCategory" />
+            <input type="hidden" name="path" value="@Model.BrowsePath" />
+            <input class="pc-search" name="q" value="@Model.SearchQuery" placeholder="Search in this collection..." />
+            @if (Model.IsRepositoryBrowse)
+            {
+                <select class="pc-select" name="filter" onchange="this.form.submit()"><option value="All" selected="@(Model.Filter == "All" ? "selected" : null)">All repositories</option><option value="Healthy" selected="@(Model.Filter == "Healthy" ? "selected" : null)">Healthy</option><option value="Empty" selected="@(Model.Filter == "Empty" ? "selected" : null)">Empty</option><option value="Error" selected="@(Model.Filter == "Error" ? "selected" : null)">Error</option><option value="Private" selected="@(Model.Filter == "Private" ? "selected" : null)">Private</option><option value="Archived" selected="@(Model.Filter == "Archived" ? "selected" : null)">Archived</option></select>
+                <select class="pc-select" name="sort" onchange="this.form.submit()"><option value="Name" selected="@(Model.RepositorySort == "Name" ? "selected" : null)">Name</option><option value="Role" selected="@(Model.RepositorySort == "Role" ? "selected" : null)">Role</option><option value="Health" selected="@(Model.RepositorySort == "Health" ? "selected" : null)">Health</option><option value="Refreshed" selected="@(Model.RepositorySort == "Refreshed" ? "selected" : null)">Last refresh</option></select>
+            }
+            else
+            {            <select class="pc-select" name="filter" onchange="this.form.submit()">
+                <option value="All" selected="@(Model.Filter == "All" ? "selected" : null)">Filter</option>
+                <option value="Folders" selected="@(Model.Filter == "Folders" ? "selected" : null)">Folders</option>
+                <option value="Files" selected="@(Model.Filter == "Files" ? "selected" : null)">Files</option>
+                <option value="Authoritative" selected="@(Model.Filter == "Authoritative" ? "selected" : null)">Authoritative</option>
+                <option value="Backups" selected="@(Model.Filter == "Backups" ? "selected" : null)">Backups</option>
+            </select>
+            }
+        </form>
+    </section>
+
+    <section class="pc-workspace">
+        <aside class="pc-card pc-sidebar">
+            <div class="pc-sidebar-head"><span>Collections</span><button class="pc-sidebar-add" type="button" title="Create collection or folder" aria-label="Create collection or folder" onclick="(document.getElementById('pc-upload-dialog') || document.getElementById('pc-import-dialog'))?.showModal()">＋</button></div>
+            @foreach (var collection in Model.CollectionNavigation)
+            {
+                <a class="pc-collection @(string.Equals(collection.Name, Model.BrowseCategory, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" asp-route-projectId="@Model.Project.Id" asp-route-category="@collection.Name" asp-route-showDiagnostics="@Model.ShowDiagnostics">
+                    <span class="pc-collection-name"><span>▱</span><span>@collection.Name</span></span><span class="pc-count">@(collection.ResourceCount == 0 ? string.Empty : collection.ResourceCount)</span>
+                </a>
+            }
+            <div class="pc-sidebar-foot">
+                <a class="pc-switch-row" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-showDiagnostics="@(!Model.ShowDiagnostics)"><span class="pc-switch @(Model.ShowDiagnostics ? "on" : string.Empty)"></span><span>Show hidden resources</span></a>
+                <a class="pc-link" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-showDiagnostics="true">◉ View inactive resources</a>
+            </div>
+        </aside>
+
+        <div class="pc-card pc-browser">
+            <div class="pc-browser-top">
+                <div class="pc-crumbs">
+                    <a asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory">@Model.BrowseCategory</a>
+                    @if (!string.IsNullOrWhiteSpace(Model.BrowsePath))
+                    {
+                        var running = string.Empty;
+                        foreach (var crumb in Model.BrowsePath.Split('/', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            running = string.IsNullOrEmpty(running) ? crumb : running + "/" + crumb;
+                            <span>›</span><a asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@running">@crumb</a>
+                        }
+                    }
+                </div>
+            </div>
+            @if (Model.IsRepositoryBrowse)
+            {
+                <partial name="_RepositoryBrowser" model="Model" />
+            }
+            else
+            {            @if (Model.BrowseEntries.Count == 0)
+            {
+                <div class="pc-empty">No matching files at this path.</div>
+            }
+            else
+            {
+                <div class="pc-table-wrap">
+                    <table class="pc-table">
+                        <thead><tr><th>Name ↑</th><th>Type</th><th>Status</th><th>Last updated</th><th>Size</th><th></th></tr></thead>
+                        <tbody>
+                        @foreach (var entry in Model.BrowseEntries)
+                        {
+                            if (entry.IsFolder)
+                            {
+                                <tr><td><a class="pc-file-name" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@entry.Path"><span class="pc-icon folder" aria-hidden="true"></span>@entry.Name</a></td><td class="pc-type">Folder</td><td>—</td><td>—</td><td>@entry.DescendantCount file(s)</td><td class="pc-kebab"><details class="pc-menu"><summary aria-label="Folder actions">⋮</summary><div class="pc-menu-pop"><a asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@entry.Path">Open folder</a></div></details></td></tr>
+                            }
+                            else if (entry.Resource is not null)
+                            {
+                                var resource = entry.Resource;
+                                <tr class="@(selected?.ResourceId == resource.ResourceId ? "selected" : string.Empty)">
+                                    <td><a class="pc-file-name" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-resourceId="@resource.ResourceId"><span class="pc-icon file" aria-hidden="true"></span>@entry.Name</a></td>
+                                    <td class="pc-type">@FriendlyType(resource)</td>
+                                    <td><span class="pc-status @(resource.IsActive ? "current" : "retired")">@(resource.IsActive ? $"Current v{resource.CurrentVersionNumber}" : "Retired")</span></td>
+                                    <td>@RelativeTime(resource.UpdatedAtUtc)</td><td>@(resource.SizeBytes is long size ? FormatBytes(size) : "—")</td><td class="pc-kebab"><details class="pc-menu"><summary aria-label="File actions">⋮</summary><div class="pc-menu-pop"><a asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-resourceId="@resource.ResourceId">Open details</a>@if (resource.CurrentVersionId is Guid rowCurrentVersionId){<a asp-page-handler="Download" asp-route-projectId="@Model.Project.Id" asp-route-resourceVersionId="@rowCurrentVersionId">Download current</a>}<a asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-resourceId="@resource.ResourceId">View history</a>@if(Model.CanManage && resource.IsActive){<form method="post" asp-page-handler="Retire" asp-route-projectId="@Model.Project.Id" asp-route-resourceId="@resource.ResourceId"><button class="danger" type="submit">Retire file</button></form>}</div></details></td>
+                                </tr>
+                                @if (selected?.ResourceId == resource.ResourceId)
+                                {
+                                    foreach (var backup in selectedVersions.Where(version => !version.IsCurrent))
+                                    {
+                                        <tr><td style="padding-left:34px;color:#667085"><span class="pc-file-name" style="font-weight:500;color:#667085"><span class="pc-icon backup" aria-hidden="true"></span>@entry.Name</span></td><td class="pc-type">@FriendlyType(resource)</td><td><span class="pc-status backup">@($"Backup v{backup.VersionNumber}")</span></td><td>@RelativeTime(backup.CreatedAtUtc)</td><td>@FormatBytes(backup.SizeBytes)</td><td class="pc-kebab"><details class="pc-menu"><summary aria-label="Backup actions">⋮</summary><div class="pc-menu-pop"><a asp-page-handler="Download" asp-route-projectId="@Model.Project.Id" asp-route-resourceVersionId="@backup.ResourceVersionId">Download backup</a>@if(Model.CanManage){<form method="post" asp-page-handler="Current" asp-route-projectId="@Model.Project.Id" asp-route-resourceId="@resource.ResourceId" asp-route-resourceVersionId="@backup.ResourceVersionId"><button type="submit">Restore as Current</button></form>}</div></details></td></tr>
+                                    }
+                                }
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pc-pagination"><span>Showing @(((Model.PageNumber - 1) * Model.PageSize) + 1) to @Math.Min(Model.PageNumber * Model.PageSize, Model.BrowseTotal) of @Model.BrowseTotal items</span><div class="pc-pages">@for (var p = 1; p <= Math.Min(Model.PageCount, 5); p++){<a class="pc-page-link @(p == Model.PageNumber ? "active" : string.Empty)" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-q="@Model.SearchQuery" asp-route-filter="@Model.Filter" asp-route-page="@p" asp-route-pageSize="@Model.PageSize">@p</a>}<span>…</span><select class="pc-select" style="height:31px" onchange="location.href='?projectId=@Model.Project.Id&category=@Uri.EscapeDataString(Model.BrowseCategory ?? string.Empty)&path=@Uri.EscapeDataString(Model.BrowsePath)&pageSize='+this.value"><option value="10" selected="@(Model.PageSize == 10 ? "selected" : null)">10 / page</option><option value="20" selected="@(Model.PageSize == 20 ? "selected" : null)">20 / page</option><option value="50" selected="@(Model.PageSize == 50 ? "selected" : null)">50 / page</option></select></div></div>
+            }
+            }
+        </div>
+
+        @if (!Model.IsRepositoryBrowse && selected is not null)
+        {
+        <aside class="pc-card pc-drawer">
+            <div class="pc-drawer-title"><span>@(selected?.DisplayName ?? "File details")</span><a class="pc-drawer-close" aria-label="Close file properties" asp-route-projectId="@Model.Project.Id" asp-route-category="@Model.BrowseCategory" asp-route-path="@Model.BrowsePath" asp-route-q="@Model.SearchQuery" asp-route-filter="@Model.Filter" asp-route-page="@Model.PageNumber" asp-route-pageSize="@Model.PageSize">&times;</a></div>
+            <div class="pc-tabs"><button class="pc-tab active" data-pc-tab="details">Details</button><button class="pc-tab" data-pc-tab="history">History (@selectedVersions.Count)</button><button class="pc-tab" data-pc-tab="preview">Preview</button><button class="pc-tab" data-pc-tab="diagnostics">Diagnostics</button></div>
+            @if (selected is null)
+            {
+                <div class="pc-empty">Select a file to view details.</div>
+            }
+            else
+            {
+                <div class="pc-tab-panel active" data-pc-panel="details">
+                    <div class="pc-info"><strong>File information</strong>
+                        <dl class="pc-info-row"><dt>Logical path</dt><dd>@(selected.LogicalPath ?? selected.LogicalKey)</dd></dl><dl class="pc-info-row"><dt>Type</dt><dd>@FriendlyType(selected)</dd></dl><dl class="pc-info-row"><dt>Status</dt><dd><span class="pc-status current">Current</span></dd></dl><dl class="pc-info-row"><dt>Current version</dt><dd>@($"v{selected.CurrentVersionNumber}")</dd></dl><dl class="pc-info-row"><dt>Size</dt><dd>@(selected.SizeBytes is long selectedSize ? FormatBytes(selectedSize) : "—")</dd></dl><dl class="pc-info-row"><dt>Content type</dt><dd>@(selected.ContentType ?? "—")</dd></dl><dl class="pc-info-row"><dt>SHA-256</dt><dd><code>@ShortHash(selected.Sha256, 28)</code></dd></dl><dl class="pc-info-row"><dt>Last updated</dt><dd>@RelativeTime(selected.UpdatedAtUtc)</dd></dl><dl class="pc-info-row"><dt>Agent readable</dt><dd>@(selected.AgentReadable == true ? "✓ Yes" : "No")</dd></dl><dl class="pc-info-row"><dt>Authoritative</dt><dd>@(selected.IsAuthoritative ? "✓ Yes" : "No")</dd></dl>
+                    </div>
+                    <div class="pc-actions">
+                        <button class="pc-btn pc-tab-link" type="button" data-target="preview">◉ View current</button>
+                        @if (selected.CurrentVersionId is Guid currentVersionId){<a class="pc-btn" asp-page-handler="Download" asp-route-projectId="@Model.Project.Id" asp-route-resourceVersionId="@currentVersionId">⇩ Download</a>}
+                        <button class="pc-btn pc-tab-link" type="button" data-target="history">◷ View history</button><button class="pc-btn pc-tab-link" type="button" data-target="history">↻ Restore from backup</button>
+                        @if (Model.CanManage && selected.IsActive){<form method="post" asp-page-handler="Retire" asp-route-projectId="@Model.Project.Id" asp-route-resourceId="@selected.ResourceId" class="wide"><button class="pc-btn danger" style="width:100%;justify-content:center" type="submit">♲ Retire file</button></form>}
+                    </div>
+                </div>
+                <div class="pc-tab-panel" data-pc-panel="history"><div class="pc-history-list">@foreach(var version in selectedVersions){<div class="pc-history-item"><strong>@($"v{version.VersionNumber} {(version.IsCurrent ? "Current" : "Backup")}")</strong><div class="pc-history-meta"><span>@RelativeTime(version.CreatedAtUtc)</span><span>@FormatBytes(version.SizeBytes)</span></div><div class="pc-note"><code>@ShortHash(version.Sha256, 18)</code></div>@if(Model.CanManage && !version.IsCurrent){<form method="post" asp-page-handler="Current" asp-route-projectId="@Model.Project.Id" asp-route-resourceId="@selected.ResourceId" asp-route-resourceVersionId="@version.ResourceVersionId" style="margin-top:7px"><button class="pc-btn" type="submit">Restore as Current</button></form>}</div>}</div></div>
+                <div class="pc-tab-panel" data-pc-panel="preview">@if (!string.IsNullOrWhiteSpace(Model.SelectedPreviewText)){<pre class="pc-preview">@Model.SelectedPreviewText</pre>}else{<div class="pc-empty">Inline preview is available for bounded text files. Use Download for this file type.</div>}</div>
+                <div class="pc-tab-panel" data-pc-panel="diagnostics"><div class="pc-info"><strong>Diagnostics</strong><dl class="pc-info-row"><dt>Resource ID</dt><dd><code>@selected.ResourceId</code></dd></dl><dl class="pc-info-row"><dt>Current version ID</dt><dd><code>@selected.CurrentVersionId</code></dd></dl><dl class="pc-info-row"><dt>Classification</dt><dd>@(selected.Classification ?? "—")</dd></dl><dl class="pc-info-row"><dt>Archive</dt><dd>@(selected.ArchiveType ?? "No")</dd></dl></div></div>
+            }
+        </aside>
+        }
+        @if (Model.SelectedRepository is not null)
+        {
+            <partial name="_RepositoryDrawer" model="Model" />
+        }
+    </section>
+
+    <section class="pc-bottom">
+        <div class="pc-card"><div class="pc-panel-head">Recent imports &amp; reconciliation</div><div class="pc-activity"><table><thead><tr><th>Started</th><th>Source</th><th>Files</th><th>Authoritative</th><th>Other</th><th>Result</th></tr></thead><tbody>@if(Model.RecentActivity.Count==0){<tr><td colspan="6">No recent context activity.</td></tr>}else{@foreach(var row in Model.RecentActivity){<tr><td>@RelativeTime(row.UpdatedAtUtc)</td><td>@row.Collection</td><td>@row.Files</td><td>@row.Authoritative</td><td>@row.Other</td><td><span class="pc-result">✓ Successful</span></td></tr>}}</tbody></table><div style="padding-top:10px"><a class="pc-link" asp-route-projectId="@Model.Project.Id" asp-route-showDiagnostics="true">View all import history</a></div></div></div>
+        <div class="pc-card"><div class="pc-panel-head">Storage breakdown</div><div class="pc-storage"><div class="pc-donut" aria-label="Storage breakdown chart"></div><div class="pc-storage-list">@foreach(var slice in Model.StorageBreakdown){<div class="pc-storage-row"><span class="pc-dot"></span><span>@slice.Name</span><span>@FormatBytes(slice.Bytes) (@slice.Percent.ToString("N0")%)</span></div>}<div style="border-top:1px solid #eef1f5;padding-top:8px;font-size:12px"><strong>Total</strong> @FormatBytes(Model.CurrentStorageBytes)</div></div></div></div>
+    </section>
+</div>
+
+@if (Model.CanUpload)
+{
+<dialog class="pc-modal" id="pc-upload-dialog"><div class="pc-modal-head"><strong>Upload files</strong><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">×</button></div><form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-projectId="@Model.Project.Id" class="pc-modal-body"><div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div><div class="pc-form-grid"><label class="pc-field wide"><span>File(s)</span><input asp-for="Input.Files" type="file" multiple /><small>Limit: @(Model.Capabilities.MaxUploadBytes/(1024*1024)) MiB per file.</small></label><label class="pc-field"><span>Logical path / name</span><input asp-for="Input.LogicalName" /></label><label class="pc-field"><span>Category</span><select asp-for="Input.Category"><option>Source Code</option><option>Documentation</option><option>Architecture</option><option>Requirements</option><option>Reference Files</option><option>Design Assets</option><option>Configuration</option><option>Test Data</option><option>Evidence</option></select></label><label class="pc-field wide"><span>Description</span><textarea asp-for="Input.Description" rows="2"></textarea></label><label class="pc-field wide"><span>Tags</span><input asp-for="Input.Tags" /></label><div class="pc-checks"><label class="pc-check"><input asp-for="Input.MarkCurrent"/> Make uploaded content Current</label><label class="pc-check"><input asp-for="Input.AgentReadable"/> Agent readable</label><label class="pc-check"><input asp-for="Input.IsAuthoritative"/> Authoritative context</label></div></div><div class="pc-modal-foot"><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">Cancel</button><button class="pc-btn primary" type="submit">Upload files</button></div></form></dialog>
+}
+@if (Model.CanImportLocalFolder)
+{
+<dialog class="pc-modal" id="pc-import-dialog"><div class="pc-modal-head"><strong>Import Folder</strong><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">×</button></div><form method="post" asp-page-handler="ImportFolder" asp-route-projectId="@Model.Project.Id" class="pc-modal-body"><div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div><div class="pc-form-grid"><label class="pc-field wide"><span>Folder path on Dynomax host</span><input asp-for="FolderInput.FolderPath" /></label><label class="pc-field"><span>Collection path</span><input asp-for="FolderInput.LogicalName" /></label><label class="pc-field"><span>Category</span><select asp-for="FolderInput.Category"><option>Source Code</option><option>Documentation</option><option>Architecture</option><option>Requirements</option><option>Reference Files</option><option>Design Assets</option><option>Configuration</option><option>Test Data</option><option>Evidence</option></select></label><label class="pc-field wide"><span>Description</span><textarea asp-for="FolderInput.Description" rows="2"></textarea></label><label class="pc-field wide"><span>Tags</span><input asp-for="FolderInput.Tags" /></label><div class="pc-checks"><label class="pc-check"><input asp-for="FolderInput.ExcludeGeneratedDirectories"/> Exclude generated/vendor folders</label><label class="pc-check"><input asp-for="FolderInput.MarkCurrent"/> Make reconciled files Current</label><label class="pc-check"><input asp-for="FolderInput.AgentReadable"/> Agent readable</label><label class="pc-check"><input asp-for="FolderInput.IsAuthoritative"/> Authoritative context</label></div></div><div class="pc-modal-foot"><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">Cancel</button><button class="pc-btn primary" type="submit">Reconcile folder</button></div></form></dialog>
+}
+
+<script>
+(() => {
+  const activate = name => {
+    document.querySelectorAll('.pc-tab').forEach(x => x.classList.toggle('active', x.dataset.pcTab === name));
+    document.querySelectorAll('.pc-tab-panel').forEach(x => x.classList.toggle('active', x.dataset.pcPanel === name));
+  };
+  document.querySelectorAll('.pc-tab').forEach(x => x.addEventListener('click', () => activate(x.dataset.pcTab)));
+  document.querySelectorAll('.pc-tab-link').forEach(x => x.addEventListener('click', () => activate(x.dataset.target)));
+})();
+</script>
+
+@functions {
+    static string FormatBytes(long bytes) => bytes >= 1024L * 1024 * 1024 ? $"{bytes / 1024d / 1024d / 1024d:N1} GiB" : bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:N1} MiB" : bytes >= 1024 ? $"{bytes / 1024d:N1} KiB" : $"{bytes} B";
+    static string ShortHash(string? value, int length) => string.IsNullOrWhiteSpace(value) ? "—" : value[..Math.Min(length, value.Length)];
+    static string FriendlyType(Dynomax.Application.ProjectContext.ProjectContextResourceSummary resource) { var ext = global::System.IO.Path.GetExtension(resource.FileName ?? resource.DisplayName); return string.IsNullOrWhiteSpace(ext) ? (resource.ContentType ?? "File") : ext.TrimStart('.').ToUpperInvariant(); }
+    static string RelativeTime(DateTime utc) { var age = DateTime.UtcNow - utc; if (age.TotalMinutes < 1) return "just now"; if (age.TotalHours < 1) return $"{Math.Max(1,(int)age.TotalMinutes)} min ago"; if (age.TotalDays < 1) return $"{Math.Max(1,(int)age.TotalHours)} hours ago"; if (age.TotalDays < 7) return $"{Math.Max(1,(int)age.TotalDays)} days ago"; return utc.ToLocalTime().ToString("yyyy-MM-dd"); }
+}

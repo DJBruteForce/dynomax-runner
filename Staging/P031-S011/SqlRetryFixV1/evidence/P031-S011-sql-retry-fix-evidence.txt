@@ -1,0 +1,16 @@
+P031-S011 SQL retry connect fix evidence
+issueAgentId=87f8b40c-968a-4579-8a17-418e042bb663
+sourceFilesChanged=1
+realCheckoutModified=false
+databaseModified=false
+githubNetworkCall=false
+realGitHubPatRead=false
+portalReleaseBuild=PASS
+createExecutionStrategy=PASS
+externalValidationBeforeRetryUnit=PASS
+serializableTransactionInsideRetryUnit=PASS
+migrationDirectoryUnchanged=PASS
+migrationRequired=false
+connectorContractChanged=false
+sourceSha256=bbaca035abf1dfb4c7b765f237dc862faa302612249e6e66a2b10d101b95e129
+sourcePath=src/Dynomax.Infrastructure/ProjectContext/Repositories/RepositoryConnectionService.cs

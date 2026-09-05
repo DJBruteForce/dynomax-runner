@@ -1,0 +1,13 @@
+P031-S012 UI authoring marker diagnostic
+styleClose=True
+metric=False
+filterSelect=True
+browseMarker=True
+browserCloseMarker=True
+drawerMarker=True
+drawerIndex=24156
+drawerEndIndex=28633
+repoMetricAlready=False
+repoCssAlready=False
+repoBrowserPartialExists=True
+repoDrawerPartialExists=True

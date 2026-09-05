@@ -1,0 +1,21 @@
+P031-S015 predeploy evidence
+portalReleaseBuild=PASS
+disposableGitMirrorAcceptance=PASS
+sourceFilesChangedNew=3
+migrationRequired=false
+connectorContractChanged=false
+connectorRescanRequired=false
+githubMutationPerformed=false
+databaseModified=false
+credentialPersistedInRemoteUrl=false
+credentialPersistedInGitConfig=false
+perRepositoryFetchLock=PASS
+ttlRefreshSemantics=PASS
+quotaLruCleanup=PASS
+largeRepositoryBounds=PASS
+bulkRefreshBound=PASS
+rateLimitBackoffHandler=PASS
+--- SHA256 ---
+c21f39fc9669fb79e78cdc1cbb6e49ed774a48ed018af53fb3ad3a620b6b82e8  src/Dynomax.Infrastructure/ProjectContext/Repositories/RepositoryGitCacheService.cs
+94a8927f538f21ad9a1f00d77f781a3b65235461b074d48095de373036e27654  src/Dynomax.Infrastructure/ProjectContext/Repositories/GitHubRepositoryRetryHandler.cs
+5875b499c2f0183a147d282908dd6a8ecb963a31d1f1b3fa471891f57a4d357d  src/Dynomax.Infrastructure/DependencyInjection.cs

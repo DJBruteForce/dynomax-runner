@@ -74,6 +74,35 @@ WHERE p.ProjectKey=@ProjectKey;
     finally { $connection.Dispose() }
 }
 
+function Resume-DynomaxTestRun {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$SqlConfig,
+        [Parameter(Mandatory)][Guid]$RunId,
+        [Parameter(Mandatory)][string]$WorkingDirectory
+    )
+    $connection=Open-DynomaxConnection -SqlConfig $SqlConfig
+    try{
+        $changed=Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+UPDATE dmx.TestRun
+SET Status=N'RUNNING',EndedAtUtc=NULL,Summary=NULL,WorkingDirectory=@WorkingDirectory
+WHERE RunId=@RunId AND Status=N'WAITING_FOR_USER';
+'@ -Parameters @{ '@RunId'=$RunId; '@WorkingDirectory'=$WorkingDirectory }
+        if([int]$changed -ne 1){throw "Core TestRun '$RunId' is not waiting and cannot be resumed in-place."}
+    }finally{$connection.Dispose()}
+}
+
+function Set-DynomaxTestRunWaitingForUser {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$SqlConfig,[Parameter(Mandatory)][Guid]$RunId,[string]$Summary)
+    $connection=Open-DynomaxConnection -SqlConfig $SqlConfig
+    try{
+        [void](Invoke-DynomaxSqlNonQuery -Connection $connection -CommandText @'
+UPDATE dmx.TestRun SET Status=N'WAITING_FOR_USER',EndedAtUtc=NULL,Summary=@Summary WHERE RunId=@RunId;
+'@ -Parameters @{ '@Summary'=$(if($Summary){$Summary}else{[DBNull]::Value}); '@RunId'=$RunId })
+    }finally{$connection.Dispose()}
+}
+
 function Complete-DynomaxTestRun {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$SqlConfig,[Parameter(Mandatory)][Guid]$RunId,[Parameter(Mandatory)][string]$Status,[string]$Summary)

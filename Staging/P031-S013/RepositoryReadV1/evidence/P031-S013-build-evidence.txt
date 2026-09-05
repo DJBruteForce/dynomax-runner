@@ -1,0 +1,30 @@
+P031-S013 repository read surface predeploy evidence
+portalReleaseBuild=PASS
+sourceFilesChangedNew=5
+migrationRequired=false
+connectorContractChanged=false
+connectorRescanRequired=false
+githubMutationPerformed=false
+databaseModified=false
+realGitHubPatRead=false
+readOnlyHttpMethodsOnly=PASS
+projectContextReadAccessGate=PASS
+repositoryActiveAndAllowReadGate=PASS
+exactCommitShaGate=PASS
+canonicalPathTraversalGate=PASS
+symlinkFollowDenied=PASS
+treeEntryBound=50000
+treePageBound=1000
+searchRepositoryBound=20
+searchFileBoundPerRepository=5000
+searchMatchBound=200
+textResponseCharBound=200000
+binarySegmentBound=2097152
+largeRepositoryCacheStrategyDeferred=P031-S015
+mcpPublicationDeferred=P031-S030
+--- SHA256 changed/new source ---
+3f23ebac2ca72c098d9404872b1c1c9cd9fcf2aecd21f95bef2951f44afb5876  src/Dynomax.Application/ProjectContext/Repositories/RepositoryReadContracts.cs
+a76d3ddb29333594e0bad77f3b37a00e69388b00d1a76c9e421c3b4008b19eee  src/Dynomax.Infrastructure/ProjectContext/Repositories/GitHubRepositoryReadProviderClient.cs
+53c698714fb92f52af704f2911ba65433ac94a2ca3c6352e5e4a437a013cb126  src/Dynomax.Infrastructure/ProjectContext/Repositories/RepositoryReadService.cs
+3cf80140d29d3fcbec43b8d910e3e368c2cee7dadf992e605552f28b59d57e68  src/Dynomax.Portal/ProjectContext/RepositoryReadController.cs
+18ed15b2e534238869610264591b116b0c96604283fc07f746d8d8296f277681  src/Dynomax.Infrastructure/DependencyInjection.cs

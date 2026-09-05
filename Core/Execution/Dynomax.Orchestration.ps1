@@ -56,6 +56,8 @@ function Invoke-DynomaxControlFlowOperation {
     if(-not $SkipEventSync){
         [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $SqlConfig -RunId $RunId -RunDirectory $RunDirectory -Connection $Connection -State $state -SkipStateWrite:$SkipStateWrite)
     }
+    $waitingForUser=[bool](Get-DynomaxPropertyValue -Object $state -Name 'waitingForUser' -DefaultValue $false)
+    if($waitingForUser){return 'WAITING_FOR_USER'}
     $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
     if($terminalStatus){return ('TERMINAL_{0}' -f $terminalStatus.ToUpperInvariant())}
     return 'CONTINUE'

@@ -1,0 +1,14 @@
+﻿P031-S008 authoritative isolated baseline build
+buildExit=
+1
+resultCode=
+21
+--- sanitized relevant output ---
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Application\Dynomax.Application.csproj]
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Domain\Dynomax.Domain.csproj]
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Portal\Dynomax.Portal.csproj]
+Build FAILED.
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Application\Dynomax.Application.csproj]
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Domain\Dynomax.Domain.csproj]
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [<RUN_CHECKOUT>\src\Dynomax.Portal\Dynomax.Portal.csproj]
+    3 Error(s)

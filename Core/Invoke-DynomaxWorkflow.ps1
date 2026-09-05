@@ -5,6 +5,7 @@ param(
     [string]$RuntimeProjectFolder,
     [string]$ContextSeedPath,
     [string]$RunContractPath,
+    [string]$InteractionCheckpointPath,
     [string]$CoreDiagnosticPath,
     [switch]$SuppressClipboard
 )
@@ -23,6 +24,8 @@ $root=$current
 . (Join-Path $root 'Core\Execution\Dynomax.ExecutionPolicy.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.ControlFlow.ps1')
 . (Join-Path $root 'Core\Execution\Dynomax.Workflow.ps1')
+. (Join-Path $root 'Core\Execution\Dynomax.RuntimeContext.ps1')
+. (Join-Path $root 'Core\Execution\Dynomax.Parallel.ps1')
 
 
 function ConvertTo-DynomaxBoundedDiagnosticMessage {
@@ -104,7 +107,7 @@ function Test-DynomaxSqlEvidenceCandidate {
        $relative.StartsWith('project-export/',[System.StringComparison]::OrdinalIgnoreCase)){
         return $true
     }
-    return $relative -match '(?i)^(preflight\.json|core-diagnostics\.jsonl|control-flow-state\.json|orchestration-performance\.jsonl|execution-attempts\.jsonl|robot-console\.log|runtime-control-flow\.json|discovery-[^/]+\.json)$'
+    return $relative -match '(?i)^(preflight\.json|core-diagnostics\.jsonl|control-flow-state\.json|orchestration-performance\.jsonl|execution-attempts\.jsonl|parallel-execution\.jsonl|robot-console\.log|runtime-control-flow\.json|parallel/[^/]+/branch-[^/]+/branch-result\.json|discovery-[^/]+\.json)$'
 }
 
 function Copy-DynomaxRobotResultEvidence {
@@ -210,12 +213,13 @@ function Write-DynomaxCoreDiagnostic {
     }catch{}
 }
 Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'Startup' -Message 'Dynomax Core workflow startup began.' -CoreRunId ([Guid]::Empty)
-$context=[ordered]@{schemaVersion=3;secretKeys=@();sensitiveKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{};continuation=$null}
+$context=[ordered]@{schemaVersion=4;secretKeys=@();sensitiveKeys=@();values=[ordered]@{workflowBlocked=$false;projectKey=[string]$workflow.projectKey;environment=[string]$workflow.environment;workflowVersionId=[string]$workflowVersionId;workflowVersion=[int]$workflowVersionRecord.VersionNumber};runDataPool=[ordered]@{schemaVersion=1;steps=[ordered]@{}};stepInputs=[ordered]@{};runtimeValues=[ordered]@{};runtimePolicy=[ordered]@{};continuation=$null}
+$interactionResume=$null
 if($ContextSeedPath){
     $resolvedSeedPath=[System.IO.Path]::GetFullPath($ContextSeedPath)
     if(-not(Test-Path -LiteralPath $resolvedSeedPath -PathType Leaf)){throw "Context seed does not exist: $resolvedSeedPath"}
     $seed=Read-DynomaxJson -Path $resolvedSeedPath
-    $seedSchema=[int](Get-DynomaxPropertyValue -Object $seed -Name 'schemaVersion' -DefaultValue 0); if($seedSchema -notin @(1,2,3)){throw 'Context seed schemaVersion must be 1, 2 or 3.'}
+    $seedSchema=[int](Get-DynomaxPropertyValue -Object $seed -Name 'schemaVersion' -DefaultValue 0); if($seedSchema -notin @(1,2,3,4)){throw 'Context seed schemaVersion must be 1, 2, 3 or 4.'}
     $seedValues=Get-DynomaxPropertyValue -Object $seed -Name 'values' -DefaultValue $null
     if($null -eq $seedValues){throw 'Context seed values are required.'}
     $seedSecretKeys=@(Get-DynomaxPropertyValue -Object $seed -Name 'secretKeys' -DefaultValue @())
@@ -247,13 +251,26 @@ if($ContextSeedPath){
     }
     $seedContinuation=Get-DynomaxPropertyValue -Object $seed -Name 'continuation' -DefaultValue $null
     if($null -ne $seedContinuation){
-        if($seedSchema -ne 3 -or $seedContinuation -isnot [System.Management.Automation.PSCustomObject]){throw 'Continuation context requires context seed schemaVersion 3 and a JSON object.'}
+        if($seedSchema -lt 3 -or $seedContinuation -isnot [System.Management.Automation.PSCustomObject]){throw 'Continuation context requires context seed schemaVersion 3 or later and a JSON object.'}
         $context.continuation=$seedContinuation
+    }
+    $seedInteractionResume=Get-DynomaxPropertyValue -Object $seed -Name 'interactionResume' -DefaultValue $null
+    if($null -ne $seedInteractionResume){
+        if($seedSchema -ne 4 -or $seedInteractionResume -isnot [System.Management.Automation.PSCustomObject]){throw 'Interaction resume requires context seed schemaVersion 4 and a JSON object.'}
+        $interactionResume=$seedInteractionResume
     }
 }
 Write-DynomaxJson -Value $context -Path $contextPath
-$runId=New-DynomaxTestRun -SqlConfig $sqlConfig -ProjectKey ([string]$workflow.projectKey) -WorkflowKey ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -EnvironmentKey ([string]$workflow.environment) -WorkingDirectory $runDirectory -PackageHash $packageHash
-Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'TestRunCreated' -Message 'Internal Core TestRun was created.' -CoreRunId $runId
+if($null -ne $interactionResume){
+    $resumeRunId=[Guid]::Empty
+    if(-not[Guid]::TryParse([string](Get-DynomaxPropertyValue -Object $interactionResume -Name 'coreRunId' -DefaultValue ''),[ref]$resumeRunId) -or $resumeRunId -eq [Guid]::Empty){throw 'Interaction resume is missing the existing Core Run identity.'}
+    $runId=$resumeRunId
+    Resume-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -WorkingDirectory $runDirectory
+    Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'TestRunResumed' -Message 'Existing internal Core TestRun resumed in-place for User Interaction continuation.' -CoreRunId $runId
+}else{
+    $runId=New-DynomaxTestRun -SqlConfig $sqlConfig -ProjectKey ([string]$workflow.projectKey) -WorkflowKey ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -EnvironmentKey ([string]$workflow.environment) -WorkingDirectory $runDirectory -PackageHash $packageHash
+    Write-DynomaxCoreDiagnostic -Level 'Information' -Stage 'TestRunCreated' -Message 'Internal Core TestRun was created.' -CoreRunId $runId
+}
 $directPersistedContextCache=@{}
 if($RunContractPath){
     try{
@@ -389,223 +406,64 @@ $processHeartbeatSeconds=[int](Get-DynomaxPropertyValue -Object $config.logging 
 $timeout=[int](Get-DynomaxPropertyValue -Object $workflow -Name 'timeoutSeconds' -DefaultValue 0)
 $python=$null
 
-function Set-DynomaxDynamicContextProperty {
-    param([Parameter(Mandatory)]$Object,[Parameter(Mandatory)][string]$Name,$Value)
-    $property=$Object.PSObject.Properties[$Name]
-    if($null -eq $property){
-        $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
-    }else{
-        $property.Value=$Value
-    }
-}
-
-function Get-DynomaxContinuationDecision {
-    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
-    $continuationContext=Read-DynomaxJson -Path $ContextPath
-    $continuation=Get-DynomaxPropertyValue -Object $continuationContext -Name 'continuation' -DefaultValue $null
-    if($null -eq $continuation){return 'EXECUTE'}
-    $plan=Get-DynomaxPropertyValue -Object $continuation -Name 'plan' -DefaultValue $null
-    if($null -eq $plan){throw 'Continuation context has no immutable plan.'}
-    $matches=@((Get-DynomaxPropertyValue -Object $plan -Name 'items' -DefaultValue @())|Where-Object{
-        [string](Get-DynomaxPropertyValue -Object $_ -Name 'targetStepId' -DefaultValue '') -ceq $StepId
-    })
-    if($matches.Count -ne 1){throw "Continuation plan has no unique decision for physical step '$StepId'."}
-    $decision=([string](Get-DynomaxPropertyValue -Object $matches[0] -Name 'decision' -DefaultValue '')).ToUpperInvariant()
-    if($decision -notin @('EXECUTE','REUSE','RERUNCONTEXT','INVALIDATED','BLOCKED')){throw "Continuation plan decision '$decision' is invalid."}
-    return $decision
-}
-
-function Get-DynomaxRuntimeStepValue {
-    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)]$StepInput,[Parameter(Mandatory)][string]$Name,[int]$AttemptNumber=1)
-    switch($Name){
-        'CurrentUtc' { return [DateTime]::UtcNow.ToString('o') }
-        'AttemptNumber' { return [int][Math]::Max(1,$AttemptNumber) }
-        'NodePath' {
-            $nodePath=[string](Get-DynomaxPropertyValue -Object $StepInput -Name 'nodePath' -DefaultValue '')
-            if([string]::IsNullOrWhiteSpace($nodePath)){throw 'RuntimeValue NodePath is unavailable for this Action step.'}
-            return $nodePath
-        }
-        default {
-            $runtimeValues=Get-DynomaxPropertyValue -Object $Context -Name 'runtimeValues' -DefaultValue $null
-            if($null -eq $runtimeValues){throw "RuntimeValue '$Name' is unavailable because runtimeValues is missing from the Run context."}
-            $property=$runtimeValues.PSObject.Properties[$Name]
-            if($null -eq $property -or $null -eq $property.Value -or [string]::IsNullOrWhiteSpace([string]$property.Value)){throw "RuntimeValue '$Name' is unavailable for this Run."}
-            return $property.Value
-        }
-    }
-}
-
-function Refresh-DynomaxRuntimeStepInputContext {
-    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId,[Parameter(Mandatory)][int]$AttemptNumber)
-    $context=Read-DynomaxJson -Path $ContextPath
-    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
-    if($null -eq $active){return $false}
-    if(-not [string]::Equals([string](Get-DynomaxPropertyValue -Object $active -Name 'stepId' -DefaultValue ''),$StepId,[StringComparison]::Ordinal)){throw 'The active Dynomax step-input scope belongs to a different execution slot.'}
-    $stepInputs=Get-DynomaxPropertyValue -Object $context -Name 'stepInputs' -DefaultValue $null
-    $entryProperty=if($null -ne $stepInputs){$stepInputs.PSObject.Properties[$StepId]}else{$null}
-    if($null -eq $entryProperty){return $false}
-    $entry=$entryProperty.Value
-    $changed=$false
-    foreach($binding in @(Get-DynomaxPropertyValue -Object $entry -Name 'deferredBindings' -DefaultValue @())){
-        if([string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '') -ne 'RuntimeValue'){continue}
-        $inputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'inputName' -DefaultValue '')
-        $name=[string](Get-DynomaxPropertyValue -Object $binding -Name 'name' -DefaultValue '')
-        if(-not $inputName -or -not $name){throw 'A Dynomax runtime-value binding is incomplete.'}
-        Set-DynomaxDynamicContextProperty -Object $context.values -Name $inputName -Value (Get-DynomaxRuntimeStepValue -Context $context -StepInput $entry -Name $name -AttemptNumber $AttemptNumber)
-        $changed=$true
-    }
-    if($changed){
-        $runtimeValues=Get-DynomaxPropertyValue -Object $context -Name 'runtimeValues' -DefaultValue $null
-        if($null -ne $runtimeValues){
-            Set-DynomaxDynamicContextProperty -Object $runtimeValues -Name 'AttemptNumber' -Value ([int][Math]::Max(1,$AttemptNumber))
-            Set-DynomaxDynamicContextProperty -Object $runtimeValues -Name 'CurrentUtc' -Value ([DateTime]::UtcNow.ToString('o'))
-        }
-        Write-DynomaxJson -Value $context -Path $ContextPath
-    }
-    return $changed
-}
-
-function Get-DynomaxRunDataPoolOutputEntry {
-    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][string]$SourceStepId,[Parameter(Mandatory)][string]$OutputName)
-    $pool=Get-DynomaxPropertyValue -Object $Context -Name 'runDataPool' -DefaultValue $null
-    $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
-    $stepProperty=if($null -ne $steps){$steps.PSObject.Properties[$SourceStepId]}else{$null}
-    if($null -eq $stepProperty){throw "Required Dynomax source step '$SourceStepId' has no captured outputs."}
-    $outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null
-    $outputProperty=if($null -ne $outputs){$outputs.PSObject.Properties[$OutputName]}else{$null}
-    if($null -eq $outputProperty -or -not [bool](Get-DynomaxPropertyValue -Object $outputProperty.Value -Name 'available' -DefaultValue $false)){
-        throw "Required Dynomax output '$OutputName' from source step '$SourceStepId' is unavailable."
-    }
-    return $outputProperty.Value
-}
-
-function Get-DynomaxRunDataPoolOutputValue {
-    param([Parameter(Mandatory)]$Context,[Parameter(Mandatory)][string]$SourceStepId,[Parameter(Mandatory)][string]$OutputName)
-    $entry=Get-DynomaxRunDataPoolOutputEntry -Context $Context -SourceStepId $SourceStepId -OutputName $OutputName
-    return (Get-DynomaxPropertyValue -Object $entry -Name 'value' -DefaultValue $null)
-}
-
-function Enter-DynomaxStepInputContext {
-    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
-    $context=Read-DynomaxJson -Path $ContextPath
-    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
-    if($null -ne $active){throw 'A Dynomax step-input scope is already active; the previous Action did not restore its context.'}
-    $stepInputs=Get-DynomaxPropertyValue -Object $context -Name 'stepInputs' -DefaultValue $null
-    if($null -eq $stepInputs){return $false}
-    $entryProperty=$stepInputs.PSObject.Properties[$StepId]
-    if($null -eq $entryProperty){return $false}
-    $entry=$entryProperty.Value
-    $stepValues=Get-DynomaxPropertyValue -Object $entry -Name 'values' -DefaultValue $null
-    $resolvedValues=[ordered]@{}
-    $deferredSensitiveLookup=@{}
-    if($null -ne $stepValues){foreach($property in @($stepValues.PSObject.Properties)){$resolvedValues[[string]$property.Name]=$property.Value}}
-    foreach($binding in @(Get-DynomaxPropertyValue -Object $entry -Name 'deferredBindings' -DefaultValue @())){
-        $kind=[string](Get-DynomaxPropertyValue -Object $binding -Name 'kind' -DefaultValue '')
-        $inputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'inputName' -DefaultValue '')
-        if(-not $inputName){throw 'A Dynomax deferred binding has no inputName.'}
-        if($kind -eq 'StepOutput'){
-            $sourceStepId=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceStepId' -DefaultValue '')
-            $sourceOutputName=[string](Get-DynomaxPropertyValue -Object $binding -Name 'sourceOutputName' -DefaultValue '')
-            if(-not $sourceStepId -or -not $sourceOutputName){throw 'A Dynomax step-output binding is incomplete.'}
-            $sourceOutput=Get-DynomaxRunDataPoolOutputEntry -Context $context -SourceStepId $sourceStepId -OutputName $sourceOutputName
-            $resolvedValues[$inputName]=Get-DynomaxPropertyValue -Object $sourceOutput -Name 'value' -DefaultValue $null
-            if([string](Get-DynomaxPropertyValue -Object $sourceOutput -Name 'classification' -DefaultValue 'Normal') -eq 'SensitiveRedacted'){$deferredSensitiveLookup[$inputName]=$true}
-        }elseif($kind -eq 'RuntimeValue'){
-            $name=[string](Get-DynomaxPropertyValue -Object $binding -Name 'name' -DefaultValue '')
-            if(-not $name){throw 'A Dynomax runtime-value binding is incomplete.'}
-            $resolvedValues[$inputName]=Get-DynomaxRuntimeStepValue -Context $context -StepInput $entry -Name $name -AttemptNumber 1
-        }else{
-            throw "Deferred Dynomax binding kind '$kind' is not supported by this Core release."
-        }
-    }
-    if($resolvedValues.Count -eq 0){return $false}
-
-    $secretLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
-    $sensitiveLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$sensitiveLookup[[string]$key]=$true}}
-    $stepSecretLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $entry -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$stepSecretLookup[[string]$key]=$true}}
-    $stepSensitiveLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $entry -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$stepSensitiveLookup[[string]$key]=$true}}
-    foreach($key in @($deferredSensitiveLookup.Keys)){$stepSensitiveLookup[[string]$key]=$true}
-    $priorValues=[ordered]@{};$priorSecretFlags=[ordered]@{};$priorSensitiveFlags=[ordered]@{}
-    foreach($name in @($resolvedValues.Keys)){
-        $existing=$context.values.PSObject.Properties[$name]
-        $priorValues[$name]=[ordered]@{exists=($null -ne $existing);value=$(if($null -ne $existing){$existing.Value}else{$null})}
-        $priorSecretFlags[$name]=$secretLookup.ContainsKey($name)
-        $priorSensitiveFlags[$name]=$sensitiveLookup.ContainsKey($name)
-        Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value $resolvedValues[$name]
-        if($stepSecretLookup.ContainsKey($name)){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
-        if($stepSensitiveLookup.ContainsKey($name) -or $stepSecretLookup.ContainsKey($name)){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
-    }
-    $context.secretKeys=@($secretLookup.Keys|Sort-Object)
-    Set-DynomaxDynamicContextProperty -Object $context -Name 'sensitiveKeys' -Value @($sensitiveLookup.Keys|Sort-Object)
-    Set-DynomaxDynamicContextProperty -Object $context -Name 'activeStepInput' -Value ([pscustomobject][ordered]@{stepId=$StepId;priorValues=[pscustomobject]$priorValues;priorSecretFlags=[pscustomobject]$priorSecretFlags;priorSensitiveFlags=[pscustomobject]$priorSensitiveFlags})
-    Write-DynomaxJson -Value $context -Path $ContextPath
-    return $true
-}
-
-function Exit-DynomaxStepInputContext {
-    param([Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$StepId)
-    $context=Read-DynomaxJson -Path $ContextPath
-    $active=Get-DynomaxPropertyValue -Object $context -Name 'activeStepInput' -DefaultValue $null
-    $secretLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'secretKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$secretLookup[[string]$key]=$true}}
-    $sensitiveLookup=@{}
-    foreach($key in @(Get-DynomaxPropertyValue -Object $context -Name 'sensitiveKeys' -DefaultValue @())){if(-not [string]::IsNullOrWhiteSpace([string]$key)){$sensitiveLookup[[string]$key]=$true}}
-    if($null -ne $active){
-        if(-not [string]::Equals([string](Get-DynomaxPropertyValue -Object $active -Name 'stepId' -DefaultValue ''),$StepId,[StringComparison]::Ordinal)){throw 'The active Dynomax step-input scope belongs to a different execution slot.'}
-        foreach($triple in @(
-            @('priorValues','priorSecretFlags','priorSensitiveFlags'),
-            @('priorOutputValues','priorOutputSecretFlags','priorOutputSensitiveFlags')
-        )){
-            $priorValues=Get-DynomaxPropertyValue -Object $active -Name $triple[0] -DefaultValue $null
-            $priorSecretFlags=Get-DynomaxPropertyValue -Object $active -Name $triple[1] -DefaultValue $null
-            $priorSensitiveFlags=Get-DynomaxPropertyValue -Object $active -Name $triple[2] -DefaultValue $null
-            if($null -ne $priorValues){foreach($property in @($priorValues.PSObject.Properties)){
-                $name=[string]$property.Name;$previous=$property.Value
-                if([bool](Get-DynomaxPropertyValue -Object $previous -Name 'exists' -DefaultValue $false)){Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $previous -Name 'value' -DefaultValue $null)}else{[void]$context.values.PSObject.Properties.Remove($name)}
-                $wasSecret=$false;if($null -ne $priorSecretFlags){$sp=$priorSecretFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSecret=[bool]$sp.Value}}
-                if($wasSecret){$secretLookup[$name]=$true}else{[void]$secretLookup.Remove($name)}
-                $wasSensitive=$false;if($null -ne $priorSensitiveFlags){$sp=$priorSensitiveFlags.PSObject.Properties[$name];if($null -ne $sp){$wasSensitive=[bool]$sp.Value}}
-                if($wasSensitive){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
-            }}
-        }
-        [void]$context.PSObject.Properties.Remove('activeStepInput')
-    }
-    $pool=Get-DynomaxPropertyValue -Object $context -Name 'runDataPool' -DefaultValue $null
-    $steps=if($null -ne $pool){Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null}else{$null}
-    $stepProperty=if($null -ne $steps){$steps.PSObject.Properties[$StepId]}else{$null}
-    if($null -ne $stepProperty){
-        $outputs=Get-DynomaxPropertyValue -Object $stepProperty.Value -Name 'outputs' -DefaultValue $null
-        if($null -ne $outputs){foreach($property in @($outputs.PSObject.Properties)){
-            if([bool](Get-DynomaxPropertyValue -Object $property.Value -Name 'available' -DefaultValue $false)){
-                $name=[string]$property.Name
-                Set-DynomaxDynamicContextProperty -Object $context.values -Name $name -Value (Get-DynomaxPropertyValue -Object $property.Value -Name 'value' -DefaultValue $null)
-                if([string](Get-DynomaxPropertyValue -Object $property.Value -Name 'classification' -DefaultValue 'Normal') -eq 'SensitiveRedacted'){$sensitiveLookup[$name]=$true}else{[void]$sensitiveLookup.Remove($name)}
-            }
-        }}
-    }
-    $context.secretKeys=@($secretLookup.Keys|Sort-Object)
-    Set-DynomaxDynamicContextProperty -Object $context -Name 'sensitiveKeys' -Value @($sensitiveLookup.Keys|Sort-Object)
-    Write-DynomaxJson -Value $context -Path $ContextPath
-}
-
 function Invoke-DynomaxStepSequence {
     param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Sequence)
+    $parallelRegionNodeIds=Get-DynomaxParallelForkRegionNodeIds -Workflow $workflow
+    if($null -eq $parallelRegionNodeIds){$parallelRegionNodeIds=New-Object 'System.Collections.Generic.HashSet[string]'}
+    $parallelConsumedOrders=New-Object 'System.Collections.Generic.HashSet[int]'
     $index=0
     while($index -lt $Sequence.Count){
+        if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+            $parallelExecution=Invoke-DynomaxPendingParallelFork -Workflow $workflow -Sequence $Sequence -DynomaxRoot $root -ProjectFolder $projectFolder -WorkflowDirectory $WorkflowDirectory -RunId $runId -RunDirectory $runDirectory -ContextPath $contextPath -PowerShellPath $powerShell -PythonPath $python -SqlConfig $sqlConfig -PersistedContextCache $directPersistedContextCache -TimeoutSeconds $timeout -HeartbeatSeconds $processHeartbeatSeconds
+            if([bool](Get-DynomaxPropertyValue -Object $parallelExecution -Name 'Executed' -DefaultValue $false)){
+                foreach($consumedOrder in @((Get-DynomaxPropertyValue -Object $parallelExecution -Name 'ConsumedStepOrders' -DefaultValue @()))){[void]$parallelConsumedOrders.Add([int]$consumedOrder)}
+                if([bool](Get-DynomaxPropertyValue -Object $parallelExecution -Name 'Terminal' -DefaultValue $false)){
+                    [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence -ContextPath $contextPath)
+                    break
+                }
+            }
+        }
+
         $step=$Sequence[$index]
+        $stepOrder=[int](Get-DynomaxPropertyValue -Object $step -Name 'order' -DefaultValue 0)
+        if($parallelConsumedOrders.Contains($stepOrder)){$index++;continue}
+        $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
         $engine=[string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxEngine' -DefaultValue '')
+
+        if($parallelRegionNodeIds.Contains($logicalNodeId)){
+            $disposition='RUN'
+            if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                $decision=Get-DynomaxControlFlowDecision -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId
+                $disposition=[string]$decision.Disposition
+            }
+            if($disposition -eq 'PARALLEL_WAIT'){
+                # An active parallel Fork should have been consumed at the top of this loop.
+                # Reaching the physical branch Action here indicates an inconsistent state/plan.
+                throw "Parallel Fork scheduling did not consume branch Action '$logicalNodeId'."
+            }
+            if($disposition -eq 'SKIP_FINAL'){
+                $versionId=[Guid][string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue [Guid]::Empty)
+                Add-DynomaxActionRun -SqlConfig $sqlConfig -RunId $runId -StepOrder $stepOrder -ActionKey ([string]$step.actionId) -ActionVersionId $versionId -Status 'SKIPPED' -Message 'Physical Action slot was not selected by bounded parallel Fork execution.'
+                $index++
+                continue
+            }
+            if($disposition -eq 'DEFER'){$index++;continue}
+            throw "Parallel branch Action '$logicalNodeId' escaped isolated branch scheduling with disposition '$disposition'."
+        }
+
         if($engine -eq 'RobotBrowser'){
             $block=[System.Collections.Generic.List[object]]::new()
             while($index -lt $Sequence.Count){
                 $candidate=$Sequence[$index]
+                $candidateOrder=[int](Get-DynomaxPropertyValue -Object $candidate -Name 'order' -DefaultValue 0)
+                if($parallelConsumedOrders.Contains($candidateOrder)){$index++;continue}
                 $candidateEngine=[string](Get-DynomaxPropertyValue -Object $candidate -Name 'DynomaxEngine' -DefaultValue '')
                 if($candidateEngine -ne 'RobotBrowser'){break}
+                $candidateNodeId=[string](Get-DynomaxPropertyValue -Object $candidate -Name 'workflowNodeId' -DefaultValue ([string]$candidate.stepId))
+                if($parallelRegionNodeIds.Contains($candidateNodeId)){break}
                 $block.Add($candidate);$index++
             }
+            if($block.Count -eq 0){continue}
             $blockSteps=$block.ToArray()
             $process=Invoke-DynomaxRobotBlock -DynomaxRoot $root -ProjectFolder $projectFolder -ProjectConfig $projectConfig -Workflow $workflow -Steps $blockSteps -RunId $runId -RunDirectory $runDirectory -ContextPath $contextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -PythonPath $python -TimeoutSeconds $timeout -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds
             $outputXml=Join-Path $runDirectory 'robot-result\output.xml'
@@ -617,9 +475,6 @@ function Invoke-DynomaxStepSequence {
                     $terminalStatus=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
                     $containsMainStep=@($blockSteps|Where-Object{-not [bool](Get-DynomaxPropertyValue -Object $_ -Name 'cleanup' -DefaultValue $false)}).Count -gt 0
                     if($terminalStatus -and $containsMainStep){
-                        # Robot locally skips the remaining pre-unrolled physical tests after terminal
-                        # control flow without spawning persistence subprocesses. Fill every missing
-                        # main-sequence physical ActionRun row here, then stop scheduling this sequence.
                         [void](Add-DynomaxMissingControlFlowActionRuns -SqlConfig $sqlConfig -RunId $runId -Steps $Sequence -ContextPath $contextPath)
                         $index=$Sequence.Count
                     }
@@ -628,7 +483,6 @@ function Invoke-DynomaxStepSequence {
         }
         elseif($engine -eq 'PowerShell'){
             $disposition='RUN'
-            $logicalNodeId=[string](Get-DynomaxPropertyValue -Object $step -Name 'workflowNodeId' -DefaultValue ([string]$step.stepId))
             if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
                 $decision=Get-DynomaxControlFlowDecision -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId
                 $disposition=[string]$decision.Disposition
@@ -647,37 +501,37 @@ function Invoke-DynomaxStepSequence {
                     $postReuseContext=Read-DynomaxJson -Path $contextPath
                     Set-DynomaxContextStepInSql -SqlConfig $sqlConfig -RunId $runId -Context $postReuseContext -StepId ([string]$step.stepId) -PersistedContextCache $directPersistedContextCache
                 }else{
-                $stepInputsActivated=$false
-                $stepFailure=$null
-                try{
-                    $stepInputsActivated=[bool](Enter-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId))
+                    $stepInputsActivated=$false
+                    $stepFailure=$null
                     try{
-                        [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
-                    }catch{
-                        $stepFailure=$_
+                        $stepInputsActivated=[bool](Enter-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId))
+                        try{
+                            [void](Invoke-DynomaxPowerShellAction -DynomaxRoot $root -ProjectFolder $projectFolder -RunId $runId -Step $step -ContextPath $contextPath -RunDirectory $runDirectory -WorkflowDirectory $WorkflowDirectory -PowerShellPath $powerShell -SqlConfig $sqlConfig -StreamOutput:$streamProcessOutput -ShowCommand:$showProcessCommands -HeartbeatSeconds $processHeartbeatSeconds)
+                        }catch{$stepFailure=$_}
+                    }finally{
+                        if($stepInputsActivated){Exit-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId)}
+                        $postStepContext=Read-DynomaxJson -Path $contextPath
+                        Set-DynomaxContextStepInSql -SqlConfig $sqlConfig -RunId $runId -Context $postStepContext -StepId ([string]$step.stepId) -PersistedContextCache $directPersistedContextCache
                     }
-                }finally{
-                    if($stepInputsActivated){Exit-DynomaxStepInputContext -ContextPath $contextPath -StepId ([string]$step.stepId)}
-                    $postStepContext=Read-DynomaxJson -Path $contextPath
-                    Set-DynomaxContextStepInSql -SqlConfig $sqlConfig -RunId $runId -Context $postStepContext -StepId ([string]$step.stepId) -PersistedContextCache $directPersistedContextCache
-                }
-                if($null -ne $stepFailure){
+                    if($null -ne $stepFailure){
+                        if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                            $failureState=Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
+                            [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $failureState)
+                        }
+                        throw $stepFailure
+                    }
                     if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-                        $failureState=Fail-DynomaxControlFlowAction -Workflow $workflow -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
-                        [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $failureState)
+                        $completionState=Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
+                        [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $completionState)
                     }
-                    throw $stepFailure
-                }
-                if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-                    # Evaluate downstream control flow only after step-local inputs are restored.
-                    $completionState=Complete-DynomaxControlFlowAction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $logicalNodeId -DeferStateWrite
-                    [void](Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory -State $completionState)
-                }
                 }
             }
             elseif($disposition -eq 'SKIP_FINAL'){
                 $versionId=[Guid][string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxActionVersionId' -DefaultValue [Guid]::Empty)
-                Add-DynomaxActionRun -SqlConfig $sqlConfig -RunId $runId -StepOrder ([int]$step.order) -ActionKey ([string]$step.actionId) -ActionVersionId $versionId -Status 'SKIPPED' -Message 'Action was not selected by Workflow control flow.'
+                Add-DynomaxActionRun -SqlConfig $sqlConfig -RunId $runId -StepOrder $stepOrder -ActionKey ([string]$step.actionId) -ActionVersionId $versionId -Status 'SKIPPED' -Message 'Action was not selected by Workflow control flow.'
+            }
+            elseif($disposition -eq 'PARALLEL_WAIT'){
+                throw "Parallel Fork scheduling reached unexpected non-branch Action '$logicalNodeId'."
             }
             elseif($disposition -ne 'DEFER'){
                 throw "Unsupported control-flow disposition '$disposition' for '$logicalNodeId'."
@@ -701,7 +555,6 @@ function Invoke-DynomaxStepSequence {
     }
 }
 
-
 function Test-DynomaxPreservedCleanupBrowserSessionEligible {
     [CmdletBinding()]
     param(
@@ -709,6 +562,8 @@ function Test-DynomaxPreservedCleanupBrowserSessionEligible {
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$CleanupSteps
     )
     if($MainSteps.Count -eq 0 -or $CleanupSteps.Count -eq 0){return $false}
+    $parallelRegions=Get-DynomaxParallelForkRegionNodeIds -Workflow $workflow
+    if($parallelRegions.Count -gt 0){return $false}
     $combined=@($MainSteps)+@($CleanupSteps)
     foreach($step in $combined){
         if([string](Get-DynomaxPropertyValue -Object $step -Name 'DynomaxEngine' -DefaultValue '') -ne 'RobotBrowser'){return $false}
@@ -785,17 +640,38 @@ try{
         if(-not $python){throw 'Python was not found. Run prerequisite setup.'}
 
         if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
-            [void](Initialize-DynomaxControlFlowState -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory)
+            if($null -ne $interactionResume){
+                $resumeState=Get-DynomaxPropertyValue -Object $interactionResume -Name 'controlFlowState' -DefaultValue $null
+                $resumeNodeId=[string](Get-DynomaxPropertyValue -Object $interactionResume -Name 'nodeId' -DefaultValue '')
+                $resumeResponseSchema=Get-DynomaxPropertyValue -Object $interactionResume -Name 'responseSchema' -DefaultValue $null
+                $resumeResponseValues=Get-DynomaxPropertyValue -Object $interactionResume -Name 'responseValues' -DefaultValue $null
+                if($null -eq $resumeState -or -not $resumeNodeId -or $null -eq $resumeResponseSchema -or $null -eq $resumeResponseValues){throw 'Interaction resume is missing persisted control-flow state, checkpoint node identity, response schema or response values.'}
+                Write-DynomaxJson -Value $resumeState -Path (Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory)
+                $interactionResponseStep=Set-DynomaxInteractionResponseOutputs -ContextPath $contextPath -NodeId $resumeNodeId -ResponseSchema $resumeResponseSchema -ResponseValues $resumeResponseValues
+                Set-DynomaxRunDataPoolStepInSql -SqlConfig $sqlConfig -RunId $runId -StepId $resumeNodeId -Step $interactionResponseStep -PersistedContextCache $directPersistedContextCache
+                [void](Resume-DynomaxControlFlowInteraction -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory -NodeId $resumeNodeId)
+            }else{
+                [void](Initialize-DynomaxControlFlowState -Workflow $workflow -ContextPath $contextPath -RunDirectory $runDirectory)
+            }
             Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
         }
         $alwaysRunCleanup=[bool](Get-DynomaxPropertyValue -Object $workflow -Name 'alwaysRunCleanup' -DefaultValue $true)
-        $preserveCleanupBrowserSession=$alwaysRunCleanup -and (Test-DynomaxPreservedCleanupBrowserSessionEligible -MainSteps $mainSteps -CleanupSteps $cleanupSteps)
+        $hasUserInteraction=(Test-DynomaxControlFlowEnabled -Workflow $workflow) -and @($workflow.controlFlow.nodes|Where-Object{[string]$_.type -eq 'UserInteraction'}).Count -gt 0
+        $preserveCleanupBrowserSession=$alwaysRunCleanup -and -not $hasUserInteraction -and (Test-DynomaxPreservedCleanupBrowserSessionEligible -MainSteps $mainSteps -CleanupSteps $cleanupSteps)
         if($preserveCleanupBrowserSession){
             try{Invoke-DynomaxPreservedBrowserMainAndCleanup -MainSteps $mainSteps -CleanupSteps $cleanupSteps}catch{$executionException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Main' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
         }
         else{
             try{Invoke-DynomaxStepSequence -Sequence $mainSteps}catch{$executionException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Main' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
-            if($alwaysRunCleanup -and $cleanupSteps.Count -gt 0){
+            $waitingAfterMain=$false
+            if(Test-DynomaxControlFlowEnabled -Workflow $workflow){
+                $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+                if(Test-Path -LiteralPath $statePath -PathType Leaf){
+                    $afterMainState=Read-DynomaxJson -Path $statePath
+                    $waitingAfterMain=[bool](Get-DynomaxPropertyValue -Object $afterMainState -Name 'waitingForUser' -DefaultValue $false)
+                }
+            }
+            if(-not $waitingAfterMain -and $alwaysRunCleanup -and $cleanupSteps.Count -gt 0){
                 try{Invoke-DynomaxStepSequence -Sequence $cleanupSteps}catch{$cleanupException=$_;Write-DynomaxCoreDiagnostic -Level 'Error' -Stage 'Execution.Cleanup' -Message (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_) -CoreRunId $runId}
             }
         }
@@ -805,9 +681,11 @@ try{
             if(Test-Path -LiteralPath $statePath -PathType Leaf){
                 $controlState=Read-DynomaxJson -Path $statePath
                 $terminalStatus=[string](Get-DynomaxPropertyValue -Object $controlState -Name 'terminalStatus' -DefaultValue '')
-                if($terminalStatus -eq 'FAIL'){$overall='FAIL'}
+                $waitingForUser=[bool](Get-DynomaxPropertyValue -Object $controlState -Name 'waitingForUser' -DefaultValue $false)
+                if($waitingForUser -and -not $executionException){$overall='WAITING_FOR_USER'}
+                elseif($terminalStatus -eq 'FAIL'){$overall='FAIL'}
                 elseif($terminalStatus -eq 'PASS' -and -not $executionException){$overall='PASS'}
-                elseif(-not $terminalStatus -and -not $executionException){$overall='ERROR';$executionException=[pscustomobject]@{Exception=[System.InvalidOperationException]::new('Workflow control flow did not reach a terminal node.')}}
+                elseif(-not $terminalStatus -and -not $executionException){$overall='ERROR';$executionException=[pscustomobject]@{Exception=[System.InvalidOperationException]::new('Workflow control flow did not reach a terminal node or interaction checkpoint.')}}
             }
         }
         if($cleanupException -and $overall -eq 'PASS'){$overall='CLEANUP_FAILED'}
@@ -815,7 +693,11 @@ try{
         $message="Workflow '$($workflow.displayName)' completed with status $overall."
         if($executionException){$message += " Execution error: $($executionException.Exception.Message)"}
         if($cleanupException){$message += " Cleanup error: $($cleanupException.Exception.Message)"}
-        Complete-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -Status $overall -Summary $message
+        if($overall -eq 'WAITING_FOR_USER'){
+            Set-DynomaxTestRunWaitingForUser -SqlConfig $sqlConfig -RunId $runId -Summary 'Workflow is waiting for an authorized User Interaction response.'
+        }else{
+            Complete-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -Status $overall -Summary $message
+        }
     }
 }
 catch{
@@ -831,6 +713,47 @@ catch{
 }
 finally{
     $logicalStatus=[string]$overall
+    if($logicalStatus -eq 'WAITING_FOR_USER'){
+        try{
+            $waitingContext=Read-DynomaxJson -Path $contextPath
+            Set-DynomaxContextValuesInSql -SqlConfig $sqlConfig -RunId $runId -Context $waitingContext -PersistedContextCache $directPersistedContextCache
+            Sync-DynomaxControlFlowRunEvents -SqlConfig $sqlConfig -RunId $runId -RunDirectory $runDirectory
+            $waitingStatePath=Get-DynomaxControlFlowStatePath -RunDirectory $runDirectory
+            $waitingState=Read-DynomaxJson -Path $waitingStatePath
+            $checkpoint=Get-DynomaxPropertyValue -Object $waitingState -Name 'interactionCheckpoint' -DefaultValue $null
+            if($null -eq $checkpoint){throw 'WaitingForUser control-flow state has no interaction checkpoint descriptor.'}
+            $checkpointPayload=[ordered]@{
+                schemaVersion=1
+                coreRunId=[string]$runId
+                nodeId=[string]$checkpoint.nodeId
+                pageKey=[string]$checkpoint.pageKey
+                responseSchema=$checkpoint.responseSchema
+                checkpointContractSha256=[string]$checkpoint.checkpointContractSha256
+                nextNodeId=[string]$checkpoint.nextNodeId
+                nextEdgeId=$(if($checkpoint.nextEdgeId){[string]$checkpoint.nextEdgeId}else{$null})
+                controlFlowState=$waitingState
+                persistedAtUtc=[DateTime]::UtcNow.ToString('o')
+            }
+            $checkpointPath=Join-Path $runDirectory 'interaction-checkpoint.json'
+            Write-DynomaxJson -Value $checkpointPayload -Path $checkpointPath
+            if(-not [string]::IsNullOrWhiteSpace([string]$InteractionCheckpointPath)){
+                $checkpointHandoffPath=[System.IO.Path]::GetFullPath($InteractionCheckpointPath)
+                if(-not [string]::Equals($checkpointHandoffPath,$checkpointPath,[System.StringComparison]::OrdinalIgnoreCase)){
+                    Write-DynomaxJson -Value $checkpointPayload -Path $checkpointHandoffPath
+                }
+            }
+            if($RunContractPath){
+                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'WAITING_FOR_USER' -LogicalStatus 'WAITING_FOR_USER' -FinalizationStatus 'DeferredForUser' -FinalizationStep 'InteractionCheckpointPersisted' -ResultZipPath $null -FailureCode $null -FailureMessage $null
+            }
+        }catch{
+            $waitingFailure=ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_
+            $logicalStatus='ERROR';$overall='ERROR'
+            try{Complete-DynomaxTestRun -SqlConfig $sqlConfig -RunId $runId -Status 'ERROR' -Summary ('Interaction checkpoint persistence failed: '+$waitingFailure)}catch{}
+            if($RunContractPath){
+                try{Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'ERROR' -LogicalStatus 'ERROR' -FinalizationStatus 'Failed' -FinalizationStep 'InteractionCheckpointPersistence' -ResultZipPath $null -FailureCode 'CORE_INTERACTION_CHECKPOINT_FAILED' -FailureMessage $waitingFailure}catch{}
+            }
+        }
+    }else{
     $finalizationStatus='Running'
     $finalizationStep='Starting'
     $finalizationFailureCode=$null
@@ -894,6 +817,7 @@ finally{
         'control-flow-state.json',
         'orchestration-performance.jsonl',
         'execution-attempts.jsonl',
+        'parallel-execution.jsonl',
         'robot-console.log'
     )
     if($logicalStatus -ne 'PASS'){$rootEvidenceNames+=@('generated-workflow.robot')}
@@ -901,6 +825,16 @@ finally{
         $source=Join-Path $runDirectory $name
         if((Test-Path -LiteralPath $source -PathType Leaf) -and ((Get-Item -LiteralPath $source).Length -gt 0)){
             Copy-Item -LiteralPath $source -Destination (Join-Path $testEvidence $name) -Force
+        }
+    }
+    $parallelEvidence=Join-Path $runDirectory 'parallel'
+    if(Test-Path -LiteralPath $parallelEvidence -PathType Container){
+        $parallelTestEvidence=Ensure-DynomaxDirectory -Path (Join-Path $testEvidence 'Parallel')
+        foreach($branchResult in Get-ChildItem -LiteralPath $parallelEvidence -Filter 'branch-result.json' -File -Recurse -ErrorAction SilentlyContinue){
+            $relativeBranchResult=(Get-DynomaxRelativePath -BasePath $parallelEvidence -TargetPath $branchResult.FullName) -replace '\\','/'
+            $destination=Join-Path $parallelTestEvidence ($relativeBranchResult -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+            [void](Ensure-DynomaxDirectory -Path (Split-Path -Parent $destination))
+            Copy-Item -LiteralPath $branchResult.FullName -Destination $destination -Force
         }
     }
     $screenshots=Join-Path $runDirectory 'screenshots'
@@ -1152,7 +1086,7 @@ finally{
                 }) -Path (Join-Path $fallbackStaging 'FinalizationFailure.json')
                 # Never copy runtime context, secrets, raw console output, project configuration,
                 # or Workflow inputs into the metadata-only fallback package.
-                foreach($diagnosticPath in @((Join-Path $runDirectory 'preflight.json'),(Join-Path $runDirectory 'control-flow-state.json'),(Join-Path $runDirectory 'orchestration-performance.jsonl'))){
+                foreach($diagnosticPath in @((Join-Path $runDirectory 'preflight.json'),(Join-Path $runDirectory 'control-flow-state.json'),(Join-Path $runDirectory 'orchestration-performance.jsonl'),(Join-Path $runDirectory 'parallel-execution.jsonl'))){
                     if(Test-Path -LiteralPath $diagnosticPath -PathType Leaf){Copy-Item -LiteralPath $diagnosticPath -Destination (Join-Path $fallbackStaging ([System.IO.Path]::GetFileName($diagnosticPath))) -Force}
                 }
                 $safeProject=([string]$workflow.projectKey -replace '[^A-Za-z0-9_.-]','_')
@@ -1180,11 +1114,12 @@ finally{
             }catch{Write-Warning ("Terminal run-contract checkpoint failed: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
         }
     }
+    }
 }
 
 Write-Host ("Dynomax Run ID: {0}" -f $runId) -ForegroundColor Cyan
-Write-Host ("Overall Status: {0}" -f $overall) -ForegroundColor $(if($overall -eq 'PASS'){'Green'}else{'Red'})
-if($overall -ne 'PASS'){
+Write-Host ("Overall Status: {0}" -f $overall) -ForegroundColor $(if($overall -in @('PASS','WAITING_FOR_USER')){'Green'}else{'Red'})
+if($overall -notin @('PASS','WAITING_FOR_USER')){
     try{$problem=Get-DynomaxFirstProblem -SqlConfig $sqlConfig -RunId $runId;if($problem){Write-Host ("First problem: step {0}, {1}, {2}: {3}" -f $problem.StepOrder,$problem.ActionKey,$problem.Status,$problem.Message) -ForegroundColor Yellow}}catch{}
 }
-if($overall -eq 'PASS'){exit 0}else{exit 1}
+if($overall -in @('PASS','WAITING_FOR_USER')){exit 0}else{exit 1}

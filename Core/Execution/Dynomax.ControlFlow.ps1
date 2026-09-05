@@ -519,16 +519,22 @@ function Start-DynomaxFork {
         }
         $index++
     }
-    Set-DynomaxSystemNodeState -State $State -NodeId $forkId -Status 'Running' -Event 'ForkStarted' -Message 'Fork began deterministic FailFast branch scheduling.'
+    $maximumParallelism=[int](Get-DynomaxPropertyValue -Object $ForkNode -Name 'maximumParallelism' -DefaultValue 1)
+    if($maximumParallelism -lt 1 -or $maximumParallelism -gt 16){throw "Fork '$forkId' maximumParallelism must be between 1 and 16."}
+    $executionMode=if($maximumParallelism -gt 1){'Parallel'}else{'Sequential'}
+    Set-DynomaxSystemNodeState -State $State -NodeId $forkId -Status 'Running' -Event 'ForkStarted' -Message $(if($executionMode -eq 'Parallel'){"Fork began bounded parallel FailFast scheduling with maximumParallelism=$maximumParallelism."}else{'Fork began deterministic sequential FailFast branch scheduling.'})
     $State.activeFork=[pscustomobject][ordered]@{
         forkNodeId=$forkId
         joinNodeId=$joinId
         failurePolicy=[string](Get-DynomaxPropertyValue -Object $ForkNode -Name 'failurePolicy' -DefaultValue 'FailFast')
+        maximumParallelism=$maximumParallelism
+        executionMode=$executionMode
         startedAtUtc=[DateTime]::UtcNow.ToString('o')
         completedAtUtc=$null
         currentBranchIndex=-1
         branches=$branches
     }
+    if($executionMode -eq 'Parallel'){$State.nextActionNodeId=$null}
 }
 
 function Start-DynomaxNextForkBranch {
@@ -536,6 +542,7 @@ function Start-DynomaxNextForkBranch {
     param([Parameter(Mandatory)]$State)
     $fork=$State.activeFork
     if($null -eq $fork){return ''}
+    if([string](Get-DynomaxPropertyValue -Object $fork -Name 'executionMode' -DefaultValue 'Sequential') -eq 'Parallel'){return ''}
     $pending=@($fork.branches | Where-Object { [string]$_.status -eq 'Pending' } | Sort-Object index)
     if($pending.Count -eq 0){return ''}
     $branch=$pending[0]
@@ -630,6 +637,77 @@ function Complete-DynomaxForkBranchAtJoin {
     return [string]$edge.toNodeId
 }
 
+function Complete-DynomaxParallelFork {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Workflow,
+        [Parameter(Mandatory)][string]$ContextPath,
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][object[]]$BranchResults,
+        [switch]$DeferStateWrite,
+        $State=$null
+    )
+    $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
+    if($null -eq $State -and -not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing for parallel Fork completion.'}
+    $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
+    $fork=Get-DynomaxPropertyValue -Object $state -Name 'activeFork' -DefaultValue $null
+    if($null -eq $fork -or [string](Get-DynomaxPropertyValue -Object $fork -Name 'executionMode' -DefaultValue 'Sequential') -ne 'Parallel'){
+        throw 'No active parallel Fork is available for completion.'
+    }
+    $forkId=[string]$fork.forkNodeId
+    $joinId=[string]$fork.joinNodeId
+    $resultByIndex=@{}
+    foreach($result in @($BranchResults)){$resultByIndex[[string][int](Get-DynomaxPropertyValue -Object $result -Name 'index' -DefaultValue -1)]=$result}
+    $failed=@()
+    foreach($branch in @($fork.branches|Sort-Object index)){
+        $index=[int]$branch.index
+        $key=[string]$index
+        if(-not $resultByIndex.ContainsKey($key)){throw "Parallel Fork '$forkId' is missing branch result $index."}
+        $result=$resultByIndex[$key]
+        $status=[string](Get-DynomaxPropertyValue -Object $result -Name 'status' -DefaultValue 'Failed')
+        $branch.startedAtUtc=Get-DynomaxPropertyValue -Object $result -Name 'startedAtUtc' -DefaultValue $null
+        $branch.completedAtUtc=Get-DynomaxPropertyValue -Object $result -Name 'endedAtUtc' -DefaultValue ([DateTime]::UtcNow.ToString('o'))
+        if($status -eq 'Passed'){
+            $branch.status='Completed'
+            Add-DynomaxControlFlowTransition -State $state -FromNodeId $forkId -ToNodeId ([string]$branch.targetNodeId) -When 'Branch' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchStartedParallel' -BranchLabel ([string]$branch.label) -BranchIndex $index
+            Add-DynomaxControlFlowTransition -State $state -FromNodeId $forkId -ToNodeId $joinId -When 'Branch' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchCompletedParallel' -BranchLabel ([string]$branch.label) -BranchIndex $index
+            foreach($nodeId in @((Get-DynomaxPropertyValue -Object $result -Name 'executedActionNodeIds' -DefaultValue @()))){
+                $nodeText=[string]$nodeId
+                if($nodeText -and -not(@($state.executedActionNodeIds)-contains $nodeText)){$state.executedActionNodeIds=@($state.executedActionNodeIds)+@($nodeText)}
+            }
+        }elseif($status -eq 'Skipped'){
+            $branch.status='Skipped'
+            Add-DynomaxControlFlowTransition -State $state -FromNodeId $forkId -ToNodeId ([string]$branch.targetNodeId) -When 'Branch' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchSkippedFailFast' -BranchLabel ([string]$branch.label) -BranchIndex $index
+        }else{
+            $branch.status='Failed'
+            $failed+=,$result
+            Add-DynomaxControlFlowTransition -State $state -FromNodeId $forkId -ToNodeId ([string]$branch.targetNodeId) -When 'Failure' -EdgeId ([string]$branch.edgeId) -Event 'ForkBranchFailedParallel' -BranchLabel ([string]$branch.label) -BranchIndex $index
+        }
+    }
+    $fork.completedAtUtc=[DateTime]::UtcNow.ToString('o')
+    $state.nextActionNodeId=$null
+    if($failed.Count -gt 0){
+        $failureIndexes=@($failed|ForEach-Object{[int](Get-DynomaxPropertyValue -Object $_ -Name 'index' -DefaultValue -1)}|Sort-Object)
+        Set-DynomaxSystemNodeState -State $state -NodeId $forkId -Status 'FAIL' -Event 'ForkFailedFastParallel' -Message ("Parallel Fork failed in branch index(es): {0}." -f ($failureIndexes -join ', '))
+        $joinState=Get-DynomaxSystemNodeState -State $state -NodeId $joinId
+        if([string]$joinState.status -notin @('PASS','FAIL','SKIPPED')){Set-DynomaxSystemNodeState -State $state -NodeId $joinId -Status 'SKIPPED' -Event 'JoinSkippedFailFast' -Message 'Join All was not released because the paired parallel Fork failed.'}
+        $state.forkHistory=@($state.forkHistory)+@($fork)
+        $state.activeFork=$null
+        $state.terminalNodeId=$forkId
+        $state.terminalStatus='FAIL'
+        Finalize-DynomaxPendingSystemNodes -State $state
+    }else{
+        Set-DynomaxSystemNodeState -State $state -NodeId $forkId -Status 'PASS' -Event 'ForkCompletedParallel' -Message 'All bounded parallel Fork branches completed successfully.'
+        Set-DynomaxSystemNodeState -State $state -NodeId $joinId -Status 'PASS' -Event 'JoinCompleted' -Message 'Join All released after every parallel sibling branch completed.'
+        $state.forkHistory=@($state.forkHistory)+@($fork)
+        $state.activeFork=$null
+        $context=Read-DynomaxJson -Path $ContextPath
+        Move-DynomaxControlFlowToNextExecutable -Workflow $Workflow -Context $context -State $state -FromNodeId $joinId -Outcome 'Success'
+    }
+    if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
+    return $state
+}
+
 function Test-DynomaxDiscoveryAfterMove {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)]$State,[Parameter(Mandatory)][string]$CurrentNodeId)
@@ -662,6 +740,30 @@ function Move-DynomaxControlFlowToNextExecutable {
                 $State.nextActionNodeId=$currentId
                 $State.terminalNodeId=$null
                 $State.terminalStatus=$null
+                return
+            }
+            'UserInteraction' {
+                $pageKey=[string](Get-DynomaxPropertyValue -Object $current -Name 'pageKey' -DefaultValue '')
+                $contractHash=[string](Get-DynomaxPropertyValue -Object $current -Name 'checkpointContractSha256' -DefaultValue '')
+                $nextNodeId=[string](Get-DynomaxPropertyValue -Object $current -Name 'nextNodeId' -DefaultValue '')
+                $nextEdgeId=[string](Get-DynomaxPropertyValue -Object $current -Name 'nextEdgeId' -DefaultValue '')
+                $responseSchema=Get-DynomaxPropertyValue -Object $current -Name 'responseSchema' -DefaultValue $null
+                if(-not $pageKey -or -not $contractHash -or -not $nextNodeId -or $null -eq $responseSchema){throw "User Interaction '$currentId' is missing deterministic checkpoint metadata."}
+                $State.nextActionNodeId=$null
+                $State.terminalNodeId=$null
+                $State.terminalStatus=$null
+                $State.waitingForUser=$true
+                $State.interactionCheckpoint=[pscustomobject][ordered]@{
+                    schemaVersion=1
+                    nodeId=$currentId
+                    pageKey=$pageKey
+                    responseSchema=$responseSchema
+                    checkpointContractSha256=$contractHash
+                    nextNodeId=$nextNodeId
+                    nextEdgeId=$(if($nextEdgeId){$nextEdgeId}else{$null})
+                    reachedAtUtc=[DateTime]::UtcNow.ToString('o')
+                }
+                Set-DynomaxSystemNodeState -State $State -NodeId $currentId -Status 'WaitingForUser' -Event 'InteractionCheckpointWaiting' -Message 'Workflow execution is durably waiting for an authorized user response.'
                 return
             }
             'Condition' {
@@ -717,6 +819,13 @@ function Move-DynomaxControlFlowToNextExecutable {
             }
             'Fork' {
                 Start-DynomaxFork -Plan $plan -State $State -ForkNode $current
+                $activeFork=Get-DynomaxPropertyValue -Object $State -Name 'activeFork' -DefaultValue $null
+                if($null -ne $activeFork -and [string](Get-DynomaxPropertyValue -Object $activeFork -Name 'executionMode' -DefaultValue 'Sequential') -eq 'Parallel'){
+                    # The parent Core host owns the bounded isolated-process fan-out. No Action is
+                    # selected until those branch workers deterministically join back into this state.
+                    $State.nextActionNodeId=$null
+                    return
+                }
                 $targetId=Start-DynomaxNextForkBranch -State $State
                 if(-not $targetId){throw "Fork '$currentId' did not schedule a branch."}
                 if(-not $nodes.ContainsKey($targetId)){throw "Fork '$currentId' targets missing node '$targetId'."}
@@ -856,17 +965,19 @@ function Initialize-DynomaxControlFlowState {
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $null}
     $plan=$Workflow.controlFlow
     $schema=[int](Get-DynomaxPropertyValue -Object $plan -Name 'schemaVersion' -DefaultValue 0)
-    if($schema -notin @(1,2,3)){throw "Unsupported controlFlow schemaVersion '$schema'."}
+    if($schema -notin @(1,2,3,4)){throw "Unsupported controlFlow schemaVersion '$schema'."}
     $startId=[string](Get-DynomaxPropertyValue -Object $plan -Name 'startNodeId' -DefaultValue '')
     if(-not $startId){throw 'controlFlow.startNodeId is required.'}
     $context=Read-DynomaxJson -Path $ContextPath
     $discoveryTarget=Get-DynomaxDiscoveryTargetNodeId -Workflow $Workflow
     $state=[pscustomobject][ordered]@{
-        schemaVersion=3
+        schemaVersion=4
         initializedAtUtc=[DateTime]::UtcNow.ToString('o')
         nextActionNodeId=$null
         terminalNodeId=$null
         terminalStatus=$null
+        waitingForUser=$false
+        interactionCheckpoint=$null
         discoveryTargetNodeId=$discoveryTarget
         discoveryTargetReached=$false
         discoveryBlockReason=$null
@@ -909,13 +1020,92 @@ function Get-DynomaxControlFlowDecision {
     $state=if($null -ne $State){$State}else{Read-DynomaxJson -Path $statePath}
     $next=[string](Get-DynomaxPropertyValue -Object $state -Name 'nextActionNodeId' -DefaultValue '')
     $terminal=[string](Get-DynomaxPropertyValue -Object $state -Name 'terminalStatus' -DefaultValue '')
+    $waiting=[bool](Get-DynomaxPropertyValue -Object $state -Name 'waitingForUser' -DefaultValue $false)
+    if($waiting){
+        return [pscustomobject]@{ShouldRun=$false;Disposition='WAITING_FOR_USER';Reason='Workflow is durably paused at a User Interaction checkpoint.'}
+    }
     if($terminal){
         # Physical slots that were not selected are persisted in one bounded SQL batch after
         # Robot returns. Do not grow or rewrite control-flow state merely to classify them.
         return [pscustomobject]@{ShouldRun=$false;Disposition='SKIP_FINAL';Reason="Workflow control flow already completed with terminal status $terminal."}
     }
+    $activeFork=Get-DynomaxPropertyValue -Object $state -Name 'activeFork' -DefaultValue $null
+    if(-not $next -and $null -ne $activeFork -and [string](Get-DynomaxPropertyValue -Object $activeFork -Name 'executionMode' -DefaultValue 'Sequential') -eq 'Parallel'){
+        return [pscustomobject]@{ShouldRun=$false;Disposition='PARALLEL_WAIT';Reason="Parallel Fork '$([string]$activeFork.forkNodeId)' is waiting for bounded branch execution."}
+    }
     if($next -eq $NodeId){return [pscustomobject]@{ShouldRun=$true;Disposition='RUN';Reason='Selected by control flow.'}}
     return [pscustomobject]@{ShouldRun=$false;Disposition='DEFER';Reason=$(if($next){"Control flow currently selected '$next'."}else{'Control flow has not selected an Action yet.'})}
+}
+
+function Set-DynomaxInteractionResponseOutputs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ContextPath,
+        [Parameter(Mandatory)][string]$NodeId,
+        [Parameter(Mandatory)]$ResponseSchema,
+        [Parameter(Mandatory)]$ResponseValues
+    )
+    $fields=@(Get-DynomaxPropertyValue -Object $ResponseSchema -Name 'fields' -DefaultValue @())
+    if($fields.Count -lt 1){throw "Interaction checkpoint '$NodeId' has no response fields."}
+    if($ResponseValues -isnot [System.Management.Automation.PSCustomObject]){throw "Interaction checkpoint '$NodeId' response values must be a JSON object."}
+
+    $context=Read-DynomaxJson -Path $ContextPath
+    $pool=Get-DynomaxPropertyValue -Object $context -Name 'runDataPool' -DefaultValue $null
+    if($null -eq $pool){$pool=[pscustomobject][ordered]@{schemaVersion=1;steps=[pscustomobject][ordered]@{}};Set-DynomaxDynamicContextProperty -Object $context -Name 'runDataPool' -Value $pool}
+    $steps=Get-DynomaxPropertyValue -Object $pool -Name 'steps' -DefaultValue $null
+    if($null -eq $steps){$steps=[pscustomobject][ordered]@{};Set-DynomaxDynamicContextProperty -Object $pool -Name 'steps' -Value $steps}
+
+    $outputs=[pscustomobject][ordered]@{}
+    foreach($field in $fields){
+        $name=[string](Get-DynomaxPropertyValue -Object $field -Name 'name' -DefaultValue '')
+        if([string]::IsNullOrWhiteSpace($name)){throw "Interaction checkpoint '$NodeId' contains an unnamed response field."}
+        $classification=[string](Get-DynomaxPropertyValue -Object $field -Name 'classification' -DefaultValue 'Normal')
+        $property=$ResponseValues.PSObject.Properties[$name]
+        $available=$null -ne $property
+        $value=if($available){$property.Value}else{$null}
+        $effectiveClassification=if($classification -eq 'Sensitive'){'SensitiveRedacted'}else{'Normal'}
+        $persist=$effectiveClassification -eq 'Normal'
+        Set-DynomaxDynamicContextProperty -Object $outputs -Name $name -Value ([pscustomobject][ordered]@{
+            available=$available
+            value=$value
+            classification=$effectiveClassification
+            persistInResult=$persist
+        })
+    }
+    $step=[pscustomobject][ordered]@{
+        stepId=$NodeId
+        workflowNodeId=$NodeId
+        executionSlot=0
+        actionKey='user.interaction'
+        capturedAtUtc=[DateTime]::UtcNow.ToString('o')
+        outputs=$outputs
+    }
+    Set-DynomaxDynamicContextProperty -Object $steps -Name $NodeId -Value $step
+    Write-DynomaxJson -Value $context -Path $ContextPath
+    return $step
+}
+
+function Resume-DynomaxControlFlowInteraction {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Workflow,
+        [Parameter(Mandatory)][string]$ContextPath,
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][string]$NodeId
+    )
+    $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
+    if(-not(Test-Path -LiteralPath $statePath -PathType Leaf)){throw 'Control-flow state is missing for interaction resume.'}
+    $state=Read-DynomaxJson -Path $statePath
+    $waiting=[bool](Get-DynomaxPropertyValue -Object $state -Name 'waitingForUser' -DefaultValue $false)
+    $checkpoint=Get-DynomaxPropertyValue -Object $state -Name 'interactionCheckpoint' -DefaultValue $null
+    if(-not $waiting -or $null -eq $checkpoint -or [string]$checkpoint.nodeId -ne $NodeId){throw "Interaction checkpoint '$NodeId' is stale or no longer waiting."}
+    $state.waitingForUser=$false
+    $state.interactionCheckpoint=$null
+    Set-DynomaxSystemNodeState -State $state -NodeId $NodeId -Status 'PASS' -Event 'InteractionCheckpointResumed' -Message 'Authorized interaction response accepted; same Run is resuming.'
+    $context=Read-DynomaxJson -Path $ContextPath
+    Move-DynomaxControlFlowToNextExecutable -Workflow $Workflow -Context $context -State $state -FromNodeId $NodeId -Outcome 'Success'
+    Write-DynomaxJson -Value $state -Path $statePath
+    return $state
 }
 
 function Complete-DynomaxControlFlowAction {

@@ -1,0 +1,31 @@
+@model Dynomax.Portal.Pages.Projects.Context.IndexModel
+<div class="pc-repo-toolbar">
+    <div><strong>GitHub repositories</strong><div class="pc-note">GitHub remains the source of truth. Dynomax stores connection, policy and current-ref metadata only.</div></div>
+    @if (Model.CanManage) { <button class="pc-btn primary" type="button" onclick="document.getElementById('pc-connect-repository-dialog')?.showModal()">+ Connect repository</button> }
+</div>
+@if (Model.RepositoryRows.Count > 0)
+{
+<section class="pc-repo-topology" aria-label="Repository topology"><div class="pc-repo-topology-head"><strong>Repository topology</strong><span>@Model.RepositoryRows.Count connected</span></div><div class="pc-repo-map">
+@foreach (var row in Model.RepositoryRows) { var repo=row.Connection; <a class="pc-repo-node" asp-route-projectId="@Model.Project.Id" asp-route-category="@IndexModel.RepositoryCollectionName" asp-route-repositoryContextId="@repo.RepositoryContextId"><span class="pc-repo-node-name">@repo.FullName</span><span>@(repo.DefaultBranch ?? "No branch")  @(repo.DefaultBranchHeadSha is null ? "no commits" : ShortSha(repo.DefaultBranchHeadSha))</span><span class="pc-repo-health @HealthClass(repo.HealthStatus)">@repo.HealthStatus</span></a> }
+</div></section>
+}
+@if (Model.RepositoryBrowseRows.Count == 0) { <div class="pc-empty">@(Model.RepositoryRows.Count == 0 ? "No GitHub repositories are connected yet." : "No repositories match the current search or filter.")</div> }
+else
+{
+<div class="pc-table-wrap"><table class="pc-table pc-repo-table"><thead><tr><th>Repository</th><th>Role / purpose</th><th>Current ref</th><th>Health</th><th>Last refresh</th><th></th></tr></thead><tbody>
+@foreach (var row in Model.RepositoryBrowseRows)
+{
+ var repo=row.Connection;
+ <tr class="@(Model.SelectedRepository?.Connection.RepositoryContextId == repo.RepositoryContextId ? "selected" : string.Empty)"><td><a class="pc-file-name" asp-route-projectId="@Model.Project.Id" asp-route-category="@IndexModel.RepositoryCollectionName" asp-route-q="@Model.SearchQuery" asp-route-filter="@Model.Filter" asp-route-sort="@Model.RepositorySort" asp-route-page="@Model.PageNumber" asp-route-pageSize="@Model.PageSize" asp-route-repositoryContextId="@repo.RepositoryContextId"><span class="pc-repo-mark">GH</span><span><strong>@repo.FullName</strong><small>@repo.Visibility / @repo.Provider</small></span></a></td><td><strong>@(repo.Role ?? "-")</strong><div class="pc-note">@(repo.Purpose ?? "No purpose recorded")</div></td><td><strong>@(repo.DefaultBranch ?? "No branch")</strong><div class="pc-note"><code>@(repo.DefaultBranchHeadSha is null ? "No commits yet" : ShortSha(repo.DefaultBranchHeadSha))</code></div></td><td><span class="pc-repo-health @HealthClass(repo.HealthStatus)">@repo.HealthStatus</span>@if(repo.LastErrorCode is not null){<div class="pc-note">@repo.LastErrorCode</div>}</td><td>@Relative(repo.LastRefreshedAtUtc)</td><td class="pc-kebab"><a class="pc-page-link" aria-label="Open repository properties" asp-route-projectId="@Model.Project.Id" asp-route-category="@IndexModel.RepositoryCollectionName" asp-route-repositoryContextId="@repo.RepositoryContextId">&gt;</a></td></tr>
+}
+</tbody></table></div><div class="pc-pagination"><span>Showing @(((Model.PageNumber-1)*Model.PageSize)+1) to @Math.Min(Model.PageNumber*Model.PageSize,Model.BrowseTotal) of @Model.BrowseTotal repositories</span><div class="pc-pages">@for(var p=1;p<=Math.Min(Model.PageCount,5);p++){<a class="pc-page-link @(p==Model.PageNumber?"active":string.Empty)" asp-route-projectId="@Model.Project.Id" asp-route-category="@IndexModel.RepositoryCollectionName" asp-route-q="@Model.SearchQuery" asp-route-filter="@Model.Filter" asp-route-sort="@Model.RepositorySort" asp-route-page="@p" asp-route-pageSize="@Model.PageSize">@p</a>}</div></div>
+}
+@if (Model.CanManage)
+{
+<dialog class="pc-modal" id="pc-connect-repository-dialog"><div class="pc-modal-head"><strong>Connect GitHub repository</strong><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">&times;</button></div><form method="post" asp-page-handler="ConnectRepository" asp-route-projectId="@Model.Project.Id" class="pc-modal-body"><div class="pc-form-grid"><label class="pc-field wide"><span>Repository URL or owner/name</span><input asp-for="RepositoryConnectInput.RepositoryUrl" placeholder="https://github.com/owner/repository" /></label><label class="pc-field wide"><span>Protected credential</span><select asp-for="RepositoryConnectInput.CredentialSecretReferenceId"><option value="">Select protected credential</option>@foreach(var credential in Model.RepositoryCredentialOptions){<option value="@credential.SecretReferenceId">@credential.DisplayName / @credential.EnvironmentKey / @credential.Provider</option>}</select><small>Only the safe credential alias is shown. Secret values are never displayed.</small></label><label class="pc-field"><span>Role</span><input asp-for="RepositoryConnectInput.Role" placeholder="e.g. Web portal" /></label><label class="pc-field"><span>Tags</span><input asp-for="RepositoryConnectInput.Tags" placeholder="api, frontend" /></label><label class="pc-field wide"><span>Purpose</span><textarea asp-for="RepositoryConnectInput.Purpose" rows="3"></textarea></label></div><div class="pc-modal-foot"><button class="pc-btn" type="button" onclick="this.closest('dialog').close()">Cancel</button><button class="pc-btn primary" type="submit" disabled="@(Model.RepositoryCredentialOptions.Count==0)">Connect repository</button></div></form></dialog>
+}
+@functions {
+ static string ShortSha(string value)=>value[..Math.Min(10,value.Length)];
+ static string Relative(DateTime? utc){if(utc is null)return "Never";var age=DateTime.UtcNow-utc.Value;if(age.TotalMinutes<1)return "just now";if(age.TotalHours<1)return $"{Math.Max(1,(int)age.TotalMinutes)} min ago";if(age.TotalDays<1)return $"{Math.Max(1,(int)age.TotalHours)} hours ago";if(age.TotalDays<7)return $"{Math.Max(1,(int)age.TotalDays)} days ago";return utc.Value.ToLocalTime().ToString("yyyy-MM-dd");}
+ static string HealthClass(string value)=>value.ToLowerInvariant() switch{"healthy"=>"healthy","empty"=>"empty","error"=>"error","disconnected"=>"disconnected",_=>"unknown"};
+}

@@ -80,7 +80,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.8 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.15 overlay before executing compiler 1.19.23 publications.'
         throw $exception
     }
 
@@ -91,8 +91,9 @@ function Assert-DynomaxCoreRuntimeContract {
         $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
         $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
         $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
-        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.8' -or
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.15' -or
             '1.19.15' -notin $compilerVersions -or
+            '1.19.23' -notin $compilerVersions -or
             'continuation-decision-v1' -notin $capabilities -or
             'cleanup-execution-order-v1' -notin $capabilities -or
             'cleanup-stop-on-failure-v1' -notin $capabilities -or
@@ -106,12 +107,14 @@ function Assert-DynomaxCoreRuntimeContract {
             'control-flow-event-batch-v1' -notin $capabilities -or
             'context-value-batch-persistence-v1' -notin $capabilities -or
             'result-evidence-compaction-v1' -notin $capabilities -or
-            'structured-form-actions-v1' -notin $capabilities) {
+            'structured-form-actions-v1' -notin $capabilities -or
+            'bounded-parallel-fork-v1' -notin $capabilities -or
+            'same-run-user-interaction-checkpoint-v1' -notin $capabilities) {
             throw 'Runtime contract identity/capability mismatch.'
         }
 
         $files = @((Get-DynomaxPropertyValue -Object $manifest -Name 'files' -DefaultValue @()))
-        foreach ($requiredPath in @('Core/Robot/Dynomax.resource','Core/Robot/DynomaxContext.py','Core/Execution/Dynomax.Workflow.ps1','Core/Invoke-DynomaxWorkflow.ps1')) {
+        foreach ($requiredPath in @('Core/Robot/Dynomax.resource','Core/Robot/DynomaxContext.py','Core/Execution/Dynomax.ControlFlow.ps1','Core/Execution/Dynomax.RuntimeContext.ps1','Core/Execution/Dynomax.Parallel.ps1','Core/Execution/Invoke-DynomaxParallelBranch.ps1','Core/Execution/Dynomax.Workflow.ps1','Core/Invoke-DynomaxWorkflow.ps1')) {
             $matches = @($files | Where-Object { [string](Get-DynomaxPropertyValue -Object $_ -Name 'path' -DefaultValue '') -ceq $requiredPath })
             if ($matches.Count -ne 1) { throw "Runtime contract does not contain exactly one closure entry for '$requiredPath'." }
             $entry = $matches[0]
@@ -134,7 +137,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.8 overlay before executing compiler 1.19.15 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.15 overlay before executing compiler 1.19.23 publications.'
         throw $exception
     }
 }
@@ -684,7 +687,7 @@ function New-DynomaxRobotSuite {
         [Parameter(Mandatory)]$ProjectConfig,[Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][object[]]$Steps,
         [Parameter(Mandatory)][Guid]$RunId,[Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$ContextPath,
         [Parameter(Mandatory)][string]$WorkflowDirectory,[Parameter(Mandatory)][string]$PowerShellPath,
-        [bool]$PreserveCleanupBrowserSession=$false
+        [bool]$PreserveCleanupBrowserSession=$false,[string]$RuntimeWorkflowPath
     )
     $resourcePaths=@()
     $actionDefinitions=@{}
@@ -716,7 +719,8 @@ function New-DynomaxRobotSuite {
     $persistScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Persist-DynomaxRobotAction.ps1')).Replace('\','/')
     $attemptRecorderScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Record-DynomaxExecutionAttempt.ps1')).Replace('\','/')
     $controlFlowScript=[System.IO.Path]::GetFullPath((Join-Path $DynomaxRoot 'Core\Execution\Invoke-DynomaxControlFlow.ps1')).Replace('\','/')
-    $workflowPathForward=[System.IO.Path]::GetFullPath((Join-Path $WorkflowDirectory 'workflow.json')).Replace('\','/')
+    $effectiveWorkflowPath=if($RuntimeWorkflowPath){$RuntimeWorkflowPath}else{Join-Path $WorkflowDirectory 'workflow.json'}
+    $workflowPathForward=[System.IO.Path]::GetFullPath($effectiveWorkflowPath).Replace('\','/')
     $rootForward=[System.IO.Path]::GetFullPath($DynomaxRoot).Replace('\','/')
     $runForward=[System.IO.Path]::GetFullPath($RunDirectory).Replace('\','/')
     $contextForward=[System.IO.Path]::GetFullPath($ContextPath).Replace('\','/')
@@ -750,7 +754,6 @@ function New-DynomaxRobotSuite {
     $lines.Add("`${DYNOMAX_POWERSHELL}    $psForward")
     $lines.Add("`${DYNOMAX_BASE_URL}    $baseUrl")
     $lines.Add("`${DYNOMAX_BROWSER}    $browser")
-    $lines.Add("`${DYNOMAX_BROWSER_AVAILABLE}    $(if($requiresBrowser){'True'}else{'False'})")
     $lines.Add("`${DYNOMAX_HEADLESS}    $headless")
     $lines.Add("`${DYNOMAX_VIEWPORT}    $viewport")
     $discoveryConfig=Get-DynomaxPropertyValue -Object $Workflow -Name 'discovery' -DefaultValue $null
@@ -984,9 +987,9 @@ function Invoke-DynomaxRobotBlock {
         [Parameter(Mandatory)]$Workflow,[Parameter(Mandatory)][object[]]$Steps,[Parameter(Mandatory)][Guid]$RunId,
         [Parameter(Mandatory)][string]$RunDirectory,[Parameter(Mandatory)][string]$ContextPath,[Parameter(Mandatory)][string]$WorkflowDirectory,
         [Parameter(Mandatory)][string]$PowerShellPath,[Parameter(Mandatory)][string]$PythonPath,[int]$TimeoutSeconds=0,
-        [bool]$StreamOutput=$true,[bool]$ShowCommand=$false,[int]$HeartbeatSeconds=15,[bool]$PreserveCleanupBrowserSession=$false
+        [bool]$StreamOutput=$true,[bool]$ShowCommand=$false,[int]$HeartbeatSeconds=15,[bool]$PreserveCleanupBrowserSession=$false,[string]$RuntimeWorkflowPath
     )
-    $suite=New-DynomaxRobotSuite -DynomaxRoot $DynomaxRoot -ProjectFolder $ProjectFolder -ProjectConfig $ProjectConfig -Workflow $Workflow -Steps $Steps -RunId $RunId -RunDirectory $RunDirectory -ContextPath $ContextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $PowerShellPath -PreserveCleanupBrowserSession:$PreserveCleanupBrowserSession
+    $suite=New-DynomaxRobotSuite -DynomaxRoot $DynomaxRoot -ProjectFolder $ProjectFolder -ProjectConfig $ProjectConfig -Workflow $Workflow -Steps $Steps -RunId $RunId -RunDirectory $RunDirectory -ContextPath $ContextPath -WorkflowDirectory $WorkflowDirectory -PowerShellPath $PowerShellPath -PreserveCleanupBrowserSession:$PreserveCleanupBrowserSession -RuntimeWorkflowPath $RuntimeWorkflowPath
     $resultDir=Ensure-DynomaxDirectory -Path (Join-Path $RunDirectory 'robot-result')
     $args=@('-B','-m','robot','--outputdir',$resultDir,'--output','output.xml','--log','log.html','--report','report.html',$suite)
     $heartbeat={param($label,$processId,$elapsedSeconds) Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Runtime.Heartbeat' -Message ("$label is still running; elapsed ${elapsedSeconds}s.") -Data ([ordered]@{process='Robot';processId=$processId;elapsedSeconds=$elapsedSeconds})}

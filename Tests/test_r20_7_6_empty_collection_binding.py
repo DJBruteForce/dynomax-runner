@@ -13,7 +13,7 @@ def _function(name: str) -> str:
 
 
 def test_r20_7_6_revision_and_main_only_empty_cleanup_binding():
-    assert VERSION == "R20.7.9"
+    assert VERSION == "R20.9"
     eligibility = _function("Test-DynomaxPreservedCleanupBrowserSessionEligible")
     assert "[Parameter(Mandatory)][AllowEmptyCollection()][object[]]$MainSteps" in eligibility
     assert "[Parameter(Mandatory)][AllowEmptyCollection()][object[]]$CleanupSteps" in eligibility

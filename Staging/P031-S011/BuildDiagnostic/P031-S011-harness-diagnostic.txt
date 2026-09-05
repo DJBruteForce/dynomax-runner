@@ -1,0 +1,24 @@
+P031-S011 rev6 harness diagnostic
+rerunExitCode=1
+--- Harness csproj ---
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><ProjectReference Include="[DISPOSABLE_CHECKOUT]\src\Dynomax.Domain\Dynomax.Domain.csproj" /></ItemGroup></Project>
+--- Harness Program.cs ---
+using Dynomax.Domain.ProjectContext;
+var user=Guid.NewGuid();var source=Guid.NewGuid();var credential=Guid.NewGuid();var now=DateTime.UtcNow;
+var repo=new ProjectContextRepository(source,RepositoryProviders.GitHub,"123","DJBruteForce","SandboxForChatGPT","DJBruteForce/SandboxForChatGPT","https://github.com/DJBruteForce/SandboxForChatGPT","https://github.com/DJBruteForce/SandboxForChatGPT.git","private",false,false,false,null,"Acceptance fixture","Empty private repository","[]",null,null,null,credential,user,now);
+repo.SetProviderSnapshot("DJBruteForce","SandboxForChatGPT","DJBruteForce/SandboxForChatGPT","https://github.com/DJBruteForce/SandboxForChatGPT","https://github.com/DJBruteForce/SandboxForChatGPT.git","private",false,false,false,null,null,null,null,"Empty",null,now,now,user,now);
+if(repo.DefaultBranch is not null||repo.DefaultBranchHeadSha is not null||repo.DefaultTreeSha is not null||repo.HealthStatus!="Empty")return 11;
+var policy=new ProjectContextRepositoryPolicy(repo.Id,user,now);if(policy.AllowMerge||policy.AllowForcePush||policy.AllowDirectDefaultBranchWrite||!policy.RequirePullRequestForDefaultBranch)return 12;
+bool blocked=false;try{policy.UpdateSafeSettings(true,true,true,true,true,false,false,false,false,true,"[]","[]","dynomax/",user,now);}catch(InvalidOperationException){blocked=true;}if(!blocked)return 13;
+repo.SetActive(false,"Disconnected",user,now);if(repo.IsActive||repo.HealthStatus!="Disconnected")return 14;repo.SetActive(true,"Empty",user,now);if(!repo.IsActive)return 15;return 0;
+--- dotnet run output ---
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [[DISPOSABLE_CHECKOUT]\src\Dynomax.Domain\Dynomax.Domain.csproj]
+C:\Program Files\dotnet\sdk\10.0.400\NuGet.targets(782,5): error : Value cannot be null. (Parameter 'path1') [[DISPOSABLE_WORKROOT]\harness\P031S011Harness.csproj]
+dotnet.exe : 
+At C:\Dynomax\Temp\Runs\20260904074547594\process-scripts\8bd48ab7079f4e40947bd0624e058ba9.ps1:1 char:619
++ ... nue';$runText=(& dotnet run --project $csproj -c Release 2>&1|Out-Str ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+The build failed. Fix the build errors and run again.

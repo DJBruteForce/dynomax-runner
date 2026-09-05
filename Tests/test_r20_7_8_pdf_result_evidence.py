@@ -11,8 +11,8 @@ VERSION = (ROOT / "VERSION.txt").read_text(encoding="utf-8").strip()
 
 
 def test_r20_7_8_collects_pdf_downloads_into_result_evidence():
-    assert VERSION == "R20.7.9"
-    assert CONTRACT["runtimeRevision"] == "R20.7.9"
+    assert VERSION == "R20.9"
+    assert CONTRACT["runtimeRevision"] == "R20.9"
     assert "pdf-result-evidence-v1" in CONTRACT["capabilities"]
     assert "xml|html?|log|png|jpe?g|pdf|json" in WORKFLOW
     assert "StartsWith('downloads/'" in WORKFLOW

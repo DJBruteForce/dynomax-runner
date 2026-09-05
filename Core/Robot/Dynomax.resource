@@ -11,7 +11,7 @@ Library    ${CURDIR}${/}DynomaxRuntimeBridge.py
 Start Dynomax Browser
     ${browser_library_loaded}=    Run Keyword And Return Status    Get Library Instance    Browser
     IF    not ${browser_library_loaded}
-        Import Library    Browser
+        Import Library    Browser    auto_closing_level=SUITE
     END
     Create Directory    ${DYNOMAX_RUN_DIR}${/}screenshots
     New Browser    ${DYNOMAX_BROWSER}    headless=${DYNOMAX_HEADLESS}
@@ -24,6 +24,27 @@ Start Dynomax Browser
         New Context    viewport=${DYNOMAX_VIEWPORT}
     END
     New Page    about:blank
+
+Take Screenshot
+    [Arguments]    ${path}    ${fullPage}=${False}
+    ${mask_path}=    Set Variable    ${path}.mask.json
+    ${previous_log_level}=    Set Log Level    NONE
+    TRY
+        ${mask_script}=    Get Discovery Script    mask    ${DYNOMAX_CONTEXT_PATH}
+        ${mask_result}=    Evaluate JavaScript    css=html    ${mask_script}
+        ${mask_applied}=    Evaluate    bool($mask_result.get('applied')) and bool($mask_result.get('formControlsMasked'))
+        Should Be True    ${mask_applied}    DMX-EVIDENCE-MASK-FAILED: Dynomax could not establish the mandatory secret-safe screenshot mask. Retry after confirming the browser session is healthy.
+        Browser.Take Screenshot    ${path}    fullPage=${fullPage}
+        File Should Exist    ${path}
+        ${length}=    Get File Size    ${path}
+        Should Be True    ${length} > 0    DMX-EVIDENCE-SCREENSHOT-EMPTY: The screenshot capture completed without a retained image.
+        ${mask_report}=    Evaluate    json.dumps({'schemaVersion':1,'safeForPortableEvidence':True,'maskApplied':True,'formControlsMasked':True,'exactRuntimeSecretsConsidered':int($mask_result.get('exactRuntimeSecretsConsidered',0)),'textNodesMasked':int($mask_result.get('textNodesMasked',0)),'configuredSensitiveSelectorsMasked':0,'configuredSensitiveSelectorCount':0,'fullPage':bool($fullPage)}, ensure_ascii=False, indent=2)    modules=json
+        Create File    ${mask_path}    ${mask_report}
+    FINALLY
+        ${unmask_script}=    Get Discovery Script    unmask    ${DYNOMAX_CONTEXT_PATH}
+        Run Keyword And Ignore Error    Evaluate JavaScript    css=html    ${unmask_script}
+        Set Log Level    ${previous_log_level}
+    END
 
 Stop Dynomax Browser
     ${close_status}    ${close_message}    ${close_timed_out}=    Run Dynomax Keyword With Timeout    Close Browser    10s
@@ -164,15 +185,18 @@ Should Run Dynomax Control Flow Action
     END
     ${decision}=    Dynomax Host Control Flow    BeforeAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
     ${decision}=    Evaluate    str($decision).strip().upper()
-    Should Match Regexp    ${decision}    ^(RUN|DEFER|SKIP_FINAL)$    Unexpected control-flow decision: ${decision}
+    Should Match Regexp    ${decision}    ^(RUN|DEFER|SKIP_FINAL|WAITING_FOR_USER)$    Unexpected control-flow decision: ${decision}
     RETURN    ${decision}
 
 Advance Dynomax Control Flow After Action
     [Arguments]    ${node_id}
     ${advance_state}=    Dynomax Host Control Flow    AfterAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
     ${advance_state}=    Evaluate    str($advance_state).strip().upper()
-    Should Match Regexp    ${advance_state}    ^(CONTINUE|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow advance state: ${advance_state}
-    IF    '${advance_state}' != 'CONTINUE'
+    Should Match Regexp    ${advance_state}    ^(CONTINUE|WAITING_FOR_USER|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow advance state: ${advance_state}
+    IF    '${advance_state}' == 'WAITING_FOR_USER'
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_WAITING_FOR_USER}    ${True}
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
+    ELSE IF    '${advance_state}' != 'CONTINUE'
         Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
     END
     RETURN    ${advance_state}
@@ -217,6 +241,12 @@ Execute Dynomax Scheduled Slot
     ELSE
         ${control_flow_decision}=    Should Run Dynomax Control Flow Action    ${workflow_node_id}
         IF    '${control_flow_decision}' == 'DEFER'
+            Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
+            RETURN
+        END
+        IF    '${control_flow_decision}' == 'WAITING_FOR_USER'
+            Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_WAITING_FOR_USER}    ${True}
+            Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
             Set Test Variable    ${DYNOMAX_ACTION_METADATA_READY}    False
             RETURN
         END
@@ -269,8 +299,11 @@ Advance Dynomax Control Flow After Reused Action
     [Arguments]    ${node_id}
     ${advance_state}=    Dynomax Host Control Flow    ReuseAction    ${node_id}    ${DYNOMAX_POWERSHELL}    ${DYNOMAX_ROOT}    ${DYNOMAX_WORKFLOW_PATH}    ${DYNOMAX_CONTEXT_PATH}    ${DYNOMAX_RUN_DIR}    ${DYNOMAX_RUN_ID}
     ${advance_state}=    Evaluate    str($advance_state).strip().upper()
-    Should Match Regexp    ${advance_state}    ^(CONTINUE|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow reuse advance state: ${advance_state}
-    IF    '${advance_state}' != 'CONTINUE'
+    Should Match Regexp    ${advance_state}    ^(CONTINUE|WAITING_FOR_USER|TERMINAL_PASS|TERMINAL_FAIL|TERMINAL_BLOCKED)$    Unexpected control-flow reuse advance state: ${advance_state}
+    IF    '${advance_state}' == 'WAITING_FOR_USER'
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_WAITING_FOR_USER}    ${True}
+        Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
+    ELSE IF    '${advance_state}' != 'CONTINUE'
         Set Suite Variable    ${DYNOMAX_CONTROL_FLOW_TERMINAL}    ${True}
     END
     RETURN    ${advance_state}
@@ -300,11 +333,12 @@ Execute Dynomax Action With Policy
         ${png_snapshot}=    Capture Dynomax Png Snapshot
         ${actual_action_started}=    Evaluate    time.perf_counter()    modules=time
         ${semantic_timeout}=    Get Dynomax Context Value    timeoutSeconds    ${EMPTY}
-        ${browser_available}=    Get Variable Value    \${DYNOMAX_BROWSER_AVAILABLE}    ${False}
-        Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s when Browser is active; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
-        ${previous_browser_timeout}=    Set Variable    ${EMPTY}
-        IF    ${browser_available}
+        Log    Dynomax timeout hierarchy: authoredAttempt=${DYNOMAX_ATTEMPT_TIMEOUT_SECONDS}s; effectiveAttempt=${effective_timeout}s; browserOperation=${effective_timeout}s; semanticTimeout=${semantic_timeout}; overallRemaining=${remaining_before_attempt}s.
+        ${browser_library_loaded}=    Run Keyword And Return Status    Get Library Instance    Browser
+        IF    ${browser_library_loaded}
             ${previous_browser_timeout}=    Set Browser Timeout    ${effective_timeout}s    scope=Test
+        ELSE
+            ${previous_browser_timeout}=    Set Variable    ${None}
         END
         TRY
             IF    ${DYNOMAX_SENSITIVE_ACTION} or '${DYNOMAX_ATTEMPT_EVIDENCE_POLICY}' == 'FinalFailureOnly'
@@ -318,7 +352,7 @@ Execute Dynomax Action With Policy
                 ${attempt_status}    ${attempt_message}    ${timed_out}=    Run Dynomax Keyword With Timeout    ${keyword_name}    ${effective_timeout}s
             END
         FINALLY
-            IF    ${browser_available}
+            IF    ${browser_library_loaded}
                 Set Browser Timeout    ${previous_browser_timeout}    scope=Test
             END
         END

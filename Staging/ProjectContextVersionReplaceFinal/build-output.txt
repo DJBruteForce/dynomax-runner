@@ -1,0 +1,25 @@
+RESTORE
+dotnet.exe : An issue was encountered verifying workloads. For more information, run "dotnet workload update".
+At C:\Dynomax\Temp\Runs\20260904165821461\process-scripts\deda89cdf6914c699acbeb84e1191fd8.ps1:1 char:2614
++ ... ';$restore=(& dotnet restore $portal --packages $cache --configfile $ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (An issue was en...rkload update".:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Determining projects to restore...
+  Restored [DISPOSABLE_CHECKOUT]\src\Dynomax.Domain\Dynomax.Domain.csproj (in 110 ms).
+  Restored [DISPOSABLE_CHECKOUT]\src\Dynomax.Application\Dynomax.Application.csproj (in 116 ms).
+  Restored [DISPOSABLE_CHECKOUT]\src\Dynomax.Portal\Dynomax.Portal.csproj (in 1,8 sec).
+  Restored [DISPOSABLE_CHECKOUT]\src\Dynomax.Infrastructure\Dynomax.Infrastructure.csproj (in 1,8 sec).
+
+BUILD
+  Dynomax.Domain -> [DISPOSABLE_CHECKOUT]\src\Dynomax.Domain\bin\Release\net8.0\Dynomax.Domain.dll
+  Dynomax.Application -> [DISPOSABLE_CHECKOUT]\src\Dynomax.Application\bin\Release\net8.0\Dynomax.Application.dll
+  Dynomax.Infrastructure -> [DISPOSABLE_CHECKOUT]\src\Dynomax.Infrastructure\bin\Release\net8.0\Dynomax.Infrastructure.dll
+  Dynomax.Portal -> [DISPOSABLE_CHECKOUT]\src\Dynomax.Portal\bin\Release\net8.0\Dynomax.Portal.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:29.55
