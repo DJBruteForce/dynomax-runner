@@ -3,7 +3,7 @@
   "MinimumLevel": "Trace",
   "AgentLogAccessEnabled": true,
   "AgentDatabaseInspectionEnabled": true,
-  "ExpiresAtUtc": "2026-09-06T13:09:29.5662297Z",
+  "ExpiresAtUtc": "2026-09-08T17:51:05.7491347Z",
   "RetentionHours": 72,
   "DefaultEntryLimit": 250,
   "MaximumEntryLimit": 2000
