@@ -8,12 +8,6 @@ Patches/**/Backups/
 Patches/**/Exact-Version-Acceptance-Fixture/Results/
 *.zip
 
-# Runtime-owned diagnostics state. These paths are mutable evidence/configuration,
-# not source authority. Historical tracked log files may remain in repository history,
-# but no new runtime diagnostics state should be committed.
-/Diagnostics/developer-mode.json
-/Diagnostics/logs/
-
 # Development tooling
 .vs/
 **/bin/
