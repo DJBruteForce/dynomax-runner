@@ -28,6 +28,7 @@ function Invoke-DynomaxControlFlowOperation {
         [Parameter(Mandatory)]$SqlConfig,
         [System.Data.SqlClient.SqlConnection]$Connection,
         $State=$null,
+        $Context=$null,
         [switch]$SkipStateWrite,
         [switch]$SkipEventSync
     )
@@ -49,7 +50,7 @@ function Invoke-DynomaxControlFlowOperation {
     }
 
     $reused=$Mode -eq 'ReuseAction'
-    $state=Complete-DynomaxControlFlowAction -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId -Reused:$reused -DeferStateWrite -State $State
+    $state=Complete-DynomaxControlFlowAction -Workflow $Workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -NodeId $NodeId -Reused:$reused -DeferStateWrite -State $State -Context $Context
     if($reused){
         Add-DynomaxRunEvent -SqlConfig $SqlConfig -RunId $RunId -EventLevel 'Info' -EventType 'Continuation.Reused' -Message "Physical Action visit '$NodeId' was reused from the immutable continuation plan; it was not executed in this Run." -Data ([ordered]@{workflowNodeId=$NodeId;executionKind='Reused';executed=$false}) -Connection $Connection
     }
@@ -174,5 +175,11 @@ function Invoke-DynomaxActionResultPersistenceOperation {
         Write-DynomaxJson -Value $context -Path $ContextPath
     }
     Set-DynomaxContextStepInSql -SqlConfig $SqlConfig -RunId $RunId -Context $context -StepId $StepId -Connection $Connection -PersistedContextCache $PersistedContextCache
-    return [ordered]@{status=$status;stepOrder=$StepOrder;stepId=$StepId;actionKey=$ActionKey}
+    # Keep the parsed post-action Context in-process for the immediately following successful
+    # control-flow advance. The host returns only Result across IPC; Context never leaves the
+    # trusted persistent orchestration process.
+    return [pscustomobject][ordered]@{
+        Result=[ordered]@{status=$status;stepOrder=$StepOrder;stepId=$StepId;actionKey=$ActionKey}
+        Context=$context
+    }
 }

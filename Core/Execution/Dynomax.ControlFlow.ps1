@@ -1117,7 +1117,8 @@ function Complete-DynomaxControlFlowAction {
         [Parameter(Mandatory)][string]$NodeId,
         [switch]$Reused,
         [switch]$DeferStateWrite,
-        $State=$null
+        $State=$null,
+        $Context=$null
     )
     if(-not (Test-DynomaxControlFlowEnabled -Workflow $Workflow)){return $null}
     $statePath=Get-DynomaxControlFlowStatePath -RunDirectory $RunDirectory
@@ -1142,7 +1143,10 @@ function Complete-DynomaxControlFlowAction {
         if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
         return $state
     }
-    $context=Read-DynomaxJson -Path $ContextPath
+    # Result persistence has already parsed the same immutable-on-this-boundary Context file.
+    # Reuse that parsed object when the persistent orchestration host supplies it; recovery and
+    # all non-host callers remain fail-safe on the normal file read path.
+    $context=if($null -ne $Context){$Context}else{Read-DynomaxJson -Path $ContextPath}
     Move-DynomaxControlFlowToNextExecutable -Workflow $Workflow -Context $context -State $state -FromNodeId $NodeId -Outcome 'Success'
     if(-not $DeferStateWrite){Write-DynomaxJson -Value $state -Path $statePath}
     return $state
