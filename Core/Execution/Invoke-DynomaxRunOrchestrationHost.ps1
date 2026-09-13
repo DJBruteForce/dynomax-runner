@@ -26,7 +26,6 @@ $workflow=Read-DynomaxJson -Path $WorkflowPath
 $connection=$null
 $persistedContextCache=@{}
 $controlFlowState=$null
-$lastPersistedContext=$null
 $controlFlowDirty=$false
 $controlFlowMutationCount=0
 $controlFlowCheckpointInterval=25
@@ -88,11 +87,7 @@ try{
                 'Ping' { $result='OK' }
                 'ControlFlow' {
                     $mode=[string]$args.mode
-                    # PersistActionResult parsed the post-action Context immediately before an
-                    # AfterAction request. Reuse that exact in-process object once, then discard it.
-                    $contextForAdvance=if($mode -eq 'AfterAction'){$lastPersistedContext}else{$null}
-                    $result=Invoke-DynomaxControlFlowOperation -Mode $mode -Workflow $workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -RunId $RunId -NodeId ([string]$args.nodeId) -SqlConfig $sqlConfig -Connection $activeConnection -State $controlFlowState -Context $contextForAdvance -SkipStateWrite -SkipEventSync
-                    if($mode -in @('AfterAction','FailAction','ReuseAction')){$lastPersistedContext=$null}
+                    $result=Invoke-DynomaxControlFlowOperation -Mode $mode -Workflow $workflow -ContextPath $ContextPath -RunDirectory $RunDirectory -RunId $RunId -NodeId ([string]$args.nodeId) -SqlConfig $sqlConfig -Connection $activeConnection -State $controlFlowState -SkipStateWrite -SkipEventSync
                     if($null -ne $controlFlowState){
                         # BeforeAction may advance through one or more System nodes before it returns RUN.
                         # Treat every control-flow request as a potential mutation and checkpoint in bounded
@@ -110,20 +105,13 @@ try{
                     $result=Invoke-DynomaxActionStartOperation -RunId $RunId -StepOrder ([int]$args.stepOrder) -StepId ([string]$args.stepId) -ActionKey ([string]$args.actionKey) -ActionVersionId ([Guid]$args.actionVersionId) -IsCleanup (Get-DynomaxPropertyValue -Object $args -Name 'isCleanup' -DefaultValue $false) -SqlConfig $sqlConfig -Connection $activeConnection
                 }
                 'PersistActionResult' {
-                    $persistence=Invoke-DynomaxActionResultPersistenceOperation -RunId $RunId -StepOrder ([int]$args.stepOrder) -StepId ([string]$args.stepId) -ActionKey ([string]$args.actionKey) -ActionVersionId ([Guid]$args.actionVersionId) -RobotStatus ([string]$args.robotStatus) -MessageBase64 ([string](Get-DynomaxPropertyValue -Object $args -Name 'messageBase64' -DefaultValue '')) -IsCleanup (Get-DynomaxPropertyValue -Object $args -Name 'isCleanup' -DefaultValue $false) -ContextPath $ContextPath -SqlConfig $sqlConfig -Connection $activeConnection -PersistedContextCache $persistedContextCache
-                    $result=$persistence.Result
-                    $cleanup=[bool](Get-DynomaxPropertyValue -Object $args -Name 'isCleanup' -DefaultValue $false)
-                    $robotStatus=[string](Get-DynomaxPropertyValue -Object $args -Name 'robotStatus' -DefaultValue '')
-                    $lastPersistedContext=if(-not $cleanup -and $robotStatus.ToUpperInvariant() -eq 'PASS'){$persistence.Context}else{$null}
+                    $result=Invoke-DynomaxActionResultPersistenceOperation -RunId $RunId -StepOrder ([int]$args.stepOrder) -StepId ([string]$args.stepId) -ActionKey ([string]$args.actionKey) -ActionVersionId ([Guid]$args.actionVersionId) -RobotStatus ([string]$args.robotStatus) -MessageBase64 ([string](Get-DynomaxPropertyValue -Object $args -Name 'messageBase64' -DefaultValue '')) -IsCleanup (Get-DynomaxPropertyValue -Object $args -Name 'isCleanup' -DefaultValue $false) -ContextPath $ContextPath -SqlConfig $sqlConfig -Connection $activeConnection -PersistedContextCache $persistedContextCache
                 }
                 default { throw "Unsupported Dynomax orchestration operation '$operation'." }
             }
             Write-DynomaxHostResponse -Response ([ordered]@{id=$requestId;ok=$true;result=$result})
         }
         catch{
-            # Never carry a parsed post-action Context across a failed orchestration request.
-            # Recovery must resume from the durable Context/checkpoint boundary instead.
-            $lastPersistedContext=$null
             try{Save-DynomaxHostControlFlowCheckpoint -Force}catch{}
             $message=[string]$_.Exception.Message
             if($message.Length -gt 4000){$message=$message.Substring(0,4000)}
