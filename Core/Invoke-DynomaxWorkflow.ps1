@@ -54,11 +54,21 @@ function Write-DynomaxRunContractAtomic {
         [Parameter(Mandatory)][string]$FinalizationStep,
         [AllowNull()][string]$ResultZipPath,
         [AllowNull()][string]$FailureCode,
-        [AllowNull()][string]$FailureMessage
+        [AllowNull()][string]$FailureMessage,
+        [AllowNull()][string]$FinalizationStartedAtUtc=$null
     )
     $resolved=[System.IO.Path]::GetFullPath($Path)
     $parent=Split-Path -Parent $resolved
     if($parent){[System.IO.Directory]::CreateDirectory($parent)|Out-Null}
+    $contractNow=[DateTime]::UtcNow
+    $isTerminal=$FinalizationStatus -in @('Completed','Recovered','Failed')
+    $finalizationDurationMilliseconds=$null
+    if($isTerminal -and $FinalizationStartedAtUtc){
+        try{
+            $finalizationStart=[DateTimeOffset]::Parse($FinalizationStartedAtUtc).UtcDateTime
+            $finalizationDurationMilliseconds=[Math]::Round(($contractNow-$finalizationStart).TotalMilliseconds,3)
+        }catch{}
+    }
     $contract=[ordered]@{
         schemaVersion=2
         runId=[string]$RunId
@@ -72,8 +82,10 @@ function Write-DynomaxRunContractAtomic {
         resultZipPath=$(if($ResultZipPath){$ResultZipPath}else{$null})
         failureCode=$(if($FailureCode){$FailureCode}else{$null})
         failureMessage=$(if($FailureMessage){$FailureMessage}else{$null})
-        updatedAtUtc=[DateTime]::UtcNow.ToString('o')
-        completedAtUtc=$(if($FinalizationStatus -in @('Completed','Recovered','Failed')){[DateTime]::UtcNow.ToString('o')}else{$null})
+        finalizationStartedAtUtc=$(if($FinalizationStartedAtUtc){$FinalizationStartedAtUtc}else{$null})
+        finalizationDurationMilliseconds=$finalizationDurationMilliseconds
+        updatedAtUtc=$contractNow.ToString('o')
+        completedAtUtc=$(if($isTerminal){$contractNow.ToString('o')}else{$null})
     }
     $temporary=$resolved+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
     try{
@@ -342,6 +354,7 @@ $preflightSummary=[ordered]@{
     checkedAtUtc=[DateTime]::UtcNow.ToString('o')
 }
 Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage 'Preflight' -Message 'Workflow and Action-version preflight began.' -CoreRunId $runId
+$resolvedActionIdentityCount=0
 try{
     Assert-DynomaxCoreRuntimeContract -DynomaxRoot $root
     $duplicateOrders=@($allSteps|Group-Object order|Where-Object{$_.Count -gt 1})
@@ -350,14 +363,36 @@ try{
         Throw-DynomaxExecutionPlanIssue -Classification 'TEST_INVALID' -StepOrder ([int]$duplicateStep.order) -ActionKey ([string]$duplicateStep.actionId) -Message "Workflow step order '$($duplicateStep.order)' is duplicated. Exact result and version mapping requires unique step orders."
     }
 
+    # A compiled control-flow Workflow can contain hundreds or thousands of physical slots for
+    # repeated visits to the same immutable pinned Action version. Resolve/fingerprint that exact
+    # source identity once per pinned Action/version, but keep step metadata and execution-policy
+    # validation per physical slot so safety semantics are unchanged.
+    $pinnedActionPlanCache=@{}
+    $actionDefinitionCache=@{}
     foreach($step in $allSteps){
-        $plan=Resolve-DynomaxActionExecutionSource -ProjectFolder $projectFolder -ProjectKey ([string]$workflow.projectKey) -Step $step -SqlConfig $sqlConfig -WorkflowDirectory $WorkflowDirectory
+        $requestedRaw=Get-DynomaxPropertyValue -Object $step -Name 'actionVersion' -DefaultValue $null
+        $hasPinnedVersion=$null -ne $requestedRaw -and -not [string]::IsNullOrWhiteSpace([string]$requestedRaw)
+        $cacheKey=if($hasPinnedVersion){('{0}|{1}' -f [string]$step.actionId,[int]$requestedRaw)}else{$null}
+        if($cacheKey -and $pinnedActionPlanCache.ContainsKey($cacheKey)){
+            $plan=$pinnedActionPlanCache[$cacheKey]
+        }
+        else{
+            $plan=Resolve-DynomaxActionExecutionSource -ProjectFolder $projectFolder -ProjectKey ([string]$workflow.projectKey) -Step $step -SqlConfig $sqlConfig -WorkflowDirectory $WorkflowDirectory
+            $resolvedActionIdentityCount++
+            if($cacheKey){$pinnedActionPlanCache[$cacheKey]=$plan}
+        }
         Set-DynomaxStepExecutionMetadata -Step $step -Plan $plan
-        $actionDefinition=Read-DynomaxJson -Path ([string]$plan.DefinitionPath)
+        $definitionKey=[string]$plan.ActionVersionId
+        if($actionDefinitionCache.ContainsKey($definitionKey)){$actionDefinition=$actionDefinitionCache[$definitionKey]}
+        else{
+            $actionDefinition=Read-DynomaxJson -Path ([string]$plan.DefinitionPath)
+            $actionDefinitionCache[$definitionKey]=$actionDefinition
+        }
         [void](Assert-DynomaxStepExecutionPolicy -Step $step -ActionDefinition $actionDefinition -ActionVersionId ([Guid]$plan.ActionVersionId))
         $stepPlans[[string][int]$step.order]=$plan
     }
     Assert-DynomaxVersionPinnedSessionPlan -Steps $allSteps
+    Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage 'Preflight' -Message ("Workflow and Action-version preflight passed for {0} physical slots using {1} resolved Action source identities." -f $allSteps.Count,$resolvedActionIdentityCount) -CoreRunId $runId
 }
 catch{
     $preflightException=$_
@@ -398,6 +433,139 @@ catch{
     $preflightSummary.message=$_.Exception.Message
 }
 Write-DynomaxJson -Value $preflightSummary -Path (Join-Path $runDirectory 'preflight.json')
+
+function Get-DynomaxPerformancePercentile95 {
+    param([double[]]$Values)
+    if($null -eq $Values -or $Values.Count -eq 0){return 0.0}
+    $ordered=@($Values|Sort-Object)
+    $index=[Math]::Max(0,[Math]::Min($ordered.Count-1,[Math]::Ceiling($ordered.Count*0.95)-1))
+    return [Math]::Round([double]$ordered[$index],3)
+}
+
+function Read-DynomaxSafeJsonLines {
+    param([Parameter(Mandatory)][string]$Path)
+    $records=[System.Collections.Generic.List[object]]::new()
+    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){return @()}
+    foreach($line in Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue){
+        if([string]::IsNullOrWhiteSpace([string]$line)){continue}
+        try{$records.Add(($line|ConvertFrom-Json))}catch{}
+    }
+    return $records.ToArray()
+}
+
+function Write-DynomaxRunPerformanceSummary {
+    param(
+        [Parameter(Mandatory)][string]$RunDirectory,
+        [Parameter(Mandatory)][string]$OutputDirectory,
+        [Parameter(Mandatory)][int]$PhysicalActionSlotCount,
+        [Parameter(Mandatory)][int]$ResolvedActionIdentityCount
+    )
+    $diagnostics=@(Read-DynomaxSafeJsonLines -Path (Join-Path $RunDirectory 'core-diagnostics.jsonl'))
+    $metrics=@(Read-DynomaxSafeJsonLines -Path (Join-Path $RunDirectory 'orchestration-performance.jsonl'))
+    $parallel=@(Read-DynomaxSafeJsonLines -Path (Join-Path $RunDirectory 'parallel-execution.jsonl'))
+    $rootSummaryPath=Join-Path $OutputDirectory 'RunSummary.json'
+    $rootSummary=if(Test-Path -LiteralPath $rootSummaryPath -PathType Leaf){try{Read-DynomaxJson -Path $rootSummaryPath}catch{$null}}else{$null}
+
+    $timestampFor={param($record) try{[DateTimeOffset]::Parse([string]$record.timestampUtc).UtcDateTime}catch{$null}}
+    $startup=@($diagnostics|Where-Object{[string]$_.stage -eq 'Startup'}|Select-Object -First 1)
+    $preflightStart=@($diagnostics|Where-Object{[string]$_.stage -eq 'Preflight' -and [string]$_.message -match 'began'}|Select-Object -First 1)
+    $preflightPass=@($diagnostics|Where-Object{[string]$_.stage -eq 'Preflight' -and [string]$_.message -match 'passed for'}|Select-Object -Last 1)
+    $executionStart=@($diagnostics|Where-Object{[string]$_.stage -eq 'Execution'}|Select-Object -First 1)
+    $finalizationStart=@($diagnostics|Where-Object{[string]$_.stage -eq 'Finalization.Starting'}|Select-Object -First 1)
+    $startTime=if($startup.Count){&$timestampFor $startup[0]}else{$null}
+    $preflightStartTime=if($preflightStart.Count){&$timestampFor $preflightStart[0]}else{$null}
+    $executionStartTime=if($executionStart.Count){&$timestampFor $executionStart[0]}else{$null}
+    $preflightEndTime=if($preflightPass.Count){&$timestampFor $preflightPass[0]}else{$executionStartTime}
+    $finalizationStartTime=if($finalizationStart.Count){&$timestampFor $finalizationStart[0]}else{$null}
+    $durationMs={param($a,$b) if($null -eq $a -or $null -eq $b){return $null};return [Math]::Round(($b-$a).TotalMilliseconds,3)}
+
+    $operationMetrics=@($metrics|Group-Object -Property {
+        $phase=[string](Get-DynomaxPropertyValue -Object $_ -Name 'phase' -DefaultValue '')
+        ('{0}|{1}' -f [string]$_.operation,$phase)
+    }|ForEach-Object{
+        $items=@($_.Group)
+        $values=[double[]]@($items|ForEach-Object{[double]$_.durationMilliseconds})
+        $operation=[string]$items[0].operation
+        $phase=[string](Get-DynomaxPropertyValue -Object $items[0] -Name 'phase' -DefaultValue '')
+        [ordered]@{
+            operation=$operation
+            phase=$(if($phase){$phase}else{$null})
+            count=$values.Count
+            totalMilliseconds=[Math]::Round((($values|Measure-Object -Sum).Sum),3)
+            averageMilliseconds=[Math]::Round((($values|Measure-Object -Average).Average),3)
+            p95Milliseconds=Get-DynomaxPerformancePercentile95 -Values $values
+            maxMilliseconds=[Math]::Round((($values|Measure-Object -Maximum).Maximum),3)
+        }
+    }|Sort-Object operation,phase)
+
+    $topSlow=@($metrics|Where-Object{$null -ne $_.stepId}|Sort-Object {[double]$_.durationMilliseconds} -Descending|Select-Object -First 20|ForEach-Object{
+        [ordered]@{
+            operation=[string]$_.operation
+            phase=$(if(Get-DynomaxPropertyValue -Object $_ -Name 'phase' -DefaultValue $null){[string]$_.phase}else{$null})
+            stepOrder=$(if($null -ne (Get-DynomaxPropertyValue -Object $_ -Name 'stepOrder' -DefaultValue $null)){[int]$_.stepOrder}else{$null})
+            stepId=[string]$_.stepId
+            actionKey=$(if(Get-DynomaxPropertyValue -Object $_ -Name 'actionKey' -DefaultValue $null){[string]$_.actionKey}else{$null})
+            durationMilliseconds=[Math]::Round([double]$_.durationMilliseconds,3)
+        }
+    })
+
+    $parallelForks=@($parallel|ForEach-Object{
+        $fork=$_
+        $forkStart=try{[DateTimeOffset]::Parse([string]$fork.startedAtUtc).UtcDateTime}catch{$null}
+        $forkEnd=try{[DateTimeOffset]::Parse([string]$fork.endedAtUtc).UtcDateTime}catch{$null}
+        [ordered]@{
+            forkNodeId=[string]$fork.forkNodeId
+            maximumParallelism=[int]$fork.maximumParallelism
+            durationMilliseconds=&$durationMs $forkStart $forkEnd
+            branches=@($fork.branches|ForEach-Object{
+                $branchStart=try{[DateTimeOffset]::Parse([string]$_.startedAtUtc).UtcDateTime}catch{$null}
+                $branchEnd=try{[DateTimeOffset]::Parse([string]$_.endedAtUtc).UtcDateTime}catch{$null}
+                [ordered]@{
+                    index=[int]$_.index
+                    firstActionNodeId=$(if(Get-DynomaxPropertyValue -Object $_ -Name 'firstActionNodeId' -DefaultValue $null){[string]$_.firstActionNodeId}else{$null})
+                    firstActionKey=$(if(Get-DynomaxPropertyValue -Object $_ -Name 'firstActionKey' -DefaultValue $null){[string]$_.firstActionKey}else{$null})
+                    status=[string]$_.status
+                    durationMilliseconds=&$durationMs $branchStart $branchEnd
+                }
+            })
+        }
+    })
+
+    $selectedCount=if($null -ne $rootSummary){[int](Get-DynomaxPropertyValue -Object $rootSummary -Name 'actionCount' -DefaultValue 0)}else{0}
+    $summaryGeneratedTime=[DateTime]::UtcNow
+    $summaryGeneratedAtUtc=$summaryGeneratedTime.ToString('o')
+    $summary=[ordered]@{
+        schemaVersion=1
+        runId=$(if($null -ne $rootSummary){[string](Get-DynomaxPropertyValue -Object $rootSummary -Name 'runId' -DefaultValue '')}else{''})
+        workflowKey=$(if($null -ne $rootSummary){[string](Get-DynomaxPropertyValue -Object $rootSummary -Name 'workflowKey' -DefaultValue '')}else{''})
+        generatedAtUtc=$summaryGeneratedAtUtc
+        timing=[ordered]@{
+            startupToExecutionMilliseconds=&$durationMs $startTime $executionStartTime
+            preflightMilliseconds=&$durationMs $preflightStartTime $preflightEndTime
+            executionToFinalizationMilliseconds=&$durationMs $executionStartTime $finalizationStartTime
+            finalizationStartedAtUtc=$(if($null -ne $finalizationStartTime){$finalizationStartTime.ToString('o')}else{$null})
+            finalizationToSummaryMilliseconds=&$durationMs $finalizationStartTime $summaryGeneratedTime
+            terminalFinalizationTimingSource='RunContract.finalizationStartedAtUtc/completedAtUtc/finalizationDurationMilliseconds'
+        }
+        graph=[ordered]@{
+            physicalActionSlotCount=$PhysicalActionSlotCount
+            selectedActionVisitCount=$selectedCount
+            unselectedPhysicalSlotCount=[Math]::Max(0,$PhysicalActionSlotCount-$selectedCount)
+            resolvedActionSourceIdentityCount=$ResolvedActionIdentityCount
+        }
+        operationMetrics=$operationMetrics
+        parallelForks=$parallelForks
+        topSlowOrchestrationRecords=$topSlow
+        safety=[ordered]@{
+            containsInputOrOutputValues=$false
+            containsDomOrHttpBodies=$false
+            containsSecrets=$false
+            source='Sanitized aggregate timing and structural metadata only.'
+        }
+    }
+    Write-DynomaxJson -Value $summary -Path (Join-Path $OutputDirectory 'RunPerformanceSummary.json')
+    return $summary
+}
 
 $powerShell=if($PSVersionTable.PSEdition -eq 'Core'){$PSHOME+'\pwsh.exe'}else{$PSHOME+'\powershell.exe'}
 $streamProcessOutput=[bool](Get-DynomaxPropertyValue -Object $config.logging -Name 'streamProcessOutput' -DefaultValue $true)
@@ -758,13 +926,14 @@ finally{
     $finalizationStep='Starting'
     $finalizationFailureCode=$null
     $finalizationFailureMessage=$null
+    $finalizationStartedAtUtc=[DateTime]::UtcNow.ToString('o')
     function Set-DynomaxFinalizationStep {
         param([Parameter(Mandatory)][string]$Step)
         $script:finalizationStep=$Step
         Write-DynomaxCoreDiagnostic -Level 'Debug' -Stage ('Finalization.'+$Step) -Message ('Result finalization entered step '+$Step+'.') -CoreRunId $runId
         if($RunContractPath){
             try{
-                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'RUNNING' -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $Step -ResultZipPath $null -FailureCode $null -FailureMessage $null
+                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status 'RUNNING' -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $Step -ResultZipPath $null -FailureCode $null -FailureMessage $null -FinalizationStartedAtUtc $finalizationStartedAtUtc
             }catch{Write-Warning ("Finalization run-contract checkpoint failed at '{0}': {1}" -f $Step,(ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
         }
     }
@@ -952,6 +1121,13 @@ finally{
     }
     Write-DynomaxJson -Value $workflowManifest -Path (Join-Path $stagingRoot 'WorkflowManifest.json')
 
+    Set-DynomaxFinalizationStep -Step 'RunPerformanceSummary'
+    try{
+        [void](Write-DynomaxRunPerformanceSummary -RunDirectory $runDirectory -OutputDirectory $stagingRoot -PhysicalActionSlotCount ([int]$allSteps.Count) -ResolvedActionIdentityCount ([int]$resolvedActionIdentityCount))
+    }catch{
+        Write-Warning ("Sanitized Run performance summary could not be generated: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))
+    }
+
     Set-DynomaxFinalizationStep -Step 'CleanupTemporaryWorkspace'
     $cleanupRequested=[bool](Get-DynomaxPropertyValue -Object $config.execution -Name 'deleteTemporaryRunAfterSuccessfulIngestion' -DefaultValue $true)
     $temporaryCleanup=[ordered]@{requested=$cleanupRequested;attempted=$false;succeeded=$false;path=$runDirectory;reason=$null;verifiedAtUtc=$null}
@@ -1110,7 +1286,7 @@ finally{
         if($RunContractPath){
             $contractStatus=$(if($finalizationStatus -in @('Completed','Recovered')){$logicalStatus}else{'ERROR'})
             try{
-                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status $contractStatus -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $finalizationStep -ResultZipPath $resultZipPath -FailureCode $finalizationFailureCode -FailureMessage $finalizationFailureMessage
+                Write-DynomaxRunContractAtomic -Path $RunContractPath -RunId $runId -ProjectKey ([string]$workflow.projectKey) -WorkflowId ([string]$workflow.workflowId) -WorkflowVersionId $workflowVersionId -Status $contractStatus -LogicalStatus $logicalStatus -FinalizationStatus $finalizationStatus -FinalizationStep $finalizationStep -ResultZipPath $resultZipPath -FailureCode $finalizationFailureCode -FailureMessage $finalizationFailureMessage -FinalizationStartedAtUtc $finalizationStartedAtUtc
             }catch{Write-Warning ("Terminal run-contract checkpoint failed: {0}" -f (ConvertTo-DynomaxBoundedDiagnosticMessage -ErrorRecord $_))}
         }
     }
