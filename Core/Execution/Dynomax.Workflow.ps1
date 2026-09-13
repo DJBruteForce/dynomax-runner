@@ -109,11 +109,7 @@ function Assert-DynomaxCoreRuntimeContract {
             'result-evidence-compaction-v1' -notin $capabilities -or
             'structured-form-actions-v1' -notin $capabilities -or
             'bounded-parallel-fork-v1' -notin $capabilities -or
-            'same-run-user-interaction-checkpoint-v1' -notin $capabilities -or
-            'action-source-preflight-dedup-v1' -notin $capabilities -or
-            'post-action-context-reuse-v1' -notin $capabilities -or
-            'sanitized-run-performance-summary-v1' -notin $capabilities -or
-            'runtime-contract-canonical-text-hash-v1' -notin $capabilities) {
+            'same-run-user-interaction-checkpoint-v1' -notin $capabilities) {
             throw 'Runtime contract identity/capability mismatch.'
         }
 
@@ -124,28 +120,11 @@ function Assert-DynomaxCoreRuntimeContract {
             $entry = $matches[0]
             $expectedLength = [long](Get-DynomaxPropertyValue -Object $entry -Name 'length' -DefaultValue -1)
             $expectedSha = ([string](Get-DynomaxPropertyValue -Object $entry -Name 'sha256' -DefaultValue '')).ToLowerInvariant()
-            $hashMode = [string](Get-DynomaxPropertyValue -Object $entry -Name 'hashMode' -DefaultValue 'RawBytesV1')
             $relativeOsPath = $requiredPath.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
             $fullPath = Join-Path $DynomaxRoot $relativeOsPath
             if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { throw "Required continuation runtime file '$requiredPath' is missing." }
-            if ($hashMode -ceq 'RawBytesV1') {
-                $actualLength = [long](Get-Item -LiteralPath $fullPath).Length
-                $actualSha = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            }
-            elseif ($hashMode -ceq 'Utf8CanonicalCrLfV1') {
-                # Runtime source is UTF-8 text. Canonicalize line endings before integrity hashing so
-                # Git/provider LF materialization and Windows CRLF checkout represent one exact text
-                # identity without weakening any non-line-ending content check.
-                $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
-                $text = [System.IO.File]::ReadAllText($fullPath, $strictUtf8)
-                $canonicalText = (($text -replace "`r`n", "`n") -replace "`r", "`n") -replace "`n", "`r`n"
-                $canonicalBytes = $strictUtf8.GetBytes($canonicalText)
-                $actualLength = [long]$canonicalBytes.LongLength
-                $sha = [System.Security.Cryptography.SHA256]::Create()
-                try { $actualSha = ([System.BitConverter]::ToString($sha.ComputeHash($canonicalBytes))).Replace('-', '').ToLowerInvariant() }
-                finally { $sha.Dispose() }
-            }
-            else { throw "Runtime contract file '$requiredPath' declares unsupported hashMode '$hashMode'." }
+            $actualLength = [long](Get-Item -LiteralPath $fullPath).Length
+            $actualSha = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($expectedLength -lt 1 -or $expectedSha.Length -ne 64 -or $actualLength -ne $expectedLength -or $actualSha -cne $expectedSha) {
                 throw "Required continuation runtime file '$requiredPath' does not match the runtime contract."
             }
