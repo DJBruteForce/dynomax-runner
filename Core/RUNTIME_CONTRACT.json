@@ -42,7 +42,11 @@
     "bounded-parallel-fork-v1",
     "browser-optional-action-timeout-v1",
     "same-run-user-interaction-checkpoint-v1",
-    "user-interaction-response-materialization-v1"
+    "user-interaction-response-materialization-v1",
+    "action-source-preflight-dedup-v1",
+    "post-action-context-reuse-v1",
+    "sanitized-run-performance-summary-v1",
+    "runtime-contract-canonical-text-hash-v1"
   ],
   "files": [
     {
@@ -77,28 +81,33 @@
     },
     {
       "path": "Core/Execution/Dynomax.ControlFlow.ps1",
-      "length": 74530,
-      "sha256": "4c2029d440851020597f8fb24eaaf54f024d950484d53192098bff5475339b71"
+      "length": 76052,
+      "sha256": "dcaa1f70915a99eaa5e648ccc6af97abe51bc343a97ea3eeb77947b947824395",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Dynomax.Orchestration.ps1",
-      "length": 11443,
-      "sha256": "985861d322e4fa23031eccdbadf0a24be6c76bb94e27dc4089fcd5017f178368"
+      "length": 11980,
+      "sha256": "5842a13007bf8492c446261f6961ef8f2d2163c59aba8d7f4d7547fc1926628c",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Invoke-DynomaxRunOrchestrationHost.ps1",
-      "length": 9013,
-      "sha256": "d5f261b352fdcaec2945fecb7da8dcfda7dda42e65c3e518f6dddc28766a5ee9"
+      "length": 10136,
+      "sha256": "0cc85d0189bab80e91f17d38b02ee764947bbffb967ec194b03532459f219b3e",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Dynomax.Workflow.ps1",
-      "length": 88195,
-      "sha256": "ec7141236d8a373a1fd09402c7b22a29b4df959971774aab30fa8887728c367d"
+      "length": 90989,
+      "sha256": "3bd01e0483676ece0cd0a79ec9c3efda8a7b3566f6af692289caa86793ef738e",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Invoke-DynomaxWorkflow.ps1",
-      "length": 78891,
-      "sha256": "680a679030e981e958c7ef42f40845a463921734ce38f4c9f04f502b98dc6b90"
+      "length": 91171,
+      "sha256": "fcce813bcdba429a4b0842b3ef9232263b76f775be8bc81339936e1a60fb6440",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Dynomax.RuntimeContext.ps1",
@@ -107,8 +116,9 @@
     },
     {
       "path": "Core/Execution/Dynomax.Parallel.ps1",
-      "length": 22660,
-      "sha256": "623cff1093ccc054bee02cfb097a200397f49dc39cb2372b812a1050b14781cb"
+      "length": 23322,
+      "sha256": "ec1d967c6e5ff85831ed2ff45fe85133dff846ea63193d8615f66740d68ba56b",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Invoke-DynomaxParallelBranch.ps1",
