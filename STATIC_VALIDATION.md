@@ -25,3 +25,7 @@ Generated: 2026-07-31
 - Browser launch and live website reachability through the initial workflow.
 
 Static validation is not presented as live Windows, SQL or browser acceptance.
+
+## 2026-09-14 post-CHG-000596 preflight acceptance fixture
+
+This documentation-only marker exists solely to trigger one fresh governed Dynomax Runner exact-SHA deployment preflight after the CHG-000596 runtime redeploy. It changes no Runner, Workflow, or Shop AI runtime behavior.
