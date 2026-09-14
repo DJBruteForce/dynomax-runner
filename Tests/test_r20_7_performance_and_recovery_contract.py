@@ -14,6 +14,8 @@ INVOKE = (ROOT / "Core" / "Invoke-DynomaxWorkflow.ps1").read_text(encoding="utf-
 RESULTS = (ROOT / "Core" / "Results" / "Dynomax.Results.ps1").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / "Core" / "Execution" / "Dynomax.Workflow.ps1").read_text(encoding="utf-8")
 HOST = (ROOT / "Core" / "Execution" / "Invoke-DynomaxRunOrchestrationHost.ps1").read_text(encoding="utf-8")
+ORCHESTRATION = (ROOT / "Core" / "Execution" / "Dynomax.Orchestration.ps1").read_text(encoding="utf-8")
+PARALLEL = (ROOT / "Core" / "Execution" / "Dynomax.Parallel.ps1").read_text(encoding="utf-8")
 RESOURCE = (ROOT / "Core" / "Robot" / "Dynomax.resource").read_text(encoding="utf-8")
 MANIFEST_PATH = ROOT / "Core" / "RUNTIME_CONTRACT.json"
 CONTROL_FLOW = (ROOT / "Core" / "Execution" / "Dynomax.ControlFlow.ps1").read_text(encoding="utf-8")
@@ -131,9 +133,42 @@ def test_robot_schedule_and_result_definitions_are_compact_and_deduplicated():
     assert "Copy-DynomaxAttemptRecorderEvidence" in INVOKE
 
 
+def test_cm001002_preflight_context_reuse_and_safe_performance_summary_are_closed():
+    # Pinned Action source fingerprinting is deduplicated by immutable action/version identity,
+    # while policy validation and step metadata still execute for every physical slot.
+    assert "$pinnedActionPlanCache=@{}" in INVOKE
+    assert "$actionDefinitionCache=@{}" in INVOKE
+    assert "$pinnedActionPlanCache.ContainsKey($cacheKey)" in INVOKE
+    assert "Assert-DynomaxStepExecutionPolicy -Step $step" in INVOKE
+    assert "resolved Action source identities" in INVOKE
+
+    # Successful action persistence and AfterAction control flow reuse one already-parsed Context
+    # object inside the persistent host. Recovery/non-host paths retain the file-read fallback.
+    assert "$lastPersistedContext=$null" in HOST
+    assert "$contextForAdvance=if($mode -eq 'AfterAction'){$lastPersistedContext}else{$null}" in HOST
+    assert "-Context $contextForAdvance -SkipStateWrite" in HOST
+    assert "Result=[ordered]@{status=$status" in ORCHESTRATION
+    assert "Context=$context" in ORCHESTRATION
+    assert "$context=if($null -ne $Context){$Context}else{Read-DynomaxJson -Path $ContextPath}" in CONTROL_FLOW
+
+    # The ResultPack gains a root, value-free summary that existing agent-readable artifact tooling
+    # can fetch without exposing raw diagnostics JSONL, DOM, HTTP bodies or secret values.
+    assert "function Write-DynomaxRunPerformanceSummary" in INVOKE
+    assert "RunPerformanceSummary.json" in INVOKE
+    assert "containsInputOrOutputValues=$false" in INVOKE
+    assert "containsDomOrHttpBodies=$false" in INVOKE
+    assert "containsSecrets=$false" in INVOKE
+    assert "finalizationStartedAtUtc" in INVOKE
+    assert "finalizationDurationMilliseconds" in INVOKE
+    assert "terminalFinalizationTimingSource='RunContract.finalizationStartedAtUtc/completedAtUtc/finalizationDurationMilliseconds'" in INVOKE
+    assert "-FinalizationStartedAtUtc $finalizationStartedAtUtc" in INVOKE
+    assert "firstActionNodeId" in PARALLEL
+    assert "firstActionKey" in PARALLEL
+
+
 def test_runtime_contract_closes_the_exact_r20_7_overlay():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["runtimeRevision"] == "R20.9"
+    assert manifest["runtimeRevision"] == "R20.15"
     expected = {
         "run-contract-finalization-recovery-v1",
         "run-data-pool-delta-persistence-v1",
@@ -147,10 +182,21 @@ def test_runtime_contract_closes_the_exact_r20_7_overlay():
         "structured-form-actions-v1",
         "context-value-batch-fallback-v1",
         "core-diagnostics-jsonl-v1",
+        "action-source-preflight-dedup-v1",
+        "post-action-context-reuse-v1",
+        "sanitized-run-performance-summary-v1",
+        "runtime-contract-canonical-text-hash-v1",
     }
     assert expected.issubset(set(manifest["capabilities"]))
+    assert "Utf8CanonicalCrLfV1" in WORKFLOW
     for entry in manifest["files"]:
         payload = (ROOT / entry["path"]).read_bytes()
+        mode = entry.get("hashMode", "RawBytesV1")
+        if mode == "Utf8CanonicalCrLfV1":
+            text = payload.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+            payload = text.replace("\n", "\r\n").encode("utf-8")
+        else:
+            assert mode == "RawBytesV1"
         assert entry["length"] == len(payload)
         assert entry["sha256"] == hashlib.sha256(payload).hexdigest()
 
