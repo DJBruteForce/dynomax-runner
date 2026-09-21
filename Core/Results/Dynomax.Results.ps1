@@ -328,9 +328,14 @@ function ConvertTo-DynomaxSafeRunDataPoolStep {
         $classification=[string](Get-DynomaxPropertyValue -Object $output -Name 'classification' -DefaultValue 'Normal')
         $persist=[bool](Get-DynomaxPropertyValue -Object $output -Name 'persistInResult' -DefaultValue $true)
         $canExpose=$available -and $classification -eq 'Normal' -and $persist
+        $safeValue=$null
+        if($canExpose){
+            $valueProperty=$output.PSObject.Properties['value']
+            if($null -ne $valueProperty){$safeValue=$valueProperty.Value}
+        }
         Set-DynomaxContextObjectProperty -Object $safeOutputs -Name ([string]$outputProperty.Name) -Value ([pscustomobject][ordered]@{
             available=$available
-            value=$(if($canExpose){Get-DynomaxPropertyValue -Object $output -Name 'value' -DefaultValue $null}else{$null})
+            value=$safeValue
             classification=$classification
             persistInResult=$persist
             redacted=(-not $canExpose -and $available)
