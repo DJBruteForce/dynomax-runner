@@ -76,8 +76,9 @@
     },
     {
       "path": "Core/Results/Dynomax.Results.ps1",
-      "length": 65642,
-      "sha256": "1ea7519895d57bafdcec22b14de4c0a20260d8a806b22679952c6fbde712e5f3"
+      "length": 66873,
+      "sha256": "c9784e7ca7b18f091d04486dc85a3c7ecf7a0897841e350b492b35adeb767cc3",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Execution/Dynomax.ControlFlow.ps1",
