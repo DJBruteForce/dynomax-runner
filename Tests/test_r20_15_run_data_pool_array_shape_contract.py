@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,3 +32,17 @@ def test_safe_run_data_pool_projection_keeps_existing_exposure_gate():
     assert "if($canExpose){" in safe_step
     assert "$canExpose=$available -and $classification -eq 'Normal' -and $persist" in safe_step
     assert "redacted=(-not $canExpose -and $available)" in safe_step
+
+
+def test_results_runtime_contract_is_line_ending_stable():
+    manifest = json.loads((ROOT / "Core" / "RUNTIME_CONTRACT.json").read_text(encoding="ascii"))
+    entry = next(item for item in manifest["files"] if item["path"] == "Core/Results/Dynomax.Results.ps1")
+
+    assert entry["hashMode"] == "Utf8CanonicalCrLfV1"
+
+    text = (ROOT / entry["path"]).read_text(encoding="ascii")
+    canonical_text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
+    canonical_bytes = canonical_text.encode("utf-8")
+
+    assert len(canonical_bytes) == entry["length"]
+    assert hashlib.sha256(canonical_bytes).hexdigest() == entry["sha256"]
