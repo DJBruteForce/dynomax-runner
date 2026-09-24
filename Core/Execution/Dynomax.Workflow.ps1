@@ -80,7 +80,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.15 overlay before executing compiler 1.19.23 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Install the complete Dynomax Core 1.0.20 R20.16 overlay before executing compiler 1.19.23 publications.'
         throw $exception
     }
 
@@ -91,7 +91,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $runtimeRevision = [string](Get-DynomaxPropertyValue -Object $manifest -Name 'runtimeRevision' -DefaultValue '')
         $compilerVersions = @((Get-DynomaxPropertyValue -Object $manifest -Name 'compilerVersions' -DefaultValue @()) | ForEach-Object { [string]$_ })
         $capabilities = @((Get-DynomaxPropertyValue -Object $manifest -Name 'capabilities' -DefaultValue @()) | ForEach-Object { [string]$_ })
-        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.15' -or
+        if ($schemaVersion -ne 1 -or $coreVersion -cne '1.0.20' -or $runtimeRevision -cne 'R20.16' -or
             '1.19.15' -notin $compilerVersions -or
             '1.19.23' -notin $compilerVersions -or
             'continuation-decision-v1' -notin $capabilities -or
@@ -113,7 +113,8 @@ function Assert-DynomaxCoreRuntimeContract {
             'action-source-preflight-dedup-v1' -notin $capabilities -or
             'post-action-context-reuse-v1' -notin $capabilities -or
             'sanitized-run-performance-summary-v1' -notin $capabilities -or
-            'runtime-contract-canonical-text-hash-v1' -notin $capabilities) {
+            'runtime-contract-canonical-text-hash-v1' -notin $capabilities -or
+            'runtime-deferred-network-target-policy-v1' -notin $capabilities) {
             throw 'Runtime contract identity/capability mismatch.'
         }
 
@@ -158,7 +159,7 @@ function Assert-DynomaxCoreRuntimeContract {
         $exception.Data['DynomaxArtifactType'] = 'CoreRuntimeContract'
         $exception.Data['DynomaxArtifactPath'] = 'Core/RUNTIME_CONTRACT.json'
         $exception.Data['DynomaxRequiredCoreVersion'] = '1.0.20'
-        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.15 overlay before executing compiler 1.19.23 publications.'
+        $exception.Data['DynomaxCorrectiveAction'] = 'Reinstall the complete Dynomax Core 1.0.20 R20.16 overlay before executing compiler 1.19.23 publications.'
         throw $exception
     }
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "coreVersion": "1.0.20",
-  "runtimeRevision": "R20.15",
+  "runtimeRevision": "R20.16",
   "compilerVersions": [
     "1.19.15",
     "1.19.16",
@@ -46,7 +46,8 @@
     "action-source-preflight-dedup-v1",
     "post-action-context-reuse-v1",
     "sanitized-run-performance-summary-v1",
-    "runtime-contract-canonical-text-hash-v1"
+    "runtime-contract-canonical-text-hash-v1",
+    "runtime-deferred-network-target-policy-v1"
   ],
   "files": [
     {
@@ -61,8 +62,9 @@
     },
     {
       "path": "Core/Robot/DynomaxContext.py",
-      "length": 20101,
-      "sha256": "ce564e68a1183659c35d3f369e6b1cb6b9bfec7e932144f74d0145ebda9f70ce"
+      "length": 23073,
+      "sha256": "f3beb6336116e370808dca82cedece729f37ab032bda8d08b0a3d4d1c46a9b20",
+      "hashMode": "Utf8CanonicalCrLfV1"
     },
     {
       "path": "Core/Robot/DynomaxDiscovery.py",
@@ -100,8 +102,8 @@
     },
     {
       "path": "Core/Execution/Dynomax.Workflow.ps1",
-      "length": 90989,
-      "sha256": "3bd01e0483676ece0cd0a79ec9c3efda8a7b3566f6af692289caa86793ef738e",
+      "length": 91071,
+      "sha256": "e70a7939fcdd15a9d230c651f979db5251357ea23d1fcf629f8172eee628f83c",
       "hashMode": "Utf8CanonicalCrLfV1"
     },
     {

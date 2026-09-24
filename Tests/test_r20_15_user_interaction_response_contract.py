@@ -13,7 +13,7 @@ def read(rel: str) -> str:
 def test_runtime_contract_identity_and_hash_closure():
     manifest = json.loads(read("Core/RUNTIME_CONTRACT.json"))
     assert manifest["coreVersion"] == "1.0.20"
-    assert manifest["runtimeRevision"] == "R20.15"
+    assert manifest["runtimeRevision"] == "R20.16"
     assert "1.19.20" in manifest["compilerVersions"]
     assert "1.19.22" in manifest["compilerVersions"]
     assert "1.19.23" in manifest["compilerVersions"]
@@ -22,6 +22,12 @@ def test_runtime_contract_identity_and_hash_closure():
     for item in manifest["files"]:
         p = ROOT / item["path"]
         data = p.read_bytes()
+        mode = item.get("hashMode", "RawBytesV1")
+        if mode == "Utf8CanonicalCrLfV1":
+            text = data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+            data = text.replace("\n", "\r\n").encode("utf-8")
+        else:
+            assert mode == "RawBytesV1", item["path"]
         assert len(data) == item["length"], item["path"]
         assert hashlib.sha256(data).hexdigest() == item["sha256"], item["path"]
 

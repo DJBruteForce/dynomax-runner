@@ -11,6 +11,7 @@ import copy
 import json
 import os
 import tempfile
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -119,6 +120,52 @@ def _resolve_runtime_value(context: Dict[str, Any], entry: Dict[str, Any], name:
     return value
 
 
+def _is_runtime_network_target_input(input_name: str) -> bool:
+    normalized = str(input_name or "").replace("_", "").replace("-", "").lower()
+    return any(token in normalized for token in ("url", "uri", "endpoint", "host", "baseaddress"))
+
+
+def _normalize_runtime_http_origin(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: A deferred network target is empty.")
+    try:
+        parsed = urllib.parse.urlsplit(text)
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: A deferred network target is not a valid absolute HTTP(S) URL.") from exc
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: A deferred network target is not a valid absolute HTTP(S) URL.")
+    try:
+        host = parsed.hostname.encode("idna").decode("ascii").lower()
+    except UnicodeError as exc:
+        raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: A deferred network target contains an invalid hostname.") from exc
+    rendered_host = f"[{host}]" if ":" in host else host
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    suffix = "" if port in {None, default_port} else f":{port}"
+    return f"{parsed.scheme.lower()}://{rendered_host}{suffix}"
+
+
+def _validate_runtime_network_target(context: Dict[str, Any], input_name: str, value: Any) -> None:
+    if not _is_runtime_network_target_input(input_name):
+        return
+    origin = _normalize_runtime_http_origin(value)
+    policy = context.get("runtimePolicy") or {}
+    allowed_raw = policy.get("allowedOrigins") if isinstance(policy, dict) else None
+    if not isinstance(allowed_raw, list):
+        raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: The effective runtime origin policy is unavailable.")
+    allowed: set[str] = set()
+    for item in allowed_raw:
+        try:
+            allowed.add(_normalize_runtime_http_origin(item))
+        except RuntimeError as exc:
+            raise RuntimeError("DMX-AUTO-HOST-BOUNDARY: The effective runtime origin policy is invalid.") from exc
+    if origin not in allowed:
+        raise RuntimeError(
+            f"DMX-AUTO-HOST-BOUNDARY: Deferred network target origin '{origin}' is outside the effective Environment and Automation Session boundary."
+        )
+
+
 def _activate_inputs(context: Dict[str, Any], step_id: str) -> None:
     if context.get("activeStepInput") is not None:
         raise RuntimeError("A Dynomax step-input scope is already active; the previous Action did not restore its context.")
@@ -151,6 +198,13 @@ def _activate_inputs(context: Dict[str, Any], step_id: str) -> None:
             step_values[input_name] = _resolve_runtime_value(context, entry, name, 1)
         else:
             raise RuntimeError(f"Deferred Dynomax binding kind '{kind}' is not supported by this Core release.")
+    for binding in entry.get("bindings") or []:
+        kind = str(binding.get("kind") or "")
+        if kind not in {"StepOutput", "RuntimeValue", "RuntimeInput"}:
+            continue
+        input_name = str(binding.get("inputName") or "")
+        if input_name and input_name in step_values:
+            _validate_runtime_network_target(context, input_name, step_values[input_name])
     step_secret_keys = {str(value) for value in (entry.get("secretKeys") or [])}
     step_sensitive_keys = {str(value) for value in (entry.get("sensitiveKeys") or [])} | deferred_sensitive_keys
     prior_values: Dict[str, Any] = {}
@@ -329,7 +383,9 @@ def refresh_runtime_step_inputs(context_path: str, step_id: str, attempt_number:
         input_name, name = str(binding.get("inputName") or ""), str(binding.get("name") or "")
         if not input_name or not name:
             raise RuntimeError("A Dynomax runtime-value binding is incomplete.")
-        values[input_name] = _resolve_runtime_value(context, entry, name, int(attempt_number)); changed = True
+        values[input_name] = _resolve_runtime_value(context, entry, name, int(attempt_number))
+        _validate_runtime_network_target(context, input_name, values[input_name])
+        changed = True
     if changed:
         runtime_values = context.setdefault("runtimeValues", {})
         runtime_values["AttemptNumber"] = max(1, int(attempt_number))
