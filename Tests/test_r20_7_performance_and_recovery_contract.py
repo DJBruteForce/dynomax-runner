@@ -168,7 +168,7 @@ def test_cm001002_preflight_context_reuse_and_safe_performance_summary_are_close
 
 def test_runtime_contract_closes_the_exact_r20_7_overlay():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["runtimeRevision"] == "R20.15"
+    assert manifest["runtimeRevision"] == "R20.16"
     expected = {
         "run-contract-finalization-recovery-v1",
         "run-data-pool-delta-persistence-v1",
